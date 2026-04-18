@@ -1,0 +1,33 @@
+
+  <!-- Модальное окно входа/регистрации -->
+  <div id="authModal" class="modal" style="display:none;">
+    <div class="modal-header">
+      <h2>🐋 Косатка Клик</h2>
+    </div>
+    <div class="modal-content">
+      <div id="loginForm">
+        <h3>Вход</h3>
+        <input type="text" id="loginUsername" placeholder="Имя пользователя" style="width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;">
+        <input type="password" id="loginPassword" placeholder="Пароль" style="width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;">
+        <button class="action-btn" onclick="login()" style="width:100%;margin-top:10px;">🔑 Войти</button>
+        <p style="text-align:center;margin-top:15px;">
+          Нет аккаунта? <a href="#" onclick="showRegister()">Создать</a>
+        </p>
+      </div>
+      <div id="registerForm" style="display:none;">
+        <h3>Регистрация</h3>
+        <input type="text" id="registerUsername" placeholder="Имя пользователя" style="width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;">
+        <input type="password" id="registerPassword" placeholder="Пароль (минимум 4 символа)" style="width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;">
+        <input type="password" id="registerConfirmPassword" placeholder="Повторите пароль" style="width:100%;padding:10px;margin:10px 0;border-radius:5px;border:none;">
+        <button class="action-btn" onclick="register()" style="width:100%;margin-top:10px;">📝 Создать аккаунт</button>
+        <p style="text-align:center;margin-top:15px;">
+          Уже есть аккаунт? <a href="#" onclick="showLogin()">Войти</a>
+        </p>
+      </div>
+      <div id="authUserInfo" style="display:none;text-align:center;padding:20px;">
+        <h3>Добро пожаловать, <span id="authUsername">Player</span>!</h3>
+        <p style="color:#888;">Автосохранение включено</p>
+        <button class="action-btn" id="authLogoutBtn" onclick="logout()" style="margin-top:20px;">🚪 Выйти</button>
+      </div>
+    </div>
+  </div>

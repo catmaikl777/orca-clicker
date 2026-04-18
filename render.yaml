@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: orca-clicker-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: FRONTEND_URL
+        scope: build
+      - key: DATABASE_URL
+        fromDatabase: orca-clicker-db
+      - key: BACKUP_DIR
+        value: /opt/render/project/backups
+      - key: MAX_BACKUPS
+        value: "7"
+      
+    # HTTPS сертификаты (автоматически на Render)
+    healthCheckPath: /health
+    
+    # Auto-deploy на каждый push в main
+    autoDeploy: true
+    
+    # Игнорировать файлы
+    ignore: |
+      .git
+      .gitignore
+      node_modules
+      npm-debug.log
+      .env
+      .DS_Store
+      *.md
+      backups/
+
+# PostgreSQL база данных
+databases:
+  - name: orca-clicker-db
+    databaseName: orca_clicker
+    user: orca_user
+    plan: free

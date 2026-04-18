@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐋 Косатка Клик!</title>
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-ocean">
+  <!-- === ЭКРАН ВХОДА/РЕГИСТРАЦИИ === -->
+  <div id="authScreen" class="auth-screen active">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1>🐋 Косатка Клик</h1>
+          <p>Сохраняй свой прогресс в аккаунте</p>
+        </div>
+        
+        <div id="authForms">
+          <!-- Форма входа -->
+          <form id="loginForm" class="auth-form active">
+            <h2>Вход в Аккаунт</h2>
+            <div class="form-group">
+              <label for="loginUsername">Имя пользователя:</label>
+              <input type="text" id="loginUsername" placeholder="Введите имя" required>
+            </div>
+            <div class="form-group">
+              <label for="loginPassword">Пароль:</label>
+              <input type="password" id="loginPassword" placeholder="Введите пароль" required>
+            </div>
+            <button type="submit" class="auth-btn">Войти</button>
+            <p class="auth-toggle">Нет аккаунта? <a href="#" onclick="toggleAuthForms()">Создать</a></p>
+            <div id="authError" class="auth-error" style="display: none;"></div>
+          </form>
+          
+          <!-- Форма регистрации -->
+          <form id="registerForm" class="auth-form">
+            <h2>Создать Аккаунт</h2>
+            <div class="form-group">
+              <label for="regUsername">Имя пользователя:</label>
+              <input type="text" id="regUsername" placeholder="3-16 символов" required minlength="3" maxlength="16">
+            </div>
+            <div class="form-group">
+              <label for="regPassword">Пароль:</label>
+              <input type="password" id="regPassword" placeholder="Минимум 4 символа" required minlength="4">
+            </div>
+            <div class="form-group">
+              <label for="regPasswordConfirm">Повторить пароль:</label>
+              <input type="password" id="regPasswordConfirm" placeholder="Повторите пароль" required>
+            </div>
+            <button type="submit" class="auth-btn">Создать</button>
+            <p class="auth-toggle">Уже есть аккаунт? <a href="#" onclick="toggleAuthForms()">Войти</a></p>
+            <div id="authError" class="auth-error" style="display: none;"></div>
+          </form>
+          
+          <!-- Форма пропуска (локальная игра) -->
+          <div class="auth-form auth-guest">
+            <h2>Или продолжи без аккаунта</h2>
+            <p style="margin-bottom: 20px; opacity: 0.8;">Прогресс сохранится только локально на этом устройстве</p>
+            <button onclick="playAsGuest()" class="auth-btn-guest">Играть без аккаунта</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === ОСНОВНАЯ ИГРА === -->
+  <div id="gameScreen" class="game-screen">
+    <div id="clickEffects" class="click-effects"></div>
+
+    <!-- Фоновые изображения -->
+    <div class="bg-layer bg-ocean" style="display:block"></div>
+    <div class="bg-layer bg-white"></div>
+    <div class="bg-layer bg-dark"></div>
+
+    <div class="game-container">
+      <!-- Верхняя панель -->
+      <header class="top-bar">
+        <div class="account-info">
+          <span id="accountNameDisplay" class="account-name">🐋 Косатка</span>
+          <button class="logout-btn" onclick="logout()">Выход</button>
+        </div>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-icon">🐋</span>
+            <span class="stat-label">Косатки</span>
+            <span id="coins" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">⭐</span>
+            <span class="stat-label">Уровень</span>
+            <span id="level" class="stat-value">1</span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">👆</span>
+            <span class="stat-label">За Клик</span>
+            <span id="perClick" class="stat-value">1</span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">⚡</span>
+            <span class="stat-label">За Секунду</span>
+            <span id="perSecond" class="stat-value">0</span>
+          </div>
+        </div>
+      </header>
+
+    <!-- Главная зона клика -->
+    <main class="click-area">
+      <div id="bonus" class="bonus hidden">
+        <img src="bonus.png" alt="Бонус" onerror="this.style.display='none'">
+      </div>
+      <div id="fishBonus" class="bonus fish-bonus hidden">
+        <img src="fish.png" alt="Рыбка" onerror="this.style.display='none'">
+      </div>
+      <div id="x2Bonus" class="bonus x2-bonus hidden">
+        <div style="font-size: 70px; text-shadow: 0 0 40px gold;">✨</div>
+        <div style="position: absolute; font-size: 28px; font-weight: bold; color: gold; text-shadow: 0 0 20px gold;">x2</div>
+      </div>
+      <div id="x2Timer" class="x2-timer hidden" style="position: absolute; top: 20px; right: 20px; background: linear-gradient(145deg, rgba(255,215,0,0.3), rgba(255,215,0,0.15)); border: 2px solid gold; border-radius: 20px; padding: 10px 20px; font-size: 16px; font-weight: bold; color: gold; text-shadow: 0 0 15px gold; z-index: 20;">
+        ⏱️ <span id="x2TimerValue">30</span>s x2
+      </div>
+      <div id="clicker" class="clicker">
+        <img src="normal.png" alt="Кошка-косатка" id="orcaImg" onerror="this.style.display='none';document.getElementById('orcaEmoji').style.display='block'">
+        <span id="orcaEmoji" style="display:none;font-size:150px">🐋</span>
+      </div>
+    </main>
+
+    <!-- Меню кнопок -->
+    <nav class="menu">
+      <button class="menu-btn" onclick="showModal('shop')">🛒 Магазин</button>
+      <button class="menu-btn" onclick="showModal('quests')">📋 Квесты</button>
+      <button class="menu-btn" onclick="showModal('skills')">🌳 Дерево</button>
+      <button class="menu-btn" onclick="showModal('achievements')">🏆 Достижения</button>
+      <button class="menu-btn" onclick="showModal('stats')">📈 Статистика</button>
+      <button class="menu-btn" onclick="showModal('leaderboard')">📊 Лидеры</button>
+      <button class="menu-btn" onclick="showModal('battle')">⚔️ PvP</button>
+      <button class="menu-btn" onclick="showModal('clans')">👥 Кланы</button>
+      <button class="menu-btn" onclick="openEventModal()">🎉 Ивент</button>
+    <button class="menu-btn" onclick="showModal('settings')">⚙️ Настройки</button>
+    <button class="menu-btn" onclick="showModal('stats')">📊 Статистика</button>
+    <p id="saveStatus" style="font-size:11px;color:#888;margin-top:5px;">💾 Автосохранение включено</p>
+  </nav>
+  </div>
+
+  <!-- Модальные окна -->
+  <div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()"></div>
+
+  <!-- Магазин -->
+  <div id="shop" class="modal">
+    <div class="modal-header">
+      <h2>🛒 Магазин</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <p>Ваши монеты: <span id="shopCoins">0</span></p>
+      <div class="shop-tabs">
+        <button class="shop-tab active" onclick="switchShopTab('upgrades', this)">⚡ Улучшения</button>
+        <button class="shop-tab" onclick="switchShopTab('skins', this)">🎨 Скины</button>
+        <button class="shop-tab" onclick="switchShopTab('boxes', this)">🎁 Боксы</button>
+      </div>
+      <div id="shopUpgrades" class="shop-items"></div>
+      <div id="shopSkins" class="skins-grid" style="display:none"></div>
+      <div id="shopBoxes" class="shop-boxes" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Статистика игрока -->
+  <div id="stats" class="modal">
+    <div class="modal-header">
+      <h2>📊 Статистика</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Всего кликов:</span>
+          <span id="statClicks" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Всего косаток:</span>
+          <span id="statTotalCoins" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Время в игре:</span>
+          <span id="statPlayTime" class="stat-value">0м</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Достижений:</span>
+          <span id="statAchievements" class="stat-value">0/0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Квесты -->
+  <div id="quests" class="modal">
+    <div class="modal-header">
+      <h2>📋 Квесты</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div id="questList" class="quest-list"></div>
+    </div>
+  </div>
+
+  <!-- Дерево навыков -->
+  <div id="skills" class="modal">
+    <div class="modal-header">
+      <h2>🌳 Дерево навыков</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div id="skillTree" class="skill-tree"></div>
+    </div>
+  </div>
+
+  <!-- Достижения -->
+  <div id="achievements" class="modal">
+    <div class="modal-header">
+      <h2>🏆 Достижения</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div id="achievementList" class="achievement-list"></div>
+    </div>
+  </div>
+
+  <!-- Лидерборд -->
+  <div id="leaderboard" class="modal">
+    <div class="modal-header">
+      <h2>📊 Таблица лидеров</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <table id="leaderboardTable" class="leaderboard-table">
+        <thead><tr><th>#</th><th>Игрок</th><th>Косатки</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PvP Баттл -->
+  <div id="battle" class="modal">
+    <div class="modal-header">
+      <h2>⚔️ Онлайн Баттл</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div id="battleLobby">
+        <button class="action-btn" onclick="findBattle()">🔍 Найти соперника</button>
+        <p id="battleStatus">Нажмите кнопку для поиска соперника</p>
+      </div>
+      <div id="battleArena" class="hidden">
+        <div class="battle-timer">⏱️ <span id="battleTimer">30</span></div>
+        <div class="battle-players">
+          <div class="battle-player">
+            <h3>Вы</h3>
+            <div id="myBattleScore" class="battle-score">0</div>
+            <div id="myCPS" class="battle-cps">0 CPS</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="battle-player">
+            <h3 id="opponentName">Соперник</h3>
+            <div id="opponentScore" class="battle-score">0</div>
+            <div id="opponentCPS" class="battle-cps">0 CPS</div>
+          </div>
+        </div>
+        <button id="battleClickBtn" class="battle-click-btn">🐋 КЛИК!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Кланы -->
+  <div id="clans" class="modal">
+    <div class="modal-header">
+      <h2>👥 Кланы</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div class="clan-actions">
+        <button class="action-btn" onclick="createClan()">🏰 Создать клан</button>
+        <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="leaveClan()">🚪 Выйти из клана</button>
+      </div>
+      <div id="clanList" class="clan-list"></div>
+      <h3 style="margin-top:20px">Участники вашего клана</h3>
+      <div id="clanMembersList" class="clan-members-list"></div>
+    </div>
+  </div>
+
+  <!-- Ивент -->
+  <div id="eventModal" class="modal">
+    <div class="modal-header">
+      <h2>🎉 Сезонное Событие</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div class="event-info">
+        <div class="event-timer">
+          <span>⏰ До конца ивента:</span>
+          <strong id="eventTimerDisplay">-- дн.</strong>
+        </div>
+        <div class="event-coins">
+          <span>🎫 Ваши билет:</span>
+          <strong id="eventCoinsDisplay">0</strong>
+        </div>
+      </div>
+      <div class="event-rewards">
+        <h3>🏆 Награды топ-3 игрокам:</h3>
+        <div class="reward-item">🥇 1 место: <strong>50,000</strong> косаток</div>
+        <div class="reward-item">🥈 2 место: <strong>25,000</strong> косаток</div>
+        <div class="reward-item">🥉 3 место: <strong>10,000</strong> косаток</div>
+      </div>
+      <div class="event-rewards">
+        <h3>🏰 Награды топ-3 кланам:</h3>
+        <div class="reward-item">🥇 1 место: <strong>50,000</strong> каждому участнику</div>
+        <div class="reward-item">🥈 2 место: <strong>25,000</strong> каждому участнику</div>
+        <div class="reward-item">🥉 3 место: <strong>10,000</strong> каждому участнику</div>
+      </div>
+      <h3 style="margin-top:20px">📊 Топ игроков ивента</h3>
+      <div id="eventLeaderboard" class="event-leaderboard"></div>
+      <div style="margin-top:20px;padding:15px;background:rgba(76,175,80,0.2);border-radius:10px;">
+        <strong>💡 Как получить билеты:</strong>
+        <ul style="margin:10px 0 0 20px;font-size:13px;">
+          <li>Кликайте по косатке (1 билет за 100 кликов)</li>
+          <li>Участвуйте в PvP баттлах (1 билет за 10 кликов)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Настройки -->
+  <div id="settings" class="modal">
+    <div class="modal-header">
+      <h2>⚙️ Настройки</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div class="settings-section">
+        <h3>🎵 Аудио</h3>
+        <label class="toggle">
+          <input type="checkbox" id="bgMusicToggle" onchange="toggleBgMusic()">
+          <span>Фоновая Музыка</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="sfxToggle" checked onchange="saveSfxSetting()">
+          <span>🔊 Звуковые Эффекты</span>
+        </label>
+        <label>
+          Громкость: <input type="range" id="volume" min="0" max="100" value="50" oninput="setVolume(this.value)">
+        </label>
+      </div>
+      <div class="settings-section">
+        <h3>🖼️ Фон</h3>
+        <div class="bg-options">
+          <button class="bg-btn active" onclick="setBg('bg-ocean', this)">🌊 Океан</button>
+          <button class="bg-btn" onclick="setBg('bg-white', this)">☀️ Белый</button>
+          <button class="bg-btn" onclick="setBg('bg-dark', this)">🌙 Тёмный</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="resetGame()">🗑️ Сбросить прогресс</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Аудио -->
+  <audio id="bgMusic" src="bg_music.mp3" loop></audio>
+  <audio id="clickSound" src="click.mp3"></audio>
+  <audio id="mainmeow1" src="mainmeow1.mp3"></audio>
+  <audio id="mainmeow2" src="mainmeow2.mp3"></audio>
+  <audio id="mainmeow3" src="mainmeow3.mp3"></audio>
+  <audio id="mainmeow4" src="mainmeow4.mp3"></audio>
+  <audio id="critSound" src="crit.mp3"></audio>
+  <audio id="bonusSound" src="bonusmeow.mp3"></audio>
+  <audio id="buySound" src="buy.mp3"></audio>
+  <audio id="levelSound" src="level.mp3"></audio>
+
+  <script src="auth-client.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
