@@ -15,7 +15,7 @@ async function verifyPassword(password, hash) {
 }
 
 // Регистрация нового аккаунта
-async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard) {
+async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB) {
   const { username, password } = data;
   
   if (!username || !password) {
@@ -56,6 +56,9 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     }
     
     players.set(accountId, { ...playerData, ws });
+    updateLeaderboard(playerData);
+    saveDB();
+    savePlayerToDB(accountId);
     
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
@@ -68,7 +71,6 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     console.log(`✅ Вход: ${account.username}`);
     broadcastLeaderboard();
     broadcastEventInfo();
-    saveDB();
     
   } else {
     // Создаём новый аккаунт
@@ -99,6 +101,9 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     ws.authenticated = true;
     ws.accountId = accountId;
     players.set(accountId, { ...playerData, ws });
+    updateLeaderboard(playerData);
+    saveDB();
+    savePlayerToDB(accountId);
     
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
@@ -112,7 +117,6 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     console.log(`🆕 Регистрация: ${username}`);
     broadcastLeaderboard();
     broadcastEventInfo();
-    saveDB();
   }
 }
 

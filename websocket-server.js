@@ -45,33 +45,98 @@ function saveDB() {
   } catch (e) {
     console.error('Ошибка сохранения БД:', e.message);
   }
-  // Async sync to PostgreSQL if available
-  if (dbAdapter.usePostgreSQL) {
-    Object.entries(db.accounts || {}).forEach(([id, acc]) => dbAdapter.saveAccount(acc).catch(() => {}));
-    Object.entries(db.players || {}).forEach(([id, p]) => dbAdapter.savePlayer({ ...p, accountId: id }).catch(() => {}));
-  }
+}
+
+// Сохранение одного игрока в PostgreSQL
+function savePlayerToDB(accountId) {
+  if (!dbAdapter.usePostgreSQL) return;
+  const p = db.players[accountId];
+  if (!p) return;
+  dbAdapter.savePlayer({ ...p, accountId }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
+  const acc = db.accounts[accountId];
+  if (acc) dbAdapter.saveAccount(acc).catch(() => {});
 }
 
 // Инициализация БД
 let db = loadDB();
 
 // Инициализация адаптера (PostgreSQL или file-based)
-dbAdapter.init().catch(err => console.error('DB adapter init error:', err.message));
+dbAdapter.init().then(async () => {
+  console.log('✅ DB адаптер готов');
+  if (dbAdapter.usePostgreSQL) {
+    // Загружаем аккаунты и игроков из PostgreSQL в память
+    try {
+      const accounts = await dbAdapter.getAccounts();
+      const rows = await dbAdapter.pool.query('SELECT * FROM players');
+      db.accounts = {};
+      rows.rows.forEach(row => {
+        db.accounts[row.account_id] = {
+          id: row.account_id,
+          username: accounts[row.account_id]?.username || row.name,
+          passwordHash: accounts[row.account_id]?.password_hash,
+          createdAt: accounts[row.account_id]?.created_at,
+          lastLogin: accounts[row.account_id]?.last_login
+        };
+        db.players[row.id] = {
+          id: row.id,
+          name: row.name,
+          coins: row.coins,
+          totalCoins: row.total_coins,
+          perClick: row.per_click,
+          perSecond: row.per_second,
+          clicks: row.clicks,
+          level: row.level,
+          skills: row.skills || {},
+          achievements: row.achievements || [],
+          skins: row.skins || { normal: true },
+          currentSkin: row.current_skin,
+          clan: row.clan,
+          eventRewards: row.event_rewards,
+          pendingBoxes: row.pending_boxes || []
+        };
+        updateLeaderboard(db.players[row.id]);
+      });
+      // Загружаем аккаунты отдельно (у кого нет игрока)
+      Object.entries(accounts).forEach(([id, acc]) => {
+        db.accounts[id] = {
+          id,
+          username: acc.username,
+          passwordHash: acc.password_hash,
+          createdAt: acc.created_at,
+          lastLogin: acc.last_login
+        };
+      });
+      // Загружаем eventCoins из PostgreSQL
+      const ecRows = await dbAdapter.pool.query('SELECT account_id, coins FROM event_coins');
+      ecRows.rows.forEach(row => {
+        db.event.eventCoins[row.account_id] = row.coins;
+      });
+      console.log(`📦 Загружено из PostgreSQL: ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(db.players).length} игроков, ${ecRows.rows.length} записей ивента`);
+    } catch (e) {
+      console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
+    }
+  }
+}).catch(err => console.error('DB adapter init error:', err.message));
 
 // Убедимся что все необходимые поля есть
 if (!db.accounts) db.accounts = {};
 if (!db.stats) db.stats = { totalBattles: 0, totalClans: 0, totalPlayers: 0 };
 if (!db.event) db.event = {};
 
-// ПРИНУДИТЕЛЬНО создаём новый ивент на 2 недели
-const now = Date.now();
-db.event = {
-  active: true,
-  startDate: now,
-  endDate: now + 14 * 24 * 60 * 60 * 1000, // 2 недели
-  eventCoins: db.event?.eventCoins || {},
-  season: (db.event?.season || 0) + 1
-};
+// Не сбрасываем ивент при каждом рестарте — сохраняем сезон
+if (!db.event || !db.event.active) {
+  const now = Date.now();
+  db.event = {
+    active: true,
+    startDate: now,
+    endDate: now + 14 * 24 * 60 * 60 * 1000,
+    eventCoins: {},
+    season: 1
+  };
+} else {
+  // Сохраняем существующий ивент
+  if (!db.event.eventCoins) db.event.eventCoins = {};
+}
 
 console.log('База данных загружена');
 console.log(`🎉 Ивент активен! До конца: ${Math.ceil((db.event.endDate - now) / 60000)} мин.`);
@@ -288,7 +353,7 @@ function handleMessage(ws, data) {
     case 'restoreSession': handleRestoreSession(ws, data); break;
     case 'register': handleRegisterGuest(ws, data.name); break;
     case 'updateScore': handleUpdateScore(ws, data.coins, data.perClick, data.perSecond); break;
-    case 'addEventCoins': addEventCoins(ws.playerId, data.amount); break;
+    case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
     case 'findBattle': handleFindBattle(ws); break;
     case 'battleClick': handleBattleClick(ws, data.battleId, data.clicks, data.cps); break;
@@ -306,34 +371,37 @@ function handleMessage(ws, data) {
 }
 
 function handleSaveGame(ws, data) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player || !db.players[id]) return;
   
-  // Сохраняем данные игрока на сервере
-  db.players[ws.playerId].coins = data.coins || player.coins;
-  db.players[ws.playerId].totalCoins = data.totalCoins || player.totalCoins;
-  db.players[ws.playerId].perClick = data.perClick || player.perClick;
-  db.players[ws.playerId].perSecond = data.perSecond || player.perSecond;
-  db.players[ws.playerId].clicks = data.clicks || player.clicks;
-  db.players[ws.playerId].skills = data.skills || player.skills;
-  db.players[ws.playerId].skins = data.skins || player.skins;
-  db.players[ws.playerId].currentSkin = data.currentSkin || player.currentSkin;
-  db.players[ws.playerId].achievements = data.achievements || player.achievements;
-  db.players[ws.playerId].pendingBoxes = data.pendingBoxes || player.pendingBoxes || [];
-  db.players[ws.playerId].lastLogin = Date.now();
+  db.players[id].coins = data.coins ?? player.coins;
+  db.players[id].totalCoins = data.totalCoins ?? player.totalCoins;
+  db.players[id].perClick = data.perClick ?? player.perClick;
+  db.players[id].perSecond = data.perSecond ?? player.perSecond;
+  db.players[id].clicks = data.clicks ?? player.clicks;
+  db.players[id].skills = data.skills || player.skills;
+  db.players[id].skins = data.skins || player.skins;
+  db.players[id].currentSkin = data.currentSkin || player.currentSkin;
+  db.players[id].achievements = data.achievements || player.achievements;
+  db.players[id].pendingBoxes = data.pendingBoxes || player.pendingBoxes || [];
+  db.players[id].lastLogin = Date.now();
   
+  updateLeaderboard({ ...db.players[id] });
   saveDB();
-  console.log('💾 Автосохранение:', ws.playerId);
+  savePlayerToDB(id);
+  console.log('💾 Автосохранение:', id);
 }
   
 function sendEventInfo(ws) {
+  const id = ws.accountId || ws.playerId;
   ws.send(JSON.stringify({ 
     type: 'eventInfo',
     event: {
       active: db.event.active,
       endDate: db.event.endDate,
       season: db.event.season,
-      eventCoins: db.event.eventCoins[ws.playerId] || 0,
+      eventCoins: db.event.eventCoins[id] || 0,
       topPlayers: Object.entries(db.event.eventCoins || {})
         .map(([id, coins]) => ({ id, name: db.players[id]?.name || 'Unknown', coins }))
         .sort((a, b) => b.coins - a.coins)
@@ -349,7 +417,7 @@ function handleAuthRequest(ws, data) {
   const { username, password } = data;
   
   // Используем функцию из auth.js
-  handleAuthRegister(ws, { username, password }, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard);
+  handleAuthRegister(ws, { username, password }, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB);
 }
 
 // Обработчик сохранения данных игрока
@@ -390,6 +458,7 @@ function handleSavePlayerData(ws, data) {
   }
   
   saveDB();
+  savePlayerToDB(accountId);
   console.log(`💾 Данные сохранены: ${accountId}`);
   
   // Отправляем подтверждение
@@ -405,40 +474,31 @@ function handleRestoreSession(ws, data) {
   const { accountId, username } = data;
   
   if (!accountId) {
-    ws.send(JSON.stringify({ 
-      type: 'authError',
-      message: 'Неверные данные сессии'
-    }));
+    ws.send(JSON.stringify({ type: 'sessionExpired', message: 'Войдите снова' }));
     return;
   }
   
-  // Проверяем что аккаунт существует
+  // Аккаунт не найден — БД была сброшена (Render), просим перелогиниться
   if (!db.accounts || !db.accounts[accountId]) {
-    ws.send(JSON.stringify({ 
-      type: 'authError',
-      message: 'Аккаунт не найден'
-    }));
+    ws.send(JSON.stringify({ type: 'sessionExpired', message: 'Сессия истекла, войдите снова' }));
     return;
   }
   
-  // Получаем данные игрока
   let playerData = db.players[accountId];
   if (!playerData) {
     playerData = createDefaultPlayer(accountId, username || 'Player');
     db.players[accountId] = playerData;
   }
   
-  // Обновляем последний вход
   playerData.lastLogin = Date.now();
   db.accounts[accountId].lastLogin = Date.now();
-  
   ws.authenticated = true;
   ws.accountId = accountId;
-  
-  // Добавляем в памяти
   players.set(accountId, { ...playerData, ws });
-  
-  // Отправляем успешное восстановление
+  updateLeaderboard(playerData);
+  saveDB();
+  savePlayerToDB(accountId);
+
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
@@ -450,7 +510,6 @@ function handleRestoreSession(ws, data) {
   console.log(`🔄 Сессия восстановлена: ${username} (${accountId})`);
   broadcastLeaderboard();
   broadcastEventInfo();
-  saveDB();
 }
 
 // ==================== Регистрация гостя ====================
@@ -490,32 +549,35 @@ function handleRegisterGuest(ws, name) {
 }
 
 function handleUpdateScore(ws, coins, perClick, perSecond) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player || !db.players[id]) return;
   player.coins = coins;
   if (perClick) player.perClick = perClick;
   if (perSecond) player.perSecond = perSecond;
-  db.players[ws.playerId].coins = coins;
-  db.players[ws.playerId].totalCoins = Math.max(db.players[ws.playerId].totalCoins || 0, coins);
+  db.players[id].coins = coins;
+  db.players[id].totalCoins = Math.max(db.players[id].totalCoins || 0, coins);
   updateLeaderboard(player);
 }
   
 // Добавление eventCoins
 function addEventCoins(playerId, amount) {
-  if (!db.event.eventCoins[playerId]) {
-    db.event.eventCoins[playerId] = 0;
-  }
+  if (!db.event.eventCoins[playerId]) db.event.eventCoins[playerId] = 0;
   db.event.eventCoins[playerId] += amount;
+  if (dbAdapter.usePostgreSQL) {
+    dbAdapter.saveEventCoins(playerId, db.event.eventCoins[playerId]).catch(() => {});
+  }
   saveDB();
 }
   
 function handleFindBattle(ws) {
-  const player = players.get(ws.playerId);
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
   if (!player) return;
-  if (waitingPlayers.length > 0 && waitingPlayers[0] !== ws.playerId) {
-    startBattle(ws.playerId, waitingPlayers.shift());
+  if (waitingPlayers.length > 0 && waitingPlayers[0] !== id) {
+    startBattle(id, waitingPlayers.shift());
   } else {
-    waitingPlayers.push(ws.playerId);
+    waitingPlayers.push(id);
     ws.send(JSON.stringify({ type: 'waitingForBattle' }));
   }
 }
@@ -556,33 +618,33 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   const battle = battles.get(battleId);
   if (!battle) return;
   
-  battle.scores[ws.playerId] = (battle.scores[ws.playerId] || 0) + clicks;
-  if (cps !== undefined) battle.cps[ws.playerId] = cps;
+  const id = ws.accountId || ws.playerId;
+  battle.scores[id] = (battle.scores[id] || 0) + clicks;
+  if (cps !== undefined) battle.cps[id] = cps;
   
-  // Начисляем eventCoins за клики в битве (1 coin за 10 кликов)
   const eventCoinsEarned = Math.floor(clicks / 10);
   if (eventCoinsEarned > 0) {
-    addEventCoins(ws.playerId, eventCoinsEarned);
+    addEventCoins(id, eventCoinsEarned);
   }
   
-  const opponentId = battle.players.find(id => id !== ws.playerId);
+  const opponentId = battle.players.find(pid => pid !== id);
   const opponent = players.get(opponentId);
   
   if (opponent) {
     ws.send(JSON.stringify({
       type: 'battleUpdate',
-      yourScore: battle.scores[ws.playerId],
+      yourScore: battle.scores[id],
       opponentScore: battle.scores[opponentId],
-      yourCPS: battle.cps[ws.playerId] || 0,
+      yourCPS: battle.cps[id] || 0,
       opponentCPS: battle.cps[opponentId] || 0,
       eventCoinsEarned: eventCoinsEarned
     }));
     opponent.ws.send(JSON.stringify({
       type: 'battleUpdate',
       yourScore: battle.scores[opponentId],
-      opponentScore: battle.scores[ws.playerId],
+      opponentScore: battle.scores[id],
       yourCPS: battle.cps[opponentId] || 0,
-      opponentCPS: battle.cps[ws.playerId] || 0
+      opponentCPS: battle.cps[id] || 0
     }));
   }
 }
@@ -643,13 +705,13 @@ function endBattle(battleId, disconnectedPlayer = null) {
 }
 
 function updateLeaderboard(player) {
+  if (!player || !player.id) return;
   const idx = db.leaderboard.findIndex(p => p.id === player.id);
-  const entry = { id: player.id, name: player.name, coins: player.coins, perSecond: player.perSecond, level: player.level };
+  const entry = { id: player.id, name: player.name, coins: player.coins || 0, perSecond: player.perSecond || 0, level: player.level || 1 };
   if (idx >= 0) db.leaderboard[idx] = entry;
   else db.leaderboard.push(entry);
   db.leaderboard.sort((a, b) => b.coins - a.coins);
   if (db.leaderboard.length > 100) db.leaderboard.length = 100;
-  saveDB();
 }
 
 function broadcastLeaderboard() {
@@ -662,17 +724,18 @@ function sendLeaderboard(ws) {
 }
 
 function handleCreateClan(ws, clanName) {
-  const player = players.get(ws.playerId);
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
   if (!player || player.clan) return;
   
   const clanId = generateId();
   db.clans[clanId] = {
-    id: clanId, name: clanName, owner: ws.playerId, ownerName: player.name,
-    members: [ws.playerId], memberNames: [player.name],
+    id: clanId, name: clanName, owner: id, ownerName: player.name,
+    members: [id], memberNames: [player.name],
     totalCoins: 0, createdAt: Date.now(), description: ''
   };
   player.clan = clanId;
-  db.players[ws.playerId].clan = clanId;
+  db.players[id].clan = clanId;
   db.stats.totalClans++;
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
   sendClans(ws);
@@ -680,15 +743,16 @@ function handleCreateClan(ws, clanName) {
 }
 
 function handleJoinClan(ws, clanId) {
+  const id = ws.accountId || ws.playerId;
   const clan = db.clans[clanId];
-  const player = players.get(ws.playerId);
+  const player = players.get(id);
   if (!clan || !player || player.clan) return;
-  if (clan.members.includes(ws.playerId)) return;
+  if (clan.members.includes(id)) return;
   
-  clan.members.push(ws.playerId);
+  clan.members.push(id);
   clan.memberNames.push(player.name);
   player.clan = clanId;
-  db.players[ws.playerId].clan = clanId;
+  db.players[id].clan = clanId;
   ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name }));
   sendClans(ws);
   sendClanMembers(clanId);
@@ -696,27 +760,28 @@ function handleJoinClan(ws, clanId) {
 }
 
 function handleLeaveClan(ws) {
-  const player = players.get(ws.playerId);
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
   if (!player || !player.clan) return;
   
   const clan = db.clans[player.clan];
   if (!clan) { player.clan = null; return; }
   
-  if (clan.owner === ws.playerId) {
+  if (clan.owner === id) {
     if (clan.members.length > 1) {
-      const newOwner = clan.members.find(id => id !== ws.playerId);
+      const newOwner = clan.members.find(mid => mid !== id);
       clan.owner = newOwner;
-      clan.ownerName = players.get(newOwner)?.name || clan.memberNames[1] || 'Unknown';
+      clan.ownerName = players.get(newOwner)?.name || 'Unknown';
     } else {
       delete db.clans[player.clan];
       db.stats.totalClans--;
     }
   }
   
-  clan.members = clan.members.filter(id => id !== ws.playerId);
-  clan.memberNames = clan.memberNames.filter(name => name !== player.name);
+  clan.members = clan.members.filter(mid => mid !== id);
+  clan.memberNames = clan.memberNames.filter(n => n !== player.name);
   player.clan = null;
-  db.players[ws.playerId].clan = null;
+  db.players[id].clan = null;
   ws.send(JSON.stringify({ type: 'leftClan', clanId: clan.id }));
   sendClans(ws);
   sendClanMembers(clan.id);
@@ -732,14 +797,16 @@ function sendClanMembers(clanId) {
   }));
   wss.clients.forEach(c => {
     if (c.readyState === WebSocket.OPEN) {
-      const p = players.get(c.playerId);
+      const cid = c.accountId || c.playerId;
+      const p = players.get(cid);
       if (p && p.clan === clanId) c.send(JSON.stringify({ type: 'clanMembers', clanId, members: membersData }));
     }
   });
 }
 
 function getClanMembers(ws) {
-  const player = players.get(ws.playerId);
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
   if (player && player.clan) sendClanMembers(player.clan);
 }
 
@@ -752,7 +819,8 @@ function sendClans(ws) {
 }
 
 function handleBuySkill(ws, skillId) {
-  const player = players.get(ws.playerId);
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
   if (!player) return;
   
   const skills = {
@@ -773,10 +841,11 @@ function handleBuySkill(ws, skillId) {
   
   player.coins -= skill.cost;
   player.skills[skillId] = true;
-  db.players[ws.playerId].coins = player.coins;
-  db.players[ws.playerId].skills = player.skills;
+  db.players[id].coins = player.coins;
+  db.players[id].skills = player.skills;
   ws.send(JSON.stringify({ type: 'skillBought', skillId, skillName: skill.name }));
   saveDB();
+  savePlayerToDB(id);
 }
 
 // Боксы
@@ -800,8 +869,9 @@ const boxRewards = {
 };
 
 function handleBuyBox(ws) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player || !db.players[id]) return;
   
   if (player.coins < boxPrice) {
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно косаток' }));
@@ -809,22 +879,22 @@ function handleBuyBox(ws) {
   }
   
   player.coins -= boxPrice;
-  db.players[ws.playerId].coins = player.coins;
-  saveDB();
+  db.players[id].coins = player.coins;
   
   const boxId = generateId();
-  db.players[ws.playerId].pendingBoxes = db.players[ws.playerId].pendingBoxes || [];
-  db.players[ws.playerId].pendingBoxes.push(boxId);
+  db.players[id].pendingBoxes = db.players[id].pendingBoxes || [];
+  db.players[id].pendingBoxes.push(boxId);
   saveDB();
-  
+  savePlayerToDB(id);
   ws.send(JSON.stringify({ type: 'boxBought', boxId }));
 }
 
 function handleOpenBox(ws, boxId) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player || !db.players[id]) return;
   
-  const pendingBoxes = db.players[ws.playerId].pendingBoxes || [];
+  const pendingBoxes = db.players[id].pendingBoxes || [];
   const boxIndex = pendingBoxes.indexOf(boxId);
   
   if (boxIndex === -1) {
@@ -833,7 +903,7 @@ function handleOpenBox(ws, boxId) {
   }
   
   pendingBoxes.splice(boxIndex, 1);
-  db.players[ws.playerId].pendingBoxes = pendingBoxes;
+  db.players[id].pendingBoxes = pendingBoxes;
   
   // Определяем тип награды (70% скин, 30% монеты)
   const isSkin = Math.random() < 0.7;
@@ -860,9 +930,8 @@ function handleOpenBox(ws, boxId) {
       rarity: selectedSkin.weight <= 5 ? 'legendary' : selectedSkin.weight <= 10 ? 'epic' : 'rare'
     };
     
-    // Добавляем скин игроку
-    db.players[ws.playerId].skins = db.players[ws.playerId].skins || {};
-    db.players[ws.playerId].skins[selectedSkin.id] = true;
+    db.players[id].skins = db.players[id].skins || {};
+    db.players[id].skins[selectedSkin.id] = true;
   } else {
     // Выбираем монеты по весу
     const totalWeight = boxRewards.coins.reduce((sum, c) => sum + c.weight, 0);
@@ -883,11 +952,11 @@ function handleOpenBox(ws, boxId) {
       rarity: selectedCoins.weight <= 5 ? 'legendary' : selectedCoins.weight <= 10 ? 'epic' : 'rare'
     };
     
-    // Добавляем монеты
-    db.players[ws.playerId].coins += selectedCoins.amount;
+    db.players[id].coins += selectedCoins.amount;
   }
   
   saveDB();
+  savePlayerToDB(id);
   ws.send(JSON.stringify({ type: 'boxOpened', reward }));
 }
 

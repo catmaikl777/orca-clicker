@@ -1,21 +1,15 @@
 {
-  "name": "orca-clicker",
-  "public": true,
+  "installCommand": "",
+  "buildCommand": "",
   "outputDirectory": "./",
-  "routes": [
-    {
-      "src": "/.*",
-      "dest": "/index.html"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
     }
   ]

@@ -12,9 +12,27 @@ class DatabaseAdapter {
   // Инициализация соединения
   async init() {
     if (this.usePostgreSQL) {
-      await this.initPostgreSQL();
+      await this.initWithRetry();
     } else {
       console.log('ℹ️  Используется file-based database (database.json)');
+    }
+  }
+
+  async initWithRetry(attempts = 5, delay = 3000) {
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        await this.initPostgreSQL();
+        return;
+      } catch (err) {
+        console.error(`❌ Попытка ${i}/${attempts} не удалась: ${err.message}`);
+        if (i < attempts) {
+          console.log(`⏳ Повтор через ${delay / 1000}с...`);
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          console.error('❌ PostgreSQL недоступен, переключаемся на file-based DB');
+          this.usePostgreSQL = false;
+        }
+      }
     }
   }
   
@@ -23,10 +41,11 @@ class DatabaseAdapter {
     try {
       this.pool = new Pool({
         connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-        max: 20,
+        ssl: { rejectUnauthorized: false },
+        max: 10,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: 10000,
+        query_timeout: 15000,
       });
       
       // Тест соединения
@@ -147,14 +166,14 @@ class DatabaseAdapter {
   // Сохранение данных в PostgreSQL
   async saveAccount(account) {
     if (!this.usePostgreSQL) return;
-    
     await this.pool.query(
       `INSERT INTO accounts (id, username, password_hash, created_at, last_login)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO UPDATE SET
          username = EXCLUDED.username,
+         password_hash = EXCLUDED.password_hash,
          last_login = EXCLUDED.last_login`,
-      [account.id, account.username, account.passwordHash, account.createdAt, account.lastLogin]
+      [account.id, account.username, account.passwordHash || account.password_hash, account.createdAt || account.created_at, account.lastLogin || account.last_login]
     );
   }
   

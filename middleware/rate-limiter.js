@@ -3,49 +3,37 @@
 
 const rateLimit = require('express-rate-limit');
 
-// Конфигурация rate limiting
 const rateLimitConfig = {
-  // Обычный лимит для API
   api: {
-    windowMs: 60 * 1000, // 1 минута
-    max: 100, // 100 запросов
+    windowMs: 60 * 1000,
+    max: 100,
     message: 'Слишком много запросов, попробуйте позже',
     standardHeaders: true,
     legacyHeaders: false,
   },
-  
-  // Строгий лимит для аутентификации
   auth: {
-    windowMs: 15 * 60 * 1000, // 15 минут
-    max: 5, // 5 попыток
+    windowMs: 15 * 60 * 1000,
+    max: 5,
     message: 'Слишком много попыток входа, попробуйте через 15 минут',
     standardHeaders: true,
     legacyHeaders: false,
   },
-  
-  // Лимит для WebSocket соединений
   websocket: {
-    maxConnections: 100, // Максимум 100 подключений с одного IP
-    maxMessages: 50, // Максимум 50 сообщений в минуту
+    maxConnections: 100,
+    maxMessages: 50,
     windowMs: 60 * 1000,
   }
 };
 
-// Создать limiter для API
 const apiLimiter = rateLimit(rateLimitConfig.api);
 
-// Создать limiter для аутентификации
 const authLimiter = rateLimit({
   ...rateLimitConfig.auth,
-  keyGenerator: (req) => {
-    // Используем IP или username для ограничения
-    return req.body.username || req.ip;
-  },
   handler: (req, res) => {
     res.status(429).json({
       success: false,
       error: 'Слишком много попыток входа. Попробуйте через 15 минут',
-      retryAfter: 900 // 15 минут в секундах
+      retryAfter: 900
     });
   }
 });

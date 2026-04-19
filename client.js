@@ -78,12 +78,15 @@ const skillsData = [
 
 // ==================== WEBSOCKET ====================
 let ws = null;
+window.ws = null;
 let playerId = null;
 let battleId = null;
 let battleClicks = 0;
 let lastBattleUpdate = 0;
 let battleInterval = null;
 let wsConnected = false;
+
+const clickSounds = ['clickSound', 'mainmeow1', 'mainmeow2', 'mainmeow3', 'mainmeow4'];
 
 // Настройки WebSocket сервера
 // Для локальной разработки: ws://localhost:3001
@@ -100,12 +103,13 @@ const WS_SERVER_URL = (() => {
   }
   
   // Продакшен - используем WSS на том же хосте
-  return `wss://${window.location.host}`;
+  return 'wss://orca-clicker-api.onrender.com';
 })();
 
 function connectWebSocket() {
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
   ws = new WebSocket(WS_SERVER_URL);
+  window.ws = ws;
   
   ws.onopen = () => {
     console.log('✅ Подключено к серверу');
@@ -313,39 +317,32 @@ const orcaImg = document.getElementById('orcaImg');
 const orcaEmoji = document.getElementById('orcaEmoji');
 
 // Клик по косатке
-clicker.addEventListener('click', (e) => {
+function handleClick(e) {
+  e.preventDefault();
   let value = game.perClick * game.multiplier;
   let isCrit = false;
+  const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;
+  const y = e.clientY || (e.touches && e.touches[0]?.clientY) || window.innerHeight / 2;
   
-  // Критический удар
   if (game.skills['s2'] && Math.random() < 0.1) {
     value *= 10;
     isCrit = true;
-    showFloatingText(e.clientX, e.clientY, `КРИТ! +${formatNumber(value)}`, '#ff5252');
+    showFloatingText(x, y, `КРИТ! +${formatNumber(value)}`, '#ff5252');
     playSound('critSound');
   } else {
-    showFloatingText(e.clientX, e.clientY, `+${formatNumber(value)}`, '#4fc3f7');
+    showFloatingText(x, y, `+${formatNumber(value)}`, '#4fc3f7');
     playSound('clickSound');
   }
   
-  // Эффект x2 текста
-  if (x2Active) {
-    showFloatingText(e.clientX, e.clientY - 50, `x2! ⭐`, '#ffd700');
-  }
-  
-  // Частицы при клике
-  createClickParticles(e.clientX, e.clientY, x2Active ? 'gold' : '#4fc3f7', isCrit);
+  if (x2Active) showFloatingText(x, y - 50, `x2! ⭐`, '#ffd700');
+  createClickParticles(x, y, x2Active ? 'gold' : '#4fc3f7', isCrit);
   
   game.coins += value;
   game.totalCoins += value;
   game.clicks++;
   
-  // Начисляем eventCoins (1 за каждые 100 кликов)
-  if (game.clicks % 100 === 0) {
-    addEventCoins(1);
-  }
+  if (game.clicks % 100 === 0) addEventCoins(1);
   
-  // Анимация клика
   clicker.style.transform = 'scale(0.9)';
   setTimeout(() => clicker.style.transform = 'scale(1)', 100);
   
@@ -354,11 +351,13 @@ clicker.addEventListener('click', (e) => {
   updateUI();
   saveGame();
   
-  // Отправка на сервер
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'updateScore', coins: game.totalCoins }));
   }
-});
+}
+
+clicker.addEventListener('click', handleClick);
+clicker.addEventListener('touchstart', handleClick, { passive: false });
 
 // Функция для создания частиц при клике
 function createClickParticles(x, y, color, intense = false) {
@@ -387,19 +386,28 @@ function createClickParticles(x, y, color, intense = false) {
   }
 }
 
-// Проигрывание звука
-const clickSounds = ['clickSound', 'mainmeow1', 'mainmeow2', 'mainmeow3', 'mainmeow4'];
+// Мобильный аудио unlock (iOS/Android блокируют звук без жеста пользователя)
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const sounds = document.querySelectorAll('audio');
+  sounds.forEach(s => {
+    s.play().catch(() => {});
+    s.pause();
+    s.currentTime = 0;
+  });
+}
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
 
 function playSound(soundId) {
   const sfxEnabled = document.getElementById('sfxToggle')?.checked !== false;
   if (!sfxEnabled) return;
-  
-  // Если это клик - выбираем случайную вариацию
   let actualSoundId = soundId;
   if (soundId === 'clickSound') {
     actualSoundId = clickSounds[Math.floor(Math.random() * clickSounds.length)];
   }
-  
   const sound = document.getElementById(actualSoundId);
   if (sound) {
     sound.currentTime = 0;
@@ -637,7 +645,9 @@ function renderShop() {
     div.className = `shop-item ${game.coins < item.cost ? 'locked' : ''}`;
     div.innerHTML = `
       <div class="shop-item-info">
-        <img src="${item.icon}" alt="" class="shop-item-icon" onerror="this.style.display='none'">
+        <div class="shop-item-icon-wrap">
+          <img src="${item.icon}" alt="" class="shop-item-icon" onerror="this.style.display='none'">
+        </div>
         <div>
           <h4>${item.name}</h4>
           <p>${item.desc}</p>
@@ -966,10 +976,13 @@ function startBattleUI(data) {
 }
 
 function updateBattleUI(data) {
+  // data.yourScore = мои клики, data.opponentScore = клики соперника
   document.getElementById('myBattleScore').textContent = data.yourScore;
   document.getElementById('opponentScore').textContent = data.opponentScore;
   document.getElementById('myCPS').textContent = `${data.yourCPS || 0} CPS`;
   document.getElementById('opponentCPS').textContent = `${data.opponentCPS || 0} CPS`;
+  // Локально тоже обновляем чтобы не было рассинхрона
+  myBattleClicks = data.yourScore;
 }
 
 function endBattleUI(data) {
@@ -978,8 +991,8 @@ function endBattleUI(data) {
     battleInterval = null;
   }
   
-  const won = data.winner === document.getElementById('playerName').value;
   const isDraw = data.isDraw;
+  const won = !isDraw && data.winner === (typeof currentUser !== 'undefined' && currentUser ? currentUser.username : null);
   
   if (won) {
     showNotification(`🎉 Победа! +${data.prize} косаток`);
@@ -999,7 +1012,9 @@ function endBattleUI(data) {
     document.getElementById('battleArena').classList.add('hidden');
     document.getElementById('battleStatus').textContent = 'Нажмите кнопку для поиска соперника';
     battleId = null;
-    battleClickBtn.onclick = null;
+    myBattleClicks = 0;
+    const btn = document.getElementById('battleClickBtn');
+    if (btn) btn.onclick = null;
   }, 3000);
 }
 
@@ -1117,8 +1132,9 @@ function renderEventLeaderboard() {
   const container = document.getElementById('eventLeaderboard');
   if (!container || !eventInfo) return;
   
+  const topPlayers = eventInfo.topPlayers || [];
   container.innerHTML = '';
-  eventInfo.topPlayers.forEach((player, index) => {
+  topPlayers.forEach((player, index) => {
     const medals = ['🥇', '🥈', '🥉'];
     const div = document.createElement('div');
     div.className = 'event-player';
