@@ -68,12 +68,12 @@ const achievementsData = [
 
 // Навыки (дерево)
 const skillsData = [
-  { id: 's1', name: 'Двойной клик', desc: '2x за клик', cost: 1000, effect: () => { game.perClick *= 2; } },
+  { id: 's1', name: 'Двойной клик', desc: '2x за клик', cost: 1000, effect: () => { game.basePerClick = game.basePerClick || game.perClick; game.perClick = game.basePerClick * 2; } },
   { id: 's2', name: 'Критический удар', desc: '10% шанс 10x', cost: 5000, effect: () => {} },
-  { id: 's3', name: 'Авто-эффективность', desc: '2x за секунду', cost: 3000, effect: () => { game.perSecond *= 2; } },
+  { id: 's3', name: 'Авто-эффективность', desc: '2x за секунду', cost: 3000, effect: () => { game.basePerSecond = game.basePerSecond || game.perSecond; game.perSecond = game.basePerSecond * 2; } },
   { id: 's4', name: 'Золотая лихорадка', desc: 'Бонусы дают 3x', cost: 2000, effect: () => {} },
-  { id: 's5', name: 'Мастер клика', desc: '5x за клик', cost: 10000, effect: () => { game.perClick *= 5; } },
-  { id: 's6', name: 'Бизнес-косатка', desc: '5x за секунду', cost: 15000, effect: () => { game.perSecond *= 5; } }
+  { id: 's5', name: 'Мастер клика', desc: '5x за клик', cost: 10000, effect: () => { game.basePerClick = game.basePerClick || game.perClick; game.perClick = game.basePerClick * 5; } },
+  { id: 's6', name: 'Бизнес-косатка', desc: '5x за секунду', cost: 15000, effect: () => { game.basePerSecond = game.basePerSecond || game.perSecond; game.perSecond = game.basePerSecond * 5; } }
 ];
 
 // ==================== WEBSOCKET ====================
@@ -179,7 +179,47 @@ function handleServerMessage(data) {
     
     // Загружаем сохраненные данные игрока если есть
     if (data.data) {
-      Object.assign(game, data.data);
+      const d = data.data;
+      game.coins = d.coins || 0;
+      game.totalCoins = d.totalCoins || 0;
+      game.level = d.level || 1;
+      game.perClick = d.perClick || 1;
+      game.perSecond = d.perSecond || 0;
+      game.clicks = d.clicks || 0;
+      game.skills = d.skills || {};
+      game.achievements = d.achievements || [];
+      game.skins = d.skins || { normal: true };
+      game.currentSkin = d.currentSkin || 'normal';
+      game.playTime = d.playTime || 0;
+      
+      // Боксы
+      if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
+      
+      // Цены улучшений
+      if (d.shopItems) {
+        d.shopItems.forEach(saved => {
+          const item = shopItems.find(i => i.id === saved.id);
+          if (item) item.cost = saved.cost;
+        });
+      }
+      
+      // Прогресс квестов
+      if (d.questProgress) {
+        game.quests = questsData.map(q => {
+          const saved = d.questProgress.find(p => p.id === q.id);
+          return { ...q, completed: saved ? saved.completed : false };
+        });
+      } else if (!game.quests.length) {
+        initQuests();
+      }
+      
+      // Применяем эффекты навыков
+      skillsData.forEach(skill => {
+        if (game.skills[skill.id] && skill.effect) skill.effect();
+      });
+      
+      // Билеты ивента
+      if (data.eventCoins) eventCoins = data.eventCoins;
     }
     
     playerId = data.accountId;
@@ -281,8 +321,12 @@ function handleServerMessage(data) {
       break;
     case 'skillBought':
       game.skills[data.skillId] = true;
-      showNotification(`✨ Навык "${data.skillName}" куплен!`);
+      // Применяем эффект навыка
+      const boughtSkill = skillsData.find(s => s.id === data.skillId);
+      if (boughtSkill && boughtSkill.effect) boughtSkill.effect();
+      showNotification(`✨ Навык «${data.skillName}» куплен!`);
       renderSkills();
+      updateUI();
       saveGame();
       break;
     case 'boxBought':
@@ -1269,43 +1313,18 @@ function showModal(id) {
   document.getElementById('modalOverlay').classList.add('active');
   document.getElementById(id).classList.add('active');
   
-  if (id === 'shop') {
-    renderShop();
-    renderBoxes();
-    switchShopTab('upgrades', document.querySelector('.shop-tab.active'));
-  }
+  if (id === 'shop') { renderShop(); renderBoxes(); switchShopTab('upgrades', document.querySelector('.shop-tab.active')); }
   if (id === 'quests') renderQuests();
   if (id === 'skills') renderSkills();
   if (id === 'achievements') renderAchievements();
   if (id === 'stats') updateStats();
-  if (id === 'leaderboard' && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'getLeaderboard' }));
-  }
-  if (id === 'clans') {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'getClans' }));
-      ws.send(JSON.stringify({ type: 'getClanMembers' }));
-    }
+  if (id === 'leaderboard' && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getLeaderboard' }));
+  if (id === 'clans' && ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'getClans' }));
+    ws.send(JSON.stringify({ type: 'getClanMembers' }));
   }
   if (id === 'eventModal') {
-    updateEventUI();
-    renderEventLeaderboard();
-  }
-
-  if (id === 'quests') renderQuests();
-  if (id === 'skills') renderSkills();
-  if (id === 'achievements') renderAchievements();
-  if (id === 'stats') updateStats();
-  if (id === 'leaderboard' && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'getLeaderboard' }));
-  }
-  if (id === 'clans') {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'getClans' }));
-      ws.send(JSON.stringify({ type: 'getClanMembers' }));
-    }
-  }
-  if (id === 'eventModal') {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getEventInfo' }));
     updateEventUI();
     renderEventLeaderboard();
   }
@@ -1371,20 +1390,25 @@ setInterval(() => {
 
 function saveGameToServer() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  
   ws.send(JSON.stringify({
     type: 'saveGame',
     data: {
       coins: game.coins,
       totalCoins: game.totalCoins,
+      level: game.level,
       perClick: game.perClick,
       perSecond: game.perSecond,
+      basePerClick: game.basePerClick || game.perClick,
+      basePerSecond: game.basePerSecond || game.perSecond,
       clicks: game.clicks,
       skills: game.skills,
       skins: game.skins,
       currentSkin: game.currentSkin,
       achievements: game.achievements,
-      pendingBoxes: pendingBoxes
+      playTime: game.playTime,
+      pendingBoxes: pendingBoxes,
+      shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
+      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed }))
     }
   }));
 }
@@ -1430,6 +1454,11 @@ function loadGame() {
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
       game.multiplier = data.multiplier || 1;
+      
+      // Применяем эффекты навыков
+      skillsData.forEach(skill => {
+        if (game.skills[skill.id] && skill.effect) skill.effect();
+      });
       
       if (data.shopItems) {
         data.shopItems.forEach(savedItem => {

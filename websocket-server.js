@@ -12,7 +12,12 @@ const { handleRegister: handleAuthRegister, createDefaultPlayer, generateId: gen
 const { WebSocketRateLimiter } = require('./middleware/rate-limiter');
 const dbAdapter = require('./middleware/database-adapter');
 
-const wsRateLimiter = new WebSocketRateLimiter({ maxConnections: 100, maxMessages: 50, windowMs: 60000 });
+const wsRateLimiter = new WebSocketRateLimiter({ 
+  maxConnections: 200, 
+  maxMessages: 100, 
+  windowMs: 60000,
+  bypassTypes: ['click', 'updateScore', 'battleClick'] // Игровые действия не лимитируем строго
+});
 
 // Путь к БД
 const DB_PATH = path.join(__dirname, 'database.json');
@@ -139,7 +144,7 @@ if (!db.event || !db.event.active) {
 }
 
 console.log('База данных загружена');
-console.log(`🎉 Ивент активен! До конца: ${Math.ceil((db.event.endDate - now) / 60000)} мин.`);
+console.log(`🎉 Ивент активен! До конца: ${Math.ceil((db.event.endDate - Date.now()) / 60000)} мин.`);
 saveDB();
 
 // Хранилище в памяти
@@ -147,8 +152,60 @@ const players = new Map();
 const battles = new Map();
 const waitingPlayers = [];
 
-// Автосохранение
-setInterval(() => { saveDB(); }, 30000);
+// Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
+const battleUpdateBuffer = new Map(); // playerId -> { updates: [], lastSend: timestamp }
+
+// Функция добавления обновления в буфер
+function bufferBattleUpdate(playerId, updateData) {
+  let buffer = battleUpdateBuffer.get(playerId);
+  if (!buffer) {
+    buffer = { updates: [], lastSend: Date.now() };
+    battleUpdateBuffer.set(playerId, buffer);
+  }
+  buffer.updates.push(updateData);
+  
+  // Отправляем если накопилось 3+ обновления или прошло 100мс
+  if (buffer.updates.length >= 3 || Date.now() - buffer.lastSend > 100) {
+    flushBattleBuffer(playerId);
+  }
+}
+
+// Функция отправки всех накопленных обновлений
+function flushBattleBuffer(playerId) {
+  const buffer = battleUpdateBuffer.get(playerId);
+  if (!buffer || buffer.updates.length === 0) return;
+  
+  const player = players.get(playerId);
+  if (!player || !player.ws || player.ws.readyState !== WebSocket.OPEN) {
+    // Игрок отключился - очищаем буфер
+    battleUpdateBuffer.delete(playerId);
+    return;
+  }
+  
+  // Отправляем последнее обновление (оно содержит актуальные данные)
+  const lastUpdate = buffer.updates[buffer.updates.length - 1];
+  player.ws.send(JSON.stringify(lastUpdate));
+  
+  buffer.updates = [];
+  buffer.lastSend = Date.now();
+}
+
+// Очистка буфера при отключении
+function clearBattleBuffer(playerId) {
+  battleUpdateBuffer.delete(playerId);
+}
+
+// Автосохранение раз в 5 минут (только JSON-файл, без PostgreSQL)
+setInterval(() => { saveDB(); }, 5 * 60 * 1000);
+
+// Периодическая отправка буферов обновлений батла (каждую секунду)
+setInterval(() => {
+  battleUpdateBuffer.forEach((buffer, playerId) => {
+    if (buffer.updates.length > 0) {
+      flushBattleBuffer(playerId);
+    }
+  });
+}, 1000);
 
 // Проверка оконч
 // ания ивента (каждые 5 минут)
@@ -244,7 +301,7 @@ function distributeEventRewards() {
     });
   }, 500);
 }
-  
+
 function broadcastEventInfo() {
   const eventData = JSON.stringify({
     type: 'eventInfo',
@@ -322,12 +379,18 @@ wss.on('connection', (ws, req) => {
   ws.send(JSON.stringify({ type: 'connected', playerId }));
   
   ws.on('message', (message) => {
-    if (!wsRateLimiter.checkMessage(ip)) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Слишком много запросов' }));
-      return;
-    }
     try {
       const data = JSON.parse(message);
+      
+      // battleClick никогда не лимитируем - это критично для игры
+      if (data.type !== 'battleClick') {
+        // Проверяем rate limit только для не-игровых сообщений
+        if (!wsRateLimiter.checkMessage(ip, data.type)) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Слишком много запросов' }));
+          return;
+        }
+      }
+      
       handleMessage(ws, data);
     } catch (e) {
       console.error('Ошибка парсинга:', e);
@@ -337,6 +400,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     console.log(`Игрок отключён: ${playerId}`);
     wsRateLimiter.cleanup(ip);
+    clearBattleBuffer(playerId); // Очищаем буфер при отключении
     players.delete(playerId);
     for (const [battleId, battle] of battles) {
       if (battle.players.includes(playerId)) endBattle(battleId, playerId);
@@ -372,27 +436,33 @@ function handleMessage(ws, data) {
 
 function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player || !db.players[id]) return;
+  if (!id || !db.players[id]) return;
+  const p = db.players[id];
+  const mem = players.get(id);
   
-  db.players[id].coins = data.coins ?? player.coins;
-  db.players[id].totalCoins = data.totalCoins ?? player.totalCoins;
-  db.players[id].perClick = data.perClick ?? player.perClick;
-  db.players[id].perSecond = data.perSecond ?? player.perSecond;
-  db.players[id].clicks = data.clicks ?? player.clicks;
-  db.players[id].skills = data.skills || player.skills;
-  db.players[id].skins = data.skins || player.skins;
-  db.players[id].currentSkin = data.currentSkin || player.currentSkin;
-  db.players[id].achievements = data.achievements || player.achievements;
-  db.players[id].pendingBoxes = data.pendingBoxes || player.pendingBoxes || [];
-  db.players[id].lastLogin = Date.now();
+  p.coins = data.coins ?? p.coins;
+  p.totalCoins = data.totalCoins ?? p.totalCoins;
+  p.perClick = data.perClick ?? p.perClick;
+  p.perSecond = data.perSecond ?? p.perSecond;
+  p.clicks = data.clicks ?? p.clicks;
+  p.level = data.level ?? p.level;
+  p.skills = data.skills || p.skills;
+  p.skins = data.skins || p.skins;
+  p.currentSkin = data.currentSkin || p.currentSkin;
+  p.achievements = data.achievements || p.achievements;
+  p.pendingBoxes = data.pendingBoxes || p.pendingBoxes || [];
+  p.playTime = data.playTime ?? p.playTime;
+  p.shopItems = data.shopItems || p.shopItems;
+  p.questProgress = data.questProgress || p.questProgress;
+  p.lastLogin = Date.now();
+  if (mem) Object.assign(mem, p);
   
-  updateLeaderboard({ ...db.players[id] });
+  updateLeaderboard(p);
   saveDB();
   savePlayerToDB(id);
   console.log('💾 Автосохранение:', id);
 }
-  
+
 function sendEventInfo(ws) {
   const id = ws.accountId || ws.playerId;
   ws.send(JSON.stringify({ 
@@ -630,28 +700,38 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   const opponentId = battle.players.find(pid => pid !== id);
   const opponent = players.get(opponentId);
   
+  // Создаем данные обновления
+  const updateData = {
+    type: 'battleUpdate',
+    yourScore: battle.scores[id],
+    opponentScore: battle.scores[opponentId],
+    yourCPS: battle.cps[id] || 0,
+    opponentCPS: battle.cps[opponentId] || 0,
+    eventCoinsEarned: eventCoinsEarned
+  };
+  
+  const opponentUpdateData = {
+    type: 'battleUpdate',
+    yourScore: battle.scores[opponentId],
+    opponentScore: battle.scores[id],
+    yourCPS: battle.cps[opponentId] || 0,
+    opponentCPS: battle.cps[id] || 0,
+    eventCoinsEarned: 0
+  };
+  
+  // Добавляем в буфер для отправки (автоматически отправит при накоплении)
+  bufferBattleUpdate(id, updateData);
   if (opponent) {
-    ws.send(JSON.stringify({
-      type: 'battleUpdate',
-      yourScore: battle.scores[id],
-      opponentScore: battle.scores[opponentId],
-      yourCPS: battle.cps[id] || 0,
-      opponentCPS: battle.cps[opponentId] || 0,
-      eventCoinsEarned: eventCoinsEarned
-    }));
-    opponent.ws.send(JSON.stringify({
-      type: 'battleUpdate',
-      yourScore: battle.scores[opponentId],
-      opponentScore: battle.scores[id],
-      yourCPS: battle.cps[opponentId] || 0,
-      opponentCPS: battle.cps[id] || 0
-    }));
+    bufferBattleUpdate(opponentId, opponentUpdateData);
   }
 }
 
 function endBattle(battleId, disconnectedPlayer = null) {
   const battle = battles.get(battleId);
   if (!battle) return;
+  
+  // Отправляем все накопленные обновления перед завершением
+  battle.players.forEach(pid => flushBattleBuffer(pid));
   
   const [p1, p2] = battle.players;
   const player1 = players.get(p1);
@@ -701,6 +781,10 @@ function endBattle(battleId, disconnectedPlayer = null) {
     player2.ws.send(JSON.stringify(result));
   }
   
+  // Очищаем буферы после окончания батла
+  clearBattleBuffer(p1);
+  clearBattleBuffer(p2);
+  
   battles.delete(battleId);
 }
 
@@ -720,7 +804,13 @@ function broadcastLeaderboard() {
 }
 
 function sendLeaderboard(ws) {
-  ws.send(JSON.stringify({ type: 'leaderboard', data: db.leaderboard.slice(0, 100) }));
+  // Перестраиваем лидерборд из текущих данных игроков
+  db.leaderboard = Object.values(db.players)
+    .filter(p => p && p.id && p.name)
+    .map(p => ({ id: p.id, name: p.name, coins: p.coins || 0, perSecond: p.perSecond || 0, level: p.level || 1 }))
+    .sort((a, b) => b.coins - a.coins)
+    .slice(0, 100);
+  ws.send(JSON.stringify({ type: 'leaderboard', data: db.leaderboard }));
 }
 
 function handleCreateClan(ws, clanName) {
@@ -820,8 +910,10 @@ function sendClans(ws) {
 
 function handleBuySkill(ws, skillId) {
   const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player) return;
+  if (!id || !db.players[id]) return;
+  const p = db.players[id];
+  const mem = players.get(id);
+  const coins = mem ? mem.coins : p.coins;
   
   const skills = {
     's1': { name: 'Двойной клик', cost: 1000 },
@@ -833,16 +925,15 @@ function handleBuySkill(ws, skillId) {
   };
   
   const skill = skills[skillId];
-  if (!skill || player.skills[skillId]) return;
-  if (player.coins < skill.cost) {
+  if (!skill || p.skills[skillId]) return;
+  if (coins < skill.cost) {
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
     return;
   }
   
-  player.coins -= skill.cost;
-  player.skills[skillId] = true;
-  db.players[id].coins = player.coins;
-  db.players[id].skills = player.skills;
+  p.coins = coins - skill.cost;
+  p.skills[skillId] = true;
+  if (mem) { mem.coins = p.coins; mem.skills = p.skills; }
   ws.send(JSON.stringify({ type: 'skillBought', skillId, skillName: skill.name }));
   saveDB();
   savePlayerToDB(id);
@@ -870,20 +961,26 @@ const boxRewards = {
 
 function handleBuyBox(ws) {
   const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player || !db.players[id]) return;
+  if (!id || !db.players[id]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
   
-  if (player.coins < boxPrice) {
+  const playerDB = db.players[id];
+  const playerMem = players.get(id);
+  const coins = playerMem ? playerMem.coins : playerDB.coins;
+  
+  if (coins < boxPrice) {
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно косаток' }));
     return;
   }
   
-  player.coins -= boxPrice;
-  db.players[id].coins = player.coins;
+  playerDB.coins = coins - boxPrice;
+  if (playerMem) playerMem.coins = playerDB.coins;
   
   const boxId = generateId();
-  db.players[id].pendingBoxes = db.players[id].pendingBoxes || [];
-  db.players[id].pendingBoxes.push(boxId);
+  playerDB.pendingBoxes = playerDB.pendingBoxes || [];
+  playerDB.pendingBoxes.push(boxId);
   saveDB();
   savePlayerToDB(id);
   ws.send(JSON.stringify({ type: 'boxBought', boxId }));
@@ -891,10 +988,14 @@ function handleBuyBox(ws) {
 
 function handleOpenBox(ws, boxId) {
   const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player || !db.players[id]) return;
+  if (!id || !db.players[id]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
   
-  const pendingBoxes = db.players[id].pendingBoxes || [];
+  const playerDB = db.players[id];
+  const playerMem = players.get(id);
+  const pendingBoxes = playerDB.pendingBoxes || [];
   const boxIndex = pendingBoxes.indexOf(boxId);
   
   if (boxIndex === -1) {
@@ -903,56 +1004,40 @@ function handleOpenBox(ws, boxId) {
   }
   
   pendingBoxes.splice(boxIndex, 1);
-  db.players[id].pendingBoxes = pendingBoxes;
+  playerDB.pendingBoxes = pendingBoxes;
   
-  // Определяем тип награды (70% скин, 30% монеты)
   const isSkin = Math.random() < 0.7;
   let reward = {};
   
   if (isSkin) {
-    // Выбираем скин по весу
     const totalWeight = boxRewards.skins.reduce((sum, s) => sum + s.weight, 0);
     let random = Math.random() * totalWeight;
     let selectedSkin = boxRewards.skins[0];
-    
     for (const skin of boxRewards.skins) {
       random -= skin.weight;
-      if (random <= 0) {
-        selectedSkin = skin;
-        break;
-      }
+      if (random <= 0) { selectedSkin = skin; break; }
     }
-    
     reward = {
-      type: 'skin',
-      skinId: selectedSkin.id,
-      skinName: selectedSkin.name,
+      type: 'skin', skinId: selectedSkin.id, skinName: selectedSkin.name,
       rarity: selectedSkin.weight <= 5 ? 'legendary' : selectedSkin.weight <= 10 ? 'epic' : 'rare'
     };
-    
-    db.players[id].skins = db.players[id].skins || {};
-    db.players[id].skins[selectedSkin.id] = true;
+    playerDB.skins = playerDB.skins || {};
+    playerDB.skins[selectedSkin.id] = true;
+    if (playerMem) playerMem.skins = playerDB.skins;
   } else {
-    // Выбираем монеты по весу
     const totalWeight = boxRewards.coins.reduce((sum, c) => sum + c.weight, 0);
     let random = Math.random() * totalWeight;
     let selectedCoins = boxRewards.coins[0];
-    
     for (const coin of boxRewards.coins) {
       random -= coin.weight;
-      if (random <= 0) {
-        selectedCoins = coin;
-        break;
-      }
+      if (random <= 0) { selectedCoins = coin; break; }
     }
-    
     reward = {
-      type: 'coins',
-      amount: selectedCoins.amount,
+      type: 'coins', amount: selectedCoins.amount,
       rarity: selectedCoins.weight <= 5 ? 'legendary' : selectedCoins.weight <= 10 ? 'epic' : 'rare'
     };
-    
-    db.players[id].coins += selectedCoins.amount;
+    playerDB.coins += selectedCoins.amount;
+    if (playerMem) playerMem.coins = playerDB.coins;
   }
   
   saveDB();
