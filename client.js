@@ -979,6 +979,28 @@ function startBattleUI(data) {
   document.getElementById('myCPS').textContent = `${data.yourPerSecond || 0} CPS`;
   document.getElementById('opponentCPS').textContent = `${data.opponentPerSecond || 0} CPS`;
   
+  // Показываем скины
+  const mySkin = skinsData.find(s => s.id === game.currentSkin);
+  const mySkinImg = document.getElementById('myBattleSkin');
+  if (mySkin && mySkinImg) {
+    mySkinImg.src = mySkin.image;
+    mySkinImg.onerror = function() {
+      this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="70" font-size="60">🐋</text></svg>';
+    };
+  }
+  
+  // Для соперника используем случайный скин или нормал
+  const opponentSkins = ['normal', 'chillcat', 'hiding', 'beauty', 'wild', 'cyberpunk', 'interesting'];
+  const randomSkin = opponentSkins[Math.floor(Math.random() * opponentSkins.length)];
+  const opponentSkinData = skinsData.find(s => s.id === randomSkin) || skinsData[0];
+  const opponentSkinImg = document.getElementById('opponentBattleSkin');
+  if (opponentSkinData && opponentSkinImg) {
+    opponentSkinImg.src = opponentSkinData.image;
+    opponentSkinImg.onerror = function() {
+      this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="70" font-size="60">🐋</text></svg>';
+    };
+  }
+  
   let timer = data.duration / 1000;
   const timerEl = document.getElementById('battleTimer');
   timerEl.textContent = timer;

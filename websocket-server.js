@@ -1,3 +1,4 @@
+
 // ============================================
 // WebSocket сервер для Кошка-косатка Кликер
 // Запуск: node websocket-server.js
@@ -46,7 +47,26 @@ function loadDB() {
 // Сохранение БД
 function saveDB() {
   try {
+    // Синхронизируем данные из players в db.players перед сохранением
+    players.forEach((player, accountId) => {
+      if (db.players[accountId]) {
+        db.players[accountId].coins = player.coins;
+        db.players[accountId].totalCoins = player.totalCoins;
+        db.players[accountId].perClick = player.perClick;
+        db.players[accountId].perSecond = player.perSecond;
+        db.players[accountId].clicks = player.clicks;
+        db.players[accountId].level = player.level;
+        db.players[accountId].skills = player.skills;
+        db.players[accountId].skins = player.skins;
+        db.players[accountId].currentSkin = player.currentSkin;
+        db.players[accountId].achievements = player.achievements;
+        db.players[accountId].pendingBoxes = player.pendingBoxes;
+        db.players[accountId].lastLogin = Date.now();
+      }
+    });
+    
     fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+    console.log('💾 БД сохранена');
   } catch (e) {
     console.error('Ошибка сохранения БД:', e.message);
   }
@@ -195,8 +215,11 @@ function clearBattleBuffer(playerId) {
   battleUpdateBuffer.delete(playerId);
 }
 
-// Автосохранение раз в 5 минут (только JSON-файл, без PostgreSQL)
-setInterval(() => { saveDB(); }, 5 * 60 * 1000);
+// Автосохранение раз в 2 минуты (только JSON-файл, без PostgreSQL)
+setInterval(() => {
+  console.log('⏰ Автосохранение...');
+  saveDB();
+}, 2 * 60 * 1000);
 
 // Периодическая отправка буферов обновлений батла (каждую секунду)
 setInterval(() => {
@@ -378,7 +401,7 @@ wss.on('connection', (ws, req) => {
   console.log(`Игрок подключён: ${playerId}`);
   ws.send(JSON.stringify({ type: 'connected', playerId }));
   
-  ws.on('message', (message) => {
+ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       
@@ -386,7 +409,16 @@ wss.on('connection', (ws, req) => {
       if (data.type !== 'battleClick') {
         // Проверяем rate limit только для не-игровых сообщений
         if (!wsRateLimiter.checkMessage(ip, data.type)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Слишком много запросов' }));
+          // Только логирование для отладки (редко)
+          if (Math.random() < 0.01) { // Логировать 1% случаев чтобы не спамить
+            console.log(`⚠️ Rate limit для ${data.type} от ${ip}`);
+          }
+          // Критичные сообщения (auth, save) всё равно обрабатываем
+          if (['register', 'authRequest', 'restoreSession', 'saveGame'].includes(data.type)) {
+            handleMessage(ws, data);
+            return;
+          }
+          // Для остальных сообщений просто пропускаем без уведомления
           return;
         }
       }
@@ -622,12 +654,20 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
   if (!player || !db.players[id]) return;
+  
+  // Обновляем в памяти
   player.coins = coins;
   if (perClick) player.perClick = perClick;
   if (perSecond) player.perSecond = perSecond;
+  
+  // Обновляем в БД (синхронизируем ВСЕ поля)
   db.players[id].coins = coins;
   db.players[id].totalCoins = Math.max(db.players[id].totalCoins || 0, coins);
+  if (perClick) db.players[id].perClick = perClick;
+  if (perSecond) db.players[id].perSecond = perSecond;
+  
   updateLeaderboard(player);
+  saveDB(); // Сохраняем сразу
 }
   
 // Добавление eventCoins
@@ -689,12 +729,17 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   if (!battle) return;
   
   const id = ws.accountId || ws.playerId;
-  battle.scores[id] = (battle.scores[id] || 0) + clicks;
+  const oldScore = battle.scores[id] || 0;
+  battle.scores[id] = oldScore + clicks;
   if (cps !== undefined) battle.cps[id] = cps;
   
-  const eventCoinsEarned = Math.floor(clicks / 10);
-  if (eventCoinsEarned > 0) {
-    addEventCoins(id, eventCoinsEarned);
+  // Считаем новые eventCoins на основе общего прогресса (не за один клик)
+  const newEventCoinsEarned = Math.floor(battle.scores[id] / 10);
+  const oldEventCoins = Math.floor(oldScore / 10);
+  const eventCoinsDiff = newEventCoinsEarned - oldEventCoins;
+  
+  if (eventCoinsDiff > 0) {
+    addEventCoins(id, eventCoinsDiff);
   }
   
   const opponentId = battle.players.find(pid => pid !== id);
@@ -707,7 +752,7 @@ function handleBattleClick(ws, battleId, clicks, cps) {
     opponentScore: battle.scores[opponentId],
     yourCPS: battle.cps[id] || 0,
     opponentCPS: battle.cps[opponentId] || 0,
-    eventCoinsEarned: eventCoinsEarned
+    eventCoinsEarned: eventCoinsDiff
   };
   
   const opponentUpdateData = {
@@ -719,7 +764,7 @@ function handleBattleClick(ws, battleId, clicks, cps) {
     eventCoinsEarned: 0
   };
   
-  // Добавляем в буфер для отправки (автоматически отправит при накоплении)
+  // Добавляем в буфер для отправки
   bufferBattleUpdate(id, updateData);
   if (opponent) {
     bufferBattleUpdate(opponentId, opponentUpdateData);
@@ -968,6 +1013,8 @@ function handleBuyBox(ws) {
   
   const playerDB = db.players[id];
   const playerMem = players.get(id);
+  
+  // Берем актуальные данные из памяти если есть
   const coins = playerMem ? playerMem.coins : playerDB.coins;
   
   if (coins < boxPrice) {
@@ -975,14 +1022,28 @@ function handleBuyBox(ws) {
     return;
   }
   
+  // Вычитаем деньги
   playerDB.coins = coins - boxPrice;
-  if (playerMem) playerMem.coins = playerDB.coins;
+  if (playerMem) {
+    playerMem.coins = playerDB.coins;
+  }
   
+  // Добавляем бокс
+  if (!playerDB.pendingBoxes) {
+    playerDB.pendingBoxes = [];
+  }
   const boxId = generateId();
-  playerDB.pendingBoxes = playerDB.pendingBoxes || [];
   playerDB.pendingBoxes.push(boxId);
+  
+  // Снова синхронизируем pendingBoxes в памяти
+  if (playerMem) {
+    playerMem.pendingBoxes = playerDB.pendingBoxes;
+  }
+  
+  // Сохраняем
   saveDB();
   savePlayerToDB(id);
+  
   ws.send(JSON.stringify({ type: 'boxBought', boxId }));
 }
 
@@ -1046,6 +1107,13 @@ function handleOpenBox(ws, boxId) {
 }
 
 process.on('SIGINT', () => {
+  console.log('\n⚠️ SIGINT получен, сохраняем данные...');
+  saveDB();
+  wss.close(() => process.exit(0));
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n⚠️ SIGTERM получен (Render shutdown), сохраняем данные...');
   saveDB();
   wss.close(() => process.exit(0));
 });

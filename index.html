@@ -257,20 +257,26 @@
       </div>
       <div id="battleArena" class="hidden">
         <div class="battle-timer">⏱️ <span id="battleTimer">30</span></div>
-        <div class="battle-players">
-          <div class="battle-player">
+        <div class="battle-arena-display">
+          <div class="battle-player-side">
+            <div class="battle-player-skin">
+              <img id="myBattleSkin" src="normal.png" alt="Вы" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3MCIgZm9udC1zaXplPSI2MCI+8J+QizwvdGV4dD48L3N2Zz4='">
+            </div>
             <h3>Вы</h3>
             <div id="myBattleScore" class="battle-score">0</div>
             <div id="myCPS" class="battle-cps">0 CPS</div>
           </div>
           <div class="vs">VS</div>
-          <div class="battle-player">
+          <div class="battle-player-side">
+            <div class="battle-player-skin">
+              <img id="opponentBattleSkin" src="normal.png" alt="Соперник" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3MCIgZm9udC1zaXplPSI2MCI+8J+QizwvdGV4dD48L3N2Zz4='">
+            </div>
             <h3 id="opponentName">Соперник</h3>
             <div id="opponentScore" class="battle-score">0</div>
             <div id="opponentCPS" class="battle-cps">0 CPS</div>
           </div>
         </div>
-        <button id="battleClickBtn" class="battle-click-btn">🐋 КЛИК!</button>
+        <button id="battleClickBtn" class="battle-click-btn">👆 КЛИКАЙ!</button>
       </div>
     </div>
   </div>
