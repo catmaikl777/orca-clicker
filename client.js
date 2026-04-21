@@ -979,16 +979,66 @@ function startBattleUI(data) {
   document.getElementById('myCPS').textContent = `${data.yourPerSecond || 0} CPS`;
   document.getElementById('opponentCPS').textContent = `${data.opponentPerSecond || 0} CPS`;
   
-  // Показываем скины
-  const mySkin = skinsData.find(s => s.id === game.currentSkin);
+  // Показываем мой скин (из данных сервера)
+  const mySkin = skinsData.find(s => s.id === (data.yourSkin || game.currentSkin));
   const mySkinImg = document.getElementById('myBattleSkin');
   if (mySkin && mySkinImg) {
     mySkinImg.src = mySkin.image;
     mySkinImg.onerror = function() {
-      this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="70" font-size="60">🐋</text></svg>';
+      this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3MCIgZm9udC1zaXplPSI2MCI+8J+QizwvdGV4dD48L3N2Zz4=';
     };
   }
   
+  // Показываем скин соперника (из данных сервера)
+  const opponentSkin = skinsData.find(s => s.id === (data.opponentSkin || 'normal'));
+  const opponentSkinImg = document.getElementById('opponentBattleSkin');
+  if (opponentSkin && opponentSkinImg) {
+    opponentSkinImg.src = opponentSkin.image;
+    opponentSkinImg.onerror = function() {
+      this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3MCIgZm9udC1zaXplPSI2MCI+8J+QizwvdGV4dD48L3N2Zz4=';
+    };
+  }
+  
+  let timer = data.duration / 1000;
+  const timerEl = document.getElementById('battleTimer');
+  timerEl.textContent = timer;
+  
+  // Считаем клики в секунду
+  let clickCount = 0;
+  let lastTime = Date.now();
+  
+  battleClickBtn.onclick = () => {
+    clickCount++;
+    myBattleClicks++;
+    document.getElementById('myBattleScore').textContent = myBattleClicks;
+    
+    // Обновляем CPS каждую секунду
+    const now = Date.now();
+    if (now - lastTime >= 1000) {
+      myBattleCPS = clickCount;
+      clickCount = 0;
+      lastTime = now;
+      document.getElementById('myCPS').textContent = `${myBattleCPS} CPS`;
+    }
+    
+    // Отправляем на сервер
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'battleClick',
+        battleId: battleId,
+        clicks: 1,
+        cps: myBattleCPS
+      }));
+    }
+  };
+  
+  battleInterval = setInterval(() => {
+    timer--;
+    timerEl.textContent = timer;
+    if (timer <= 0) clearInterval(battleInterval);
+  }, 1000);
+}
+
   // Для соперника используем случайный скин или нормал
   const opponentSkins = ['normal', 'chillcat', 'hiding', 'beauty', 'wild', 'cyberpunk', 'interesting'];
   const randomSkin = opponentSkins[Math.floor(Math.random() * opponentSkins.length)];
@@ -1039,7 +1089,7 @@ function startBattleUI(data) {
     timerEl.textContent = timer;
     if (timer <= 0) clearInterval(battleInterval);
   }, 1000);
-}
+
 
 function updateBattleUI(data) {
   // data.yourScore = мои клики, data.opponentScore = клики соперника

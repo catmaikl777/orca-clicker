@@ -708,10 +708,13 @@ function startBattle(player1Id, player2Id) {
   });
   
   const battleData = {
-    type: 'battleStart', battleId,
+    type: 'battleStart', 
+    battleId,
     opponent: player2.name,
     yourPerSecond: player1.perSecond || 0,
     opponentPerSecond: player2.perSecond || 0,
+    yourSkin: player1.currentSkin || 'normal',
+    opponentSkin: player2.currentSkin || 'normal',
     duration: 30000
   };
   
@@ -719,6 +722,8 @@ function startBattle(player1Id, player2Id) {
   battleData.opponent = player1.name;
   battleData.yourPerSecond = player2.perSecond || 0;
   battleData.opponentPerSecond = player1.perSecond || 0;
+  battleData.yourSkin = player2.currentSkin || 'normal';
+  battleData.opponentSkin = player1.currentSkin || 'normal';
   player2.ws.send(JSON.stringify(battleData));
   
   setTimeout(() => endBattle(battleId), 30000);

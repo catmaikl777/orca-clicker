@@ -82,60 +82,70 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
 
 ---
 
-## ✨ Новая функция: Скины в PvP батлах
+## ✨ Новая функция: Реальные скины игроков в PvP батлах
 
 ### Что изменено:
-- **Вместо кнопки "КЛИК!"** - теперь показаны скины игроков рядом
-- **Визуальное сравнение** - игроки видят свои скины друг напротив друга
-- **Анимация свечения** - скины пульсируют во время батла
+- **Сервер передаёт реальные скины** - каждый игрок видит свой и соперника
+- **Скины передаются через WebSocket** - в `battleStart` сообщении
+- **Загрузка изображений** - используются реальные изображения скинов из `skinsData`
 
-### Структура HTML:
-```html
-<div class="battle-arena-display">
-  <div class="battle-player-side">
-    <div class="battle-player-skin">
-      <img id="myBattleSkin" src="normal.png" alt="Вы">
-    </div>
-    <h3>Вы</h3>
-    <div id="myBattleScore">0</div>
-    <div id="myCPS">0 CPS</div>
-  </div>
-  <div class="vs">VS</div>
-  <div class="battle-player-side">
-    <div class="battle-player-skin">
-      <img id="opponentBattleSkin" src="random.png" alt="Соперник">
-    </div>
-    <h3 id="opponentName">Соперник</h3>
-    <div id="opponentScore">0</div>
-    <div id="opponentCPS">0 CPS</div>
-  </div>
-</div>
-```
-
-### CSS стили:
-- `.battle-arena-display` - flex-контейнер для арены
-- `.battle-player-skin` - круглый фрейм для скина с анимацией свечения
-- Анимация `battleSkinGlow` - пульсирующее свечение
-
-### В client.js:
+### Сервер (websocket-server.js):
 ```javascript
-function startBattleUI(data) {
-  // Показываем мой скин
-  const mySkin = skinsData.find(s => s.id === game.currentSkin);
-  const mySkinImg = document.getElementById('myBattleSkin');
-  if (mySkin && mySkinImg) {
-    mySkinImg.src = mySkin.image;
-  }
+function startBattle(player1Id, player2Id) {
+  const battleData = {
+    type: 'battleStart',
+    battleId,
+    opponent: player2.name,
+    yourPerSecond: player1.perSecond || 0,
+    opponentPerSecond: player2.perSecond || 0,
+    yourSkin: player1.currentSkin || 'normal',      // ← Мой скин
+    opponentSkin: player2.currentSkin || 'normal',  // ← Скин соперника
+    duration: 30000
+  };
   
-  // Показываем случайный скин соперника
-  const randomSkin = opponentSkins[Math.floor(Math.random() * opponentSkins.length)];
-  const opponentSkinData = skinsData.find(s => s.id === randomSkin);
-  const opponentSkinImg = document.getElementById('opponentBattleSkin');
-  if (opponentSkinData && opponentSkinImg) {
-    opponentSkinImg.src = opponentSkinData.image;
-  }
+  player1.ws.send(JSON.stringify(battleData));
+  // ... для игрока 2 меняем местами
 }
 ```
+
+### Клиент (client.js):
+```javascript
+function startBattleUI(data) {
+  // Мой скин из данных сервера
+  const mySkin = skinsData.find(s => s.id === data.yourSkin);
+  document.getElementById('myBattleSkin').src = mySkin.image;
+  
+  // Скин соперника из данных сервера
+  const opponentSkin = skinsData.find(s => s.id === data.opponentSkin);
+  document.getElementById('opponentBattleSkin').src = opponentSkin.image;
+}
+```
+
+### Структура данных:
+```json
+{
+  "type": "battleStart",
+  "battleId": "abc123",
+  "opponent": "Player2",
+  "yourPerSecond": 100,
+  "opponentPerSecond": 150,
+  "yourSkin": "cyberpunk",
+  "opponentSkin": "beauty",
+  "duration": 30000
+}
+```
+
+### Визуализация:
+```
+┌─────────────────┐    VS    ┌─────────────────┐
+│  [CYBERPUNK]    │          │   [BEAUTY]      │
+│      ВЫ         │          │   СОПЕРНИК      │
+│   Score: 45     │          │   Score: 38     │
+│   CPS: 100      │          │   CPS: 150      │
+└─────────────────┘          └─────────────────┘
+```
+
+**Теперь игроки видят реальные скины друг друга во время батла!** 🎨⚔️
 
 ---
 
