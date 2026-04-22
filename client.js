@@ -86,6 +86,25 @@ let lastBattleUpdate = 0;
 let battleInterval = null;
 let wsConnected = false;
 
+// ==================== АНТИ-ОВЕРЛЕЙ / ФОКУС ====================
+let windowFocused = document.hasFocus();
+let pageVisible = document.visibilityState === 'visible';
+let lastFocusWarnAt = 0;
+
+function updateFocusState() {
+  windowFocused = document.hasFocus();
+  pageVisible = document.visibilityState === 'visible';
+}
+
+window.addEventListener('focus', updateFocusState);
+window.addEventListener('blur', updateFocusState);
+document.addEventListener('visibilitychange', updateFocusState);
+
+function canPlayActions() {
+  updateFocusState();
+  return windowFocused && pageVisible;
+}
+
 const clickSounds = ['clickSound', 'mainmeow1', 'mainmeow2', 'mainmeow3', 'mainmeow4'];
 
 // Настройки WebSocket сервера
@@ -420,6 +439,16 @@ const orcaEmoji = document.getElementById('orcaEmoji');
 // Клик по косатке
 function handleClick(e) {
   e.preventDefault();
+
+  // Жёстко не даём кликать, если вкладка/окно не активно
+  if (!canPlayActions()) {
+    const now = Date.now();
+    if (now - lastFocusWarnAt > 1500) {
+      lastFocusWarnAt = now;
+      showNotification('⚠️ Вернитесь в игру (вкладка должна быть активна)');
+    }
+    return;
+  }
   
   let value = game.perClick * game.multiplier;
   let isCrit = false;
@@ -455,7 +484,13 @@ function handleClick(e) {
 
   // Сигнал клика на сервер для анти-автокликера
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'click', t: Date.now() }));
+    ws.send(JSON.stringify({
+      type: 'click',
+      t: Date.now(),
+      trusted: !!e.isTrusted,
+      focus: typeof document.hasFocus === 'function' ? document.hasFocus() : true,
+      vis: document.visibilityState || 'unknown'
+    }));
   }
 }
 

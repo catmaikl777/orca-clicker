@@ -92,6 +92,13 @@ const saveSnapshots = new Map(); // playerId -> { t, clicks }
 const clickTrack = new Map(); // playerId -> { times: number[] }
 const CLICK_TRACK_WINDOW_MS = 3000;
 
+// Проверка интервалов между кликами (быстрая реакция)
+const clickIntervals = new Map(); // playerId -> { lastAt: number, intervals: number[] }
+const INTERVAL_WINDOW = 20; // сколько последних интервалов держим
+const MIN_HUMAN_INTERVAL_MS = 25; // <25мс сериями — почти всегда автокликер
+const MIN_INTERVAL_STREAK = 8; // сколько подряд "слишком быстрых" интервалов для бана
+const LOW_VARIANCE_THRESHOLD_MS = 2.5; // слишком ровно = подозрительно
+
 // Путь к БД
 const DB_PATH = path.join(__dirname, 'database.json');
 
@@ -567,7 +574,7 @@ function handleMessage(ws, data) {
     case 'restoreSession': handleRestoreSession(ws, data); break;
     case 'register': handleRegisterGuest(ws, data.name); break;
     case 'updateScore': handleUpdateScore(ws, data.coins, data.perClick, data.perSecond); break;
-    case 'click': handleClick(ws, data.t); break;
+    case 'click': handleClick(ws, data); break;
     case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
     case 'findBattle': handleFindBattle(ws); break;
@@ -588,7 +595,7 @@ function handleMessage(ws, data) {
   }
 }
 
-function handleClick(ws, clientTime) {
+function handleClick(ws, payload) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
 
@@ -600,7 +607,58 @@ function handleClick(ws, clientTime) {
   }
 
   const now = Date.now();
-  const clickTime = typeof clientTime === 'number' ? clientTime : now;
+  const clickTime = typeof payload?.t === 'number' ? payload.t : now;
+
+  // Жёсткие признаки: не-trusted / не в фокусе / вкладка скрыта
+  const trusted = payload?.trusted !== undefined ? !!payload.trusted : true;
+  const focus = payload?.focus !== undefined ? !!payload.focus : true;
+  const vis = typeof payload?.vis === 'string' ? payload.vis : 'visible';
+  if (!trusted || !focus || vis !== 'visible') {
+    banPlayer(id, `overlay_trusted:${trusted}_focus:${focus}_vis:${vis}`);
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Запрещены клики в фоне/через автокликер. Доступ заблокирован.' }));
+    ws.close(1008, 'Overlay/autoclicker detected');
+    return;
+  }
+
+  // 0) Интервалы между кликами
+  let it = clickIntervals.get(id);
+  if (!it) {
+    it = { lastAt: now, intervals: [] };
+    clickIntervals.set(id, it);
+  } else {
+    const dt = now - it.lastAt;
+    it.lastAt = now;
+    if (dt >= 0 && dt < 60000) { // защита от мусора/паузы
+      it.intervals.push(dt);
+      if (it.intervals.length > INTERVAL_WINDOW) it.intervals.shift();
+
+      // серия слишком быстрых интервалов
+      let fastStreak = 0;
+      for (let i = it.intervals.length - 1; i >= 0; i--) {
+        if (it.intervals[i] < MIN_HUMAN_INTERVAL_MS) fastStreak++;
+        else break;
+      }
+      if (fastStreak >= MIN_INTERVAL_STREAK) {
+        banPlayer(id, `interval_fast_${dt}ms_streak_${fastStreak}`);
+        ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком маленькие интервалы между кликами).' }));
+        ws.close(1008, 'Autoclicker interval detected');
+        return;
+      }
+
+      // слишком ровные интервалы (низкая дисперсия) + достаточно быстрые
+      if (it.intervals.length >= 12) {
+        const avg = it.intervals.reduce((a, b) => a + b, 0) / it.intervals.length;
+        const variance = it.intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / it.intervals.length;
+        const stdDev = Math.sqrt(variance);
+        if (avg < 60 && stdDev < LOW_VARIANCE_THRESHOLD_MS) {
+          banPlayer(id, `interval_uniform_avg_${avg.toFixed(1)}_std_${stdDev.toFixed(1)}`);
+          ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком ровные интервалы кликов).' }));
+          ws.close(1008, 'Autoclicker uniform interval detected');
+          return;
+        }
+      }
+    }
+  }
 
   // 1) CPS по реальным кликам (скользящее окно)
   let t = clickTrack.get(id);
@@ -612,7 +670,9 @@ function handleClick(ws, clientTime) {
   // чистим окно
   while (t.times.length && now - t.times[0] > CLICK_TRACK_WINDOW_MS) t.times.shift();
   const cps = (t.times.length * 1000) / CLICK_TRACK_WINDOW_MS;
-  if (cps > AUTCLICK.maxSustainedCps) {
+  // Порог ниже, чтобы автокликер ловился быстро
+  const cpsLimit = 18;
+  if (cps > cpsLimit) {
     banPlayer(id, `cps_click_${cps.toFixed(1)}`);
     ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком высокий CPS). Доступ заблокирован.' }));
     ws.close(1008, 'Autoclicker detected');
