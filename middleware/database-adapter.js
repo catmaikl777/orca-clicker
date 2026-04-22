@@ -79,7 +79,7 @@ class DatabaseAdapter {
       // Таблица игроков
       `CREATE TABLE IF NOT EXISTS players (
         id VARCHAR(50) PRIMARY KEY,
-        account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE CASCADE,
+        account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE SET NULL,
         name VARCHAR(100) NOT NULL,
         coins INTEGER DEFAULT 0,
         total_coins INTEGER DEFAULT 0,
@@ -99,6 +99,18 @@ class DatabaseAdapter {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
+      // Обновить внешний ключ если таблица уже существует (для миграции)
+      `DO $$ 
+      BEGIN 
+        BEGIN 
+          ALTER TABLE players DROP CONSTRAINT IF EXISTS players_account_id_fkey;
+          ALTER TABLE players ADD CONSTRAINT players_account_id_fkey 
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL;
+        EXCEPTION 
+          WHEN OTHERS THEN NULL;
+        END;
+      END $$;`,
+      
       // Таблица событий
       `CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
@@ -111,7 +123,7 @@ class DatabaseAdapter {
       
       // Таблица награды событий
       `CREATE TABLE IF NOT EXISTS event_coins (
-        account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE CASCADE,
+        account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE SET NULL,
         event_name VARCHAR(100) NOT NULL,
         coins INTEGER DEFAULT 0,
         PRIMARY KEY (account_id, event_name)
@@ -197,6 +209,9 @@ class DatabaseAdapter {
     const clan = player.clan === null || player.clan === undefined ? null : (typeof player.clan === 'string' ? player.clan : JSON.stringify(player.clan));
     const pendingBoxes = typeof player.pendingBoxes === 'string' ? player.pendingBoxes : JSON.stringify(player.pendingBoxes || []);
     
+    // accountId может быть null для гостей
+    const accountId = player.accountId || null;
+    
     await this.pool.query(
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
@@ -220,7 +235,7 @@ class DatabaseAdapter {
         last_login = EXCLUDED.last_login,
         updated_at = NOW()`,
       [
-        player.id, player.accountId, player.name, player.coins, player.totalCoins,
+        player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal',
         clan, player.eventRewards || 0, pendingBoxes, createdAt, lastLogin

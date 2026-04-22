@@ -54,7 +54,16 @@ function savePlayerToDB(accountId) {
   if (!dbAdapter.initialized) return; // Адаптер ещё не инициализирован
   const p = db.players[accountId];
   if (!p) return;
-  dbAdapter.savePlayer({ ...p, accountId }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
+  
+  // Проверяем что это зарегистрированный игрок (есть в accounts)
+  const isRegistered = db.accounts && db.accounts[accountId];
+  
+  dbAdapter.savePlayer({ 
+    ...p, 
+    accountId: isRegistered ? accountId : null, // Только зарегистрированные игроки имеют accountId
+    id: accountId // id всегда есть
+  }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
+  
   const acc = db.accounts[accountId];
   if (acc) dbAdapter.saveAccount(acc).catch(() => {});
 }
@@ -442,6 +451,13 @@ ws.on('message', (message) => {
 });
 
 function handleMessage(ws, data) {
+  const id = ws.accountId || ws.playerId;
+  
+  // Лог для отладки
+  if (data.type === 'createClan' || data.type === 'joinClan') {
+    console.log(`📋 Clan action: ${data.type} by ${id}, db.players[id]=${!!db.players[id]}, players.has=${players.has(id)}`);
+  }
+  
   switch (data.type) {
     case 'authRequest': handleAuthRequest(ws, data); break;
     case 'savePlayerData': handleSavePlayerData(ws, data); break;
@@ -533,7 +549,7 @@ function handleClick(ws, payload) {
       }
     }
   }
-
+  
   // 1) CPS по реальным кликам (скользящее окно)
   let t = clickTrack.get(id);
   if (!t) {
@@ -552,7 +568,7 @@ function handleClick(ws, payload) {
     ws.close(1008, 'Autoclicker detected');
     return;
   }
-
+  
   // 2) Паттерны (равномерность/слишком быстрые интервалы)
   if (!analyzeClickPattern(id, clickTime)) {
     banPlayer(id, 'click_pattern');
@@ -624,7 +640,11 @@ function sendEventInfo(ws) {
       season: db.event.season,
       eventCoins: db.event.eventCoins[id] || 0,
       topPlayers: Object.entries(db.event.eventCoins || {})
-        .map(([id, coins]) => ({ id, name: db.players[id]?.name || 'Unknown', coins }))
+        .map(([id, coins]) => ({ 
+          id, 
+          name: db.players[id]?.name || ws.username || 'Player', 
+          coins 
+        }))
         .sort((a, b) => b.coins - a.coins)
         .slice(0, 10)
     }
@@ -636,6 +656,9 @@ function sendEventInfo(ws) {
 // Обработчик аутентификации (login/register с аккаунтом)
 function handleAuthRequest(ws, data) {
   const { username, password } = data;
+  
+  // Сохраняем username для использования в других функциях
+  ws.username = username;
   
   // Используем функцию из auth.js
   handleAuthRegister(ws, { username, password }, db, players, savePlayerToDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB);
@@ -1014,8 +1037,35 @@ function sendLeaderboard(ws) {
 
 function handleCreateClan(ws, clanName) {
   const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player || player.clan) return;
+  
+  // Создаем игрока если его нет
+  if (!db.players[id]) {
+    db.players[id] = {
+      id,
+      name: ws.username || 'Player',
+      coins: 0,
+      totalCoins: 0,
+      perClick: 1,
+      perSecond: 0,
+      clicks: 0,
+      level: 1,
+      skills: {},
+      achievements: [],
+      skins: { normal: true },
+      currentSkin: 'normal',
+      clan: null,
+      eventRewards: 0,
+      pendingBoxes: [],
+      createdAt: Date.now(),
+      lastLogin: Date.now()
+    };
+  }
+  
+  const player = players.get(id) || db.players[id];
+  if (player.clan) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в клане' }));
+    return;
+  }
   
   const clanId = generateId();
   db.clans[clanId] = {
@@ -1026,26 +1076,63 @@ function handleCreateClan(ws, clanName) {
   player.clan = clanId;
   db.players[id].clan = clanId;
   db.stats.totalClans++;
+  
+  // Синхронизация в памяти
+  if (players.has(id)) {
+    players.get(id).clan = clanId;
+  }
+  
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
   sendClans(ws);
+  savePlayerToDB(id);
 }
-
+  
 function handleJoinClan(ws, clanId) {
   const id = ws.accountId || ws.playerId;
   const clan = db.clans[clanId];
-  const player = players.get(id);
-  if (!clan || !player || player.clan) return;
-  if (clan.members.includes(id)) return;
+  
+  // Создаем игрока если его нет
+  if (!db.players[id]) {
+    db.players[id] = {
+      id,
+      name: ws.username || 'Player',
+      coins: 0,
+      totalCoins: 0,
+      perClick: 1,
+      perSecond: 0,
+      clicks: 0,
+      level: 1,
+      skills: {},
+      achievements: [],
+      skins: { normal: true },
+      currentSkin: 'normal',
+      clan: null,
+      eventRewards: 0,
+      pendingBoxes: [],
+      createdAt: Date.now(),
+      lastLogin: Date.now()
+    };
+  }
+  
+  const player = players.get(id) || db.players[id];
+  if (!clan || player.clan || clan.members.includes(id)) return;
   
   clan.members.push(id);
   clan.memberNames.push(player.name);
   player.clan = clanId;
   db.players[id].clan = clanId;
+  
+  // Синхронизация
+  if (players.has(id)) {
+    players.get(id).clan = clanId;
+  }
+  
   ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name }));
   sendClans(ws);
   sendClanMembers(clanId);
+  savePlayerToDB(id);
 }
-
+  
 function handleLeaveClan(ws) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);

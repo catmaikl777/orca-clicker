@@ -100,6 +100,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     ws.authenticated = true;
     ws.accountId = accountId;
+    ws.username = username; // Сохраняем username
     players.set(accountId, { ...playerData, ws });
     updateLeaderboard(playerData);
     saveDB();
