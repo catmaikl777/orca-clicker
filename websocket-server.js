@@ -20,6 +20,39 @@ const wsRateLimiter = new WebSocketRateLimiter({
   bypassTypes: ['click', 'updateScore', 'battleClick'] // Игровые действия не лимитируем строго
 });
 
+// Каталог предметов магазина (цены хранятся пер-игрока в db.players[id].shopItems)
+const SHOP_CATALOG = [
+  { id: 'click1', name: 'Острые зубы', baseCost: 50, type: 'click', value: 1 },
+  { id: 'click2', name: 'Акулий хвост', baseCost: 250, type: 'click', value: 5 },
+  { id: 'click3', name: 'Китовая сила', baseCost: 1000, type: 'click', value: 25 },
+  { id: 'auto1', name: 'Маленькая рыбка', baseCost: 100, type: 'auto', value: 1 },
+  { id: 'auto2', name: 'Стая рыб', baseCost: 500, type: 'auto', value: 5 },
+  { id: 'auto3', name: 'Косяк тунца', baseCost: 2500, type: 'auto', value: 25 },
+  { id: 'auto4', name: 'Океан богатств', baseCost: 10000, type: 'auto', value: 100 },
+  { id: 'click4', name: 'Легенда океана', baseCost: 50000, type: 'click', value: 100 },
+  { id: 'auto5', name: 'Царство косаток', baseCost: 100000, type: 'auto', value: 500 }
+];
+
+function getPlayerShopState(player) {
+  if (!player.shopItems || !Array.isArray(player.shopItems)) player.shopItems = [];
+  return player.shopItems;
+}
+
+function getPlayerItemCost(player, itemId) {
+  const catalog = SHOP_CATALOG.find(i => i.id === itemId);
+  if (!catalog) return null;
+  const state = getPlayerShopState(player);
+  const saved = state.find(s => s.id === itemId);
+  return saved?.cost ?? catalog.baseCost;
+}
+
+function setPlayerItemCost(player, itemId, cost) {
+  const state = getPlayerShopState(player);
+  const saved = state.find(s => s.id === itemId);
+  if (saved) saved.cost = cost;
+  else state.push({ id: itemId, cost });
+}
+
 // Путь к БД
 const DB_PATH = path.join(__dirname, 'database.json');
 
@@ -1075,25 +1108,27 @@ function handleBuyItem(ws, itemId) {
   const mem = players.get(id);
   const coins = mem ? mem.coins : p.coins;
   
-  // Находим предмет
-  const item = shopItems.find(i => i.id === itemId);
+  const item = SHOP_CATALOG.find(i => i.id === itemId);
   if (!item) return;
+  const itemCost = getPlayerItemCost(p, itemId);
+  if (itemCost === null) return;
   
-  if (coins < item.cost) {
+  if (coins < itemCost) {
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
     return;
   }
   
   // Списываем монеты
-  p.coins = coins - item.cost;
+  p.coins = coins - itemCost;
   if (mem) mem.coins = p.coins;
   
   // Применяем улучшения
   if (item.type === 'click') p.perClick += item.value;
   if (item.type === 'auto') p.perSecond += item.value;
   
-  // Увеличиваем цену
-  item.cost = Math.floor(item.cost * 1.2);
+  // Увеличиваем цену (пер-игрока)
+  const newCost = Math.floor(itemCost * 1.2);
+  setPlayerItemCost(p, itemId, newCost);
   
   saveDB();
   savePlayerToDB(id);
@@ -1105,7 +1140,7 @@ function handleBuyItem(ws, itemId) {
     coins: p.coins,
     perClick: p.perClick,
     perSecond: p.perSecond,
-    itemCost: item.cost
+    itemCost: newCost
   }));
   
   console.log(`🛒 Игрок ${id} купил предмет: ${item.name}`);
@@ -1113,44 +1148,8 @@ function handleBuyItem(ws, itemId) {
 
 // Покупка скина
 function handleBuySkin(ws, skinId) {
-  const id = ws.accountId || ws.playerId;
-  if (!id || !db.players[id]) return;
-  
-  const p = db.players[id];
-  const mem = players.get(id);
-  const coins = mem ? mem.coins : p.coins;
-  
-  const skin = skinsData.find(s => s.id === skinId);
-  if (!skin || skin.cost === 0) return;
-  
-  if (coins < skin.cost) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
-    return;
-  }
-  
-  // Списываем монеты
-  p.coins = coins - skin.cost;
-  if (mem) mem.coins = p.coins;
-  
-  // Открываем скин
-  p.skins = p.skins || {};
-  p.skins[skinId] = true;
-  p.currentSkin = skinId;
-  if (mem) {
-    mem.skins = p.skins;
-    mem.currentSkin = skinId;
-  }
-  
-  saveDB();
-  savePlayerToDB(id);
-  
-  ws.send(JSON.stringify({ 
-    type: 'skinBought',
-    skinId: skinId,
-    coins: p.coins
-  }));
-  
-  console.log(`🎨 Игрок ${id} купил скин: ${skin.name}`);
+  // По просьбе: скины НЕ покупаются за монеты — только выбиваются из бокса
+  ws.send(JSON.stringify({ type: 'error', message: 'Скины можно получить только из ящика' }));
 }
 
 // Надевание скина

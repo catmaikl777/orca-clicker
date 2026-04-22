@@ -384,16 +384,8 @@ function handleServerMessage(data) {
       saveGame();
       break;
     case 'skinBought':
-      // Сервер подтвердил покупку скина
-      if (data.coins !== undefined) game.coins = data.coins;
-      game.skins[data.skinId] = true;
-      game.currentSkin = data.skinId;
-      const boughtSkin = skinsData.find(s => s.id === data.skinId);
-      showNotification(`🎨 Скин "${boughtSkin?.name || data.skinId}" куплен!`);
-      playSound('buySound');
-      renderSkins();
-      updateUI();
-      saveGame();
+      // Покупка скина отключена; оставляем совместимость если сервер где-то ещё шлёт
+      showNotification('🎁 Скины можно получить только из ящика');
       break;
     case 'skinEquipped':
       // Сервер подтвердил выбор скина
@@ -860,26 +852,9 @@ function buyOrEquipSkin(skin) {
       updateUI();
       saveGame();
     }
-  } else if (game.coins >= skin.cost) {
-    // Покупка скина на сервере
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ 
-        type: 'buySkin', 
-        skinId: skin.id 
-      }));
-      // НЕ обновляем локально - ждём подтверждения
-    } else {
-      game.coins -= skin.cost;
-      game.skins[skin.id] = true;
-      game.currentSkin = skin.id;
-      showNotification(`🎨 Скин "${skin.name}" куплен!`);
-      playSound('buySound');
-      renderSkins();
-      updateUI();
-      saveGame();
-    }
   } else {
-    showNotification('⚠️ Недостаточно косаток!');
+    // Скины теперь только из ящиков
+    showNotification('🎁 Скины можно получить только из ящика');
   }
 }
 
