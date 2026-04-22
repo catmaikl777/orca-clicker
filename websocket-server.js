@@ -334,6 +334,56 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
   console.log(`📍 WebSocket: wss://localhost:${PORT}`);
   console.log(`💚 Health check: http://localhost:${PORT}/health`);
+  
+  // Инициализация данных из PostgreSQL
+  if (dbAdapter.usePostgreSQL) {
+    dbAdapter.init().then(async () => {
+      console.log('✅ PostgreSQL инициализирован');
+      try {
+        // Загрузить игроков
+        const rows = await dbAdapter.pool.query('SELECT * FROM players');
+        rows.rows.forEach(row => {
+          db.players[row.id] = {
+            id: row.id,
+            name: row.name,
+            coins: row.coins || 0,
+            totalCoins: row.total_coins || 0,
+            perClick: row.per_click || 1,
+            perSecond: row.per_second || 0,
+            clicks: row.clicks || 0,
+            level: row.level || 1,
+            skills: typeof row.skills === 'string' ? JSON.parse(row.skills) : row.skills || {},
+            achievements: typeof row.achievements === 'string' ? JSON.parse(row.achievements) : row.achievements || [],
+            skins: typeof row.skins === 'string' ? JSON.parse(row.skins) : row.skins || { normal: true },
+            currentSkin: row.current_skin || 'normal',
+            clan: typeof row.clan === 'string' ? JSON.parse(row.clan) : row.clan || null,
+            eventRewards: row.event_rewards || 0,
+            pendingBoxes: typeof row.pending_boxes === 'string' ? JSON.parse(row.pending_boxes) : row.pending_boxes || [],
+            createdAt: row.created_at || Date.now(),
+            lastLogin: row.last_login || Date.now()
+          };
+        });
+        
+        // Загрузить аккаунты
+        const accRows = await dbAdapter.pool.query('SELECT * FROM accounts');
+        accRows.rows.forEach(row => {
+          db.accounts[row.id] = {
+            id: row.id,
+            username: row.username,
+            passwordHash: row.password_hash,
+            createdAt: row.created_at,
+            lastLogin: row.last_login
+          };
+        });
+        
+        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов`);
+      } catch (e) {
+        console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
+      }
+    }).catch(err => console.error('DB init error:', err.message));
+  } else {
+    console.log('ℹ️ File-based database (database.json)');
+  }
 });
 
 wss.on('connection', (ws, req) => {
@@ -418,7 +468,7 @@ function handleMessage(ws, data) {
     case 'saveGame': handleSaveGame(ws, data.data); break;
   }
 }
-
+  
 function handleClick(ws, payload) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
@@ -429,7 +479,7 @@ function handleClick(ws, payload) {
     ws.close(1008, 'Autoclicker banned');
     return;
   }
-
+  
   const now = Date.now();
   const clickTime = typeof payload?.t === 'number' ? payload.t : now;
 
@@ -443,7 +493,7 @@ function handleClick(ws, payload) {
     ws.close(1008, 'Overlay/autoclicker detected');
     return;
   }
-
+  
   // 0) Интервалы между кликами
   let it = clickIntervals.get(id);
   if (!it) {
@@ -563,7 +613,7 @@ function handleSaveGame(ws, data) {
   savePlayerToDB(id);
   console.log('💾 Автосохранение:', id);
 }
-
+  
 function sendEventInfo(ws) {
   const id = ws.accountId || ws.playerId;
   ws.send(JSON.stringify({ 
