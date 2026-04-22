@@ -112,13 +112,20 @@ const battles = new Map();
 const waitingPlayers = [];
 
 // Данные игроков (загружаются из PostgreSQL при необходимости)
+const now = Date.now();
 let db = {
   players: {},
   clans: {},
   leaderboard: [],
   stats: { totalBattles: 0, totalClans: 0, totalPlayers: 0 },
   accounts: {},
-  event: { eventCoins: {}, active: true, season: 1 }
+  event: { 
+    eventCoins: {}, 
+    active: true, 
+    season: 1,
+    startDate: now,
+    endDate: now + 14 * 24 * 60 * 60 * 1000 // 2 недели
+  }
 };
 
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
