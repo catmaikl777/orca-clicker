@@ -45,31 +45,73 @@ function loadDB() {
 }
 
 // Сохранение БД
-function saveDB() {
+let dbSaveTimer = null;
+let dbSavePending = false;
+let dbSaveLastAt = 0;
+const DB_SAVE_DEBOUNCE_MS = 150; // "реальное время" без убийства диска
+const DB_SAVE_MAX_WAIT_MS = 1500; // гарантируем сброс даже при спаме
+
+function syncPlayersToDb() {
+  // Синхронизируем данные из players в db.players перед сохранением
+  players.forEach((player, accountId) => {
+    if (db.players[accountId]) {
+      db.players[accountId].coins = player.coins;
+      db.players[accountId].totalCoins = player.totalCoins;
+      db.players[accountId].perClick = player.perClick;
+      db.players[accountId].perSecond = player.perSecond;
+      db.players[accountId].clicks = player.clicks;
+      db.players[accountId].level = player.level;
+      db.players[accountId].skills = player.skills;
+      db.players[accountId].skins = player.skins;
+      db.players[accountId].currentSkin = player.currentSkin;
+      db.players[accountId].achievements = player.achievements;
+      db.players[accountId].pendingBoxes = player.pendingBoxes;
+      db.players[accountId].lastLogin = Date.now();
+    }
+  });
+}
+
+function saveDBNow() {
   try {
-    // Синхронизируем данные из players в db.players перед сохранением
-    players.forEach((player, accountId) => {
-      if (db.players[accountId]) {
-        db.players[accountId].coins = player.coins;
-        db.players[accountId].totalCoins = player.totalCoins;
-        db.players[accountId].perClick = player.perClick;
-        db.players[accountId].perSecond = player.perSecond;
-        db.players[accountId].clicks = player.clicks;
-        db.players[accountId].level = player.level;
-        db.players[accountId].skills = player.skills;
-        db.players[accountId].skins = player.skins;
-        db.players[accountId].currentSkin = player.currentSkin;
-        db.players[accountId].achievements = player.achievements;
-        db.players[accountId].pendingBoxes = player.pendingBoxes;
-        db.players[accountId].lastLogin = Date.now();
-      }
-    });
-    
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+    syncPlayersToDb();
+
+    const tmpPath = `${DB_PATH}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(db, null, 2), 'utf-8');
+    try {
+      fs.renameSync(tmpPath, DB_PATH); // атомарнее на большинстве FS
+    } catch (e) {
+      // Windows часто не перезаписывает существующий файл через rename
+      try { if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH); } catch (_) {}
+      fs.renameSync(tmpPath, DB_PATH);
+    }
+    dbSaveLastAt = Date.now();
+    dbSavePending = false;
     console.log('💾 БД сохранена');
   } catch (e) {
+    dbSavePending = false;
     console.error('Ошибка сохранения БД:', e.message);
   }
+}
+
+// Сохранение "почти в реальном времени": склеиваем частые вызовы в 1 запись
+function saveDB() {
+  dbSavePending = true;
+
+  const now = Date.now();
+  const timeSinceLast = now - dbSaveLastAt;
+
+  // Если давно не сохраняли — пишем сразу
+  if (!dbSaveTimer && timeSinceLast >= DB_SAVE_MAX_WAIT_MS) {
+    saveDBNow();
+    return;
+  }
+
+  if (dbSaveTimer) return;
+
+  dbSaveTimer = setTimeout(() => {
+    dbSaveTimer = null;
+    if (dbSavePending) saveDBNow();
+  }, DB_SAVE_DEBOUNCE_MS);
 }
 
 // Сохранение одного игрока в PostgreSQL
@@ -167,12 +209,14 @@ if (!db.event || !db.event.active) {
 
 console.log('База данных загружена');
 console.log(`🎉 Ивент активен! До конца: ${Math.ceil((db.event.endDate - Date.now()) / 60000)} мин.`);
-saveDB();
 
 // Хранилище в памяти
 const players = new Map();
 const battles = new Map();
 const waitingPlayers = [];
+
+// Стартовое сохранение после инициализации памяти
+saveDB();
 
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
 const battleUpdateBuffer = new Map(); // playerId -> { updates: [], lastSend: timestamp }
@@ -462,6 +506,9 @@ function handleMessage(ws, data) {
     case 'getClans': sendClans(ws); break;
     case 'getClanMembers': getClanMembers(ws); break;
     case 'buySkill': handleBuySkill(ws, data.skillId); break;
+    case 'buyItem': handleBuyItem(ws, data.itemId); break;
+    case 'buySkin': handleBuySkin(ws, data.skinId); break;
+    case 'equipSkin': handleEquipSkin(ws, data.skinId); break;
     case 'buyBox': handleBuyBox(ws); break;
     case 'openBox': handleOpenBox(ws, data.boxId); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
@@ -1006,9 +1053,129 @@ function handleBuySkill(ws, skillId) {
   p.coins = coins - skill.cost;
   p.skills[skillId] = true;
   if (mem) { mem.coins = p.coins; mem.skills = p.skills; }
-  ws.send(JSON.stringify({ type: 'skillBought', skillId, skillName: skill.name }));
+  
   saveDB();
   savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'skillBought', 
+    skillId, 
+    skillName: skill.name 
+  }));
+  
+  console.log(`⭐ Игрок ${id} купил навык: ${skill.name}`);
+}
+
+// Покупка предмета в магазине
+function handleBuyItem(ws, itemId) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const p = db.players[id];
+  const mem = players.get(id);
+  const coins = mem ? mem.coins : p.coins;
+  
+  // Находим предмет
+  const item = shopItems.find(i => i.id === itemId);
+  if (!item) return;
+  
+  if (coins < item.cost) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
+    return;
+  }
+  
+  // Списываем монеты
+  p.coins = coins - item.cost;
+  if (mem) mem.coins = p.coins;
+  
+  // Применяем улучшения
+  if (item.type === 'click') p.perClick += item.value;
+  if (item.type === 'auto') p.perSecond += item.value;
+  
+  // Увеличиваем цену
+  item.cost = Math.floor(item.cost * 1.2);
+  
+  saveDB();
+  savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'itemBought',
+    itemId: item.id,
+    itemName: item.name,
+    coins: p.coins,
+    perClick: p.perClick,
+    perSecond: p.perSecond,
+    itemCost: item.cost
+  }));
+  
+  console.log(`🛒 Игрок ${id} купил предмет: ${item.name}`);
+}
+
+// Покупка скина
+function handleBuySkin(ws, skinId) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const p = db.players[id];
+  const mem = players.get(id);
+  const coins = mem ? mem.coins : p.coins;
+  
+  const skin = skinsData.find(s => s.id === skinId);
+  if (!skin || skin.cost === 0) return;
+  
+  if (coins < skin.cost) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
+    return;
+  }
+  
+  // Списываем монеты
+  p.coins = coins - skin.cost;
+  if (mem) mem.coins = p.coins;
+  
+  // Открываем скин
+  p.skins = p.skins || {};
+  p.skins[skinId] = true;
+  p.currentSkin = skinId;
+  if (mem) {
+    mem.skins = p.skins;
+    mem.currentSkin = skinId;
+  }
+  
+  saveDB();
+  savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'skinBought',
+    skinId: skinId,
+    coins: p.coins
+  }));
+  
+  console.log(`🎨 Игрок ${id} купил скин: ${skin.name}`);
+}
+
+// Надевание скина
+function handleEquipSkin(ws, skinId) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const p = db.players[id];
+  const mem = players.get(id);
+  
+  // Проверяем что скин открыт
+  if (!p.skins || !p.skins[skinId]) return;
+  
+  p.currentSkin = skinId;
+  if (mem) mem.currentSkin = skinId;
+  
+  saveDB();
+  savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'skinEquipped',
+    skinId: skinId
+  }));
+  
+  console.log(`🎨 Игрок ${id} надел скин: ${skinId}`);
 }
 
 // Боксы
@@ -1128,22 +1295,24 @@ function handleBuyBox(ws) {
   const boxId = generateId();
   playerDB.pendingBoxes.push(boxId);
   
-  // Снова синхронизируем pendingBoxes в памяти
+  // Синхронизируем pendingBoxes в памяти
   if (playerMem) {
-    playerMem.pendingBoxes = playerDB.pendingBoxes;
+    playerMem.pendingBoxes = [...playerDB.pendingBoxes];
   }
   
-  // Сохраняем СРАЗУ
+  // Сохраняем СРАЗУ в БД
   saveDB();
   savePlayerToDB(id);
   
-  // Отправляем подтверждение
+  // Отправляем подтверждение с актуальными данными
   ws.send(JSON.stringify({ 
     type: 'boxBought', 
     boxId,
-    coins: playerDB.coins, // Отправляем актуальные монеты
-    pendingBoxes: playerDB.pendingBoxes.length
+    coins: playerDB.coins,
+    pendingBoxes: playerDB.pendingBoxes.length // ✅ Количество боксов
   }));
+  
+  console.log(`📦 Игрок ${id} купил бокс. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 function handleOpenBox(ws, boxId) {
@@ -1163,8 +1332,14 @@ function handleOpenBox(ws, boxId) {
     return;
   }
   
+  // Удаляем бокс
   pendingBoxes.splice(boxIndex, 1);
   playerDB.pendingBoxes = pendingBoxes;
+  
+  // Синхронизируем в памяти
+  if (playerMem) {
+    playerMem.pendingBoxes = [...pendingBoxes];
+  }
   
   const isSkin = Math.random() < 0.7;
   let reward = {};
@@ -1200,9 +1375,18 @@ function handleOpenBox(ws, boxId) {
     if (playerMem) playerMem.coins = playerDB.coins;
   }
   
+  // Сохраняем СРАЗУ
   saveDB();
   savePlayerToDB(id);
-  ws.send(JSON.stringify({ type: 'boxOpened', reward }));
+  
+  // Отправляем подтверждение с актуальным количеством боксов
+  ws.send(JSON.stringify({ 
+    type: 'boxOpened', 
+    reward,
+    pendingBoxes: playerDB.pendingBoxes.length // ✅ Актуальное количество
+  }));
+  
+  console.log(`🎁 Игрок ${id} открыл бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 process.on('SIGINT', () => {

@@ -330,15 +330,18 @@ function handleServerMessage(data) {
       saveGame();
       break;
     case 'boxBought':
-      pendingBoxes.push(data.boxId);
-      updateBoxUI();
-      // Обновляем монеты если сервер прислал
+      // Сервер подтвердил покупку - обновляем данные
+      if (data.boxId) {
+        pendingBoxes.push(data.boxId);
+      }
       if (data.coins !== undefined) {
         game.coins = data.coins;
       }
-      showNotification('🎁 Бокс куплен! Откройте в магазине');
+      updateBoxUI();
       updateUI();
-      saveGame(); // Сразу сохраняем
+      showNotification('🎁 Бокс куплен! Откройте в магазине');
+      // Сохраняем чтобы данные зафиксировались локально
+      saveGame();
       break;
     case 'boxOpened':
       showBoxReward(data.reward);
@@ -348,6 +351,55 @@ function handleServerMessage(data) {
         game.coins += data.reward.amount;
         game.totalCoins += data.reward.amount;
       }
+      if (data.pendingBoxes !== undefined) {
+        pendingBoxes = new Array(data.pendingBoxes).fill(null).map((_, i) => `box_${i}`);
+      }
+      updateUI();
+      updateBoxUI();
+      saveGame();
+      break;
+    case 'itemBought':
+      // Сервер подтвердил покупку предмета
+      if (data.coins !== undefined) game.coins = data.coins;
+      if (data.perClick !== undefined) game.perClick = data.perClick;
+      if (data.perSecond !== undefined) game.perSecond = data.perSecond;
+      if (data.itemCost !== undefined) {
+        const item = shopItems.find(i => i.id === data.itemId);
+        if (item) item.cost = data.itemCost;
+      }
+      showNotification(`✅ Куплено: ${data.itemName}`);
+      playSound('buySound');
+      renderShop();
+      updateUI();
+      saveGame();
+      break;
+    case 'skillBought':
+      // Сервер подтвердил покупку навыка
+      game.skills[data.skillId] = true;
+      const skill = skillsData.find(s => s.id === data.skillId);
+      if (skill && skill.effect) skill.effect();
+      showNotification(`✨ Навык получен: ${data.skillName}`);
+      renderSkills();
+      updateUI();
+      saveGame();
+      break;
+    case 'skinBought':
+      // Сервер подтвердил покупку скина
+      if (data.coins !== undefined) game.coins = data.coins;
+      game.skins[data.skinId] = true;
+      game.currentSkin = data.skinId;
+      const boughtSkin = skinsData.find(s => s.id === data.skinId);
+      showNotification(`🎨 Скин "${boughtSkin?.name || data.skinId}" куплен!`);
+      playSound('buySound');
+      renderSkins();
+      updateUI();
+      saveGame();
+      break;
+    case 'skinEquipped':
+      // Сервер подтвердил выбор скина
+      if (data.skinId) game.currentSkin = data.skinId;
+      showNotification(`🎨 Скин "${skinsData.find(s => s.id === data.skinId)?.name || data.skinId}" выбран!`);
+      renderSkins();
       updateUI();
       saveGame();
       break;
@@ -401,10 +453,6 @@ function handleClick(e) {
   checkQuests();
   updateUI();
   saveGame();
-  
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'updateScore', coins: game.totalCoins }));
-  }
 }
 
 clicker.addEventListener('click', handleClick);
@@ -540,13 +588,23 @@ setInterval(() => {
     game.totalCoins += game.perSecond * game.multiplier;
     updateUI();
     checkQuests();
+    // фиксируем автодоход "в реальном времени" (сервер), локалку не спамим
+    scheduleServerSave();
   }
 }, 1000);
 
 // Счётчик времени в игре
 setInterval(() => {
   game.playTime++;
+  // playTime тоже сохраняем "в реальном времени" на сервер, без спама в localStorage
+  scheduleServerSave();
 }, 1000);
+
+// Резервное локальное сохранение без лишнего спама
+setInterval(() => {
+  // дергаем общий путь — он пишет localStorage и отправку на сервер (отправка склеится)
+  saveGame();
+}, 10000);
 
 // Система бонусов
 const bonus = document.getElementById('bonus');
@@ -742,16 +800,26 @@ function openBoxUI() {
 }
 
 function buyItem(item) {
-  if (game.coins >= item.cost) {
-    game.coins -= item.cost;
-    if (item.type === 'click') game.perClick += item.value;
-    if (item.type === 'auto') game.perSecond += item.value;
-    item.cost = Math.floor(item.cost * 1.2);
-    showNotification(`✅ Куплено: ${item.name}`);
-    playSound('buySound');
-    renderShop();
-    updateUI();
-    saveGame();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Отправляем на сервер для сохранения
+    ws.send(JSON.stringify({ 
+      type: 'buyItem', 
+      itemId: item.id 
+    }));
+    // НЕ обновляем локально - ждём подтверждения
+  } else {
+    // Локальный режим (без сервера)
+    if (game.coins >= item.cost) {
+      game.coins -= item.cost;
+      if (item.type === 'click') game.perClick += item.value;
+      if (item.type === 'auto') game.perSecond += item.value;
+      item.cost = Math.floor(item.cost * 1.2);
+      showNotification(`✅ Куплено: ${item.name}`);
+      playSound('buySound');
+      renderShop();
+      updateUI();
+      saveGame();
+    }
   }
 }
 
@@ -779,20 +847,39 @@ function buyOrEquipSkin(skin) {
   const unlocked = game.skins[skin.id] || skin.cost === 0;
   
   if (unlocked) {
-    game.currentSkin = skin.id;
-    showNotification(`🎨 Скин "${skin.name}" выбран!`);
-    renderSkins();
-    updateUI();
-    saveGame();
+    // Просто выбираем скин (сохранение на сервере)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'equipSkin', 
+        skinId: skin.id 
+      }));
+    } else {
+      game.currentSkin = skin.id;
+      showNotification(`🎨 Скин "${skin.name}" выбран!`);
+      renderSkins();
+      updateUI();
+      saveGame();
+    }
   } else if (game.coins >= skin.cost) {
-    game.coins -= skin.cost;
-    game.skins[skin.id] = true;
-    game.currentSkin = skin.id;
-    showNotification(`🎨 Скин "${skin.name}" куплен!`);
-    playSound('buySound');
-    renderSkins();
-    updateUI();
-    saveGame();
+    // Покупка скина на сервере
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ 
+        type: 'buySkin', 
+        skinId: skin.id 
+      }));
+      // НЕ обновляем локально - ждём подтверждения
+    } else {
+      game.coins -= skin.cost;
+      game.skins[skin.id] = true;
+      game.currentSkin = skin.id;
+      showNotification(`🎨 Скин "${skin.name}" куплен!`);
+      playSound('buySound');
+      renderSkins();
+      updateUI();
+      saveGame();
+    }
+  } else {
+    showNotification('⚠️ Недостаточно косаток!');
   }
 }
 
@@ -876,6 +963,7 @@ function buySkill(skill) {
       // Отправляем запрос на сервер
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'buySkill', skillId: skill.id }));
+        // НЕ обновляем локально - ждём подтверждения
       } else {
         // Локальная покупка если нет сервера
         game.coins -= skill.cost;
@@ -1242,16 +1330,19 @@ function openBox(boxId) {
   isOpeningBox = true;
   
   const boxIndex = pendingBoxes.indexOf(boxId);
-  if (boxIndex === -1) return;
+  if (boxIndex === -1) {
+    isOpeningBox = false;
+    return;
+  }
   
-  pendingBoxes.splice(boxIndex, 1);
-  updateBoxUI();
-  
+  // НЕ удаляем локально - ждём подтверждения от сервера
   // Запускаем катсцену
   showBoxOpeningCutscene();
   
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'openBox', boxId }));
+  } else {
+    isOpeningBox = false;
   }
 }
 
@@ -1412,13 +1503,34 @@ function resetGame() {
 
 // ==================== СОХРАНЕНИЕ ====================
 
-// Автосохранение каждые 30 секунд
-setInterval(() => {
-  saveGameToServer();
-}, 30000);
+// "Реальное время" для сервера: склеиваем частые изменения в 1 отправку
+let serverSaveTimer = null;
+let serverSavePending = false;
+let lastServerSaveAt = 0;
+const SERVER_SAVE_DEBOUNCE_MS = 250;
+const SERVER_SAVE_MAX_WAIT_MS = 1500;
+
+function scheduleServerSave() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  serverSavePending = true;
+
+  const now = Date.now();
+  if (!serverSaveTimer && (now - lastServerSaveAt) >= SERVER_SAVE_MAX_WAIT_MS) {
+    saveGameToServer();
+    return;
+  }
+
+  if (serverSaveTimer) return;
+  serverSaveTimer = setTimeout(() => {
+    serverSaveTimer = null;
+    if (serverSavePending) saveGameToServer();
+  }, SERVER_SAVE_DEBOUNCE_MS);
+}
 
 function saveGameToServer() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  serverSavePending = false;
+  lastServerSaveAt = Date.now();
   ws.send(JSON.stringify({
     type: 'saveGame',
     data: {
@@ -1463,7 +1575,7 @@ function saveGame() {
   localStorage.setItem('cosatkaClicker', JSON.stringify(saveData));
   
   // Также отправляем на сервер
-  saveGameToServer();
+  scheduleServerSave();
 }
 
 function loadGame() {
@@ -1609,9 +1721,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   updateUI();
   connectWebSocket();
-  
-  // Автосохранение
-  setInterval(saveGame, 30000);
   
   // Обновление при изменении имени
   const nameInput = document.getElementById('playerName');
