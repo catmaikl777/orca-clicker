@@ -166,6 +166,10 @@ class DatabaseAdapter {
   // Сохранение данных в PostgreSQL
   async saveAccount(account) {
     if (!this.usePostgreSQL) return;
+    
+    const createdAt = account.createdAt || account.created_at || Date.now();
+    const lastLogin = account.lastLogin || account.last_login || createdAt;
+    
     await this.pool.query(
       `INSERT INTO accounts (id, username, password_hash, created_at, last_login)
        VALUES ($1, $2, $3, $4, $5)
@@ -173,12 +177,16 @@ class DatabaseAdapter {
          username = EXCLUDED.username,
          password_hash = EXCLUDED.password_hash,
          last_login = EXCLUDED.last_login`,
-      [account.id, account.username, account.passwordHash || account.password_hash, account.createdAt || account.created_at, account.lastLogin || account.last_login]
+      [account.id, account.username, account.passwordHash || account.password_hash, createdAt, lastLogin]
     );
   }
   
   async savePlayer(player) {
     if (!this.usePostgreSQL) return;
+    
+    // Убедимся что createdAt и lastLogin всегда есть
+    const createdAt = player.createdAt || player.created_at || Date.now();
+    const lastLogin = player.lastLogin || player.last_login || Date.now();
     
     await this.pool.query(
       `INSERT INTO players (
@@ -205,10 +213,10 @@ class DatabaseAdapter {
       [
         player.id, player.accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
-        JSON.stringify(player.skills), JSON.stringify(player.achievements),
-        JSON.stringify(player.skins), player.currentSkin,
-        JSON.stringify(player.clan), player.eventRewards,
-        JSON.stringify(player.pendingBoxes), player.createdAt, player.lastLogin
+        JSON.stringify(player.skills || {}), JSON.stringify(player.achievements || []),
+        JSON.stringify(player.skins || { normal: true }), player.currentSkin || 'normal',
+        JSON.stringify(player.clan), player.eventRewards || 0,
+        JSON.stringify(player.pendingBoxes || []), createdAt, lastLogin
       ]
     );
   }

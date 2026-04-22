@@ -99,8 +99,8 @@ dbAdapter.init().then(async () => {
           id: row.account_id,
           username: accounts[row.account_id]?.username || row.name,
           passwordHash: accounts[row.account_id]?.password_hash,
-          createdAt: accounts[row.account_id]?.created_at,
-          lastLogin: accounts[row.account_id]?.last_login
+          createdAt: accounts[row.account_id]?.created_at || Date.now(),
+          lastLogin: accounts[row.account_id]?.last_login || Date.now()
         };
         db.players[row.id] = {
           id: row.id,
@@ -117,7 +117,9 @@ dbAdapter.init().then(async () => {
           currentSkin: row.current_skin,
           clan: row.clan,
           eventRewards: row.event_rewards,
-          pendingBoxes: row.pending_boxes || []
+          pendingBoxes: row.pending_boxes || [],
+          createdAt: row.created_at || Date.now(),
+          lastLogin: row.last_login || Date.now()
         };
         updateLeaderboard(db.players[row.id]);
       });
