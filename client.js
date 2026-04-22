@@ -398,6 +398,13 @@ function handleServerMessage(data) {
     case 'error':
       showNotification(`⚠️ ${data.message}`);
       break;
+    case 'autoclickerBlocked':
+      showNotification(`🚫 ${data.message || 'Доступ заблокирован'}`);
+      // Блокируем повторные действия (и дадим серверу закрыть соединение)
+      try {
+        document.getElementById('clicker')?.classList.add('locked');
+      } catch (_) {}
+      break;
   }
 }
 
@@ -445,6 +452,11 @@ function handleClick(e) {
   checkQuests();
   updateUI();
   saveGame();
+
+  // Сигнал клика на сервер для анти-автокликера
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'click', t: Date.now() }));
+  }
 }
 
 clicker.addEventListener('click', handleClick);

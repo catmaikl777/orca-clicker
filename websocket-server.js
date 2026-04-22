@@ -20,6 +20,38 @@ const wsRateLimiter = new WebSocketRateLimiter({
   bypassTypes: ['click', 'updateScore', 'battleClick'] // Игровые действия не лимитируем строго
 });
 
+// ==================== Anti-autoclicker (бан по игроку) ====================
+const AUTCLICK = {
+  // жесткий порог "человеческого" CPS на длительном отрезке
+  maxSustainedCps: 25,
+  // если за это окно CPS выше maxSustainedCps — баним
+  sustainedWindowMs: 5000,
+  // бан после детекта
+  banMs: 7 * 24 * 60 * 60 * 1000 // 7 дней
+};
+
+function getAntiCheatState(player) {
+  if (!player.antiCheat) player.antiCheat = {};
+  return player.antiCheat;
+}
+
+function isPlayerBanned(playerId) {
+  const p = db.players[playerId];
+  if (!p) return false;
+  const ac = getAntiCheatState(p);
+  return typeof ac.bannedUntil === 'number' && ac.bannedUntil > Date.now();
+}
+
+function banPlayer(playerId, reason) {
+  if (!db.players[playerId]) return;
+  const ac = getAntiCheatState(db.players[playerId]);
+  ac.bannedUntil = Date.now() + AUTCLICK.banMs;
+  ac.banReason = reason || 'autoclicker';
+  ac.bannedAt = Date.now();
+  saveDB();
+  savePlayerToDB(playerId);
+}
+
 // Каталог предметов магазина (цены хранятся пер-игрока в db.players[id].shopItems)
 const SHOP_CATALOG = [
   { id: 'click1', name: 'Острые зубы', baseCost: 50, type: 'click', value: 1 },
@@ -52,6 +84,9 @@ function setPlayerItemCost(player, itemId, cost) {
   if (saved) saved.cost = cost;
   else state.push({ id: itemId, cost });
 }
+
+// Снимки для проверки "невозможного" CPS по saveGame
+const saveSnapshots = new Map(); // playerId -> { t, clicks }
 
 // Путь к БД
 const DB_PATH = path.join(__dirname, 'database.json');
@@ -528,6 +563,7 @@ function handleMessage(ws, data) {
     case 'restoreSession': handleRestoreSession(ws, data); break;
     case 'register': handleRegisterGuest(ws, data.name); break;
     case 'updateScore': handleUpdateScore(ws, data.coins, data.perClick, data.perSecond); break;
+    case 'click': handleClick(ws, data.t); break;
     case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
     case 'findBattle': handleFindBattle(ws); break;
@@ -548,12 +584,57 @@ function handleMessage(ws, data) {
   }
 }
 
+function handleClick(ws, clientTime) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+
+  // если уже бан — сразу выкидываем
+  if (isPlayerBanned(id)) {
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: подозрение на автокликер' }));
+    ws.close(1008, 'Autoclicker banned');
+    return;
+  }
+
+  const clickTime = typeof clientTime === 'number' ? clientTime : Date.now();
+  if (!analyzeClickPattern(id, clickTime)) {
+    banPlayer(id, 'click_pattern');
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен. Доступ заблокирован.' }));
+    ws.close(1008, 'Autoclicker detected');
+  }
+}
+
 function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
+  if (isPlayerBanned(id)) {
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: подозрение на автокликер' }));
+    ws.close(1008, 'Autoclicker banned');
+    return;
+  }
   const p = db.players[id];
   const mem = players.get(id);
   
+  // Проверка "невозможного" CPS по приросту clicks между saveGame
+  if (typeof data?.clicks === 'number') {
+    const snap = saveSnapshots.get(id);
+    const now = Date.now();
+    if (snap && typeof snap.clicks === 'number' && typeof snap.t === 'number') {
+      const dt = now - snap.t;
+      const dClicks = data.clicks - snap.clicks;
+      if (dt > 0 && dClicks >= 0) {
+        const cps = (dClicks * 1000) / dt;
+        // проверяем только на окнах побольше, чтобы не ловить редкие всплески
+        if (dt >= AUTCLICK.sustainedWindowMs && cps > AUTCLICK.maxSustainedCps) {
+          banPlayer(id, `cps_${cps.toFixed(1)}`);
+          ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком высокий CPS). Доступ заблокирован.' }));
+          ws.close(1008, 'Autoclicker detected');
+          return;
+        }
+      }
+    }
+    saveSnapshots.set(id, { t: Date.now(), clicks: data.clicks });
+  }
+
   p.coins = data.coins ?? p.coins;
   p.totalCoins = data.totalCoins ?? p.totalCoins;
   p.perClick = data.perClick ?? p.perClick;
@@ -661,6 +742,13 @@ function handleRestoreSession(ws, data) {
     ws.send(JSON.stringify({ type: 'sessionExpired', message: 'Войдите снова' }));
     return;
   }
+
+  // Бан по античиту — не пускаем в игру
+  if (db.players[accountId] && isPlayerBanned(accountId)) {
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: автокликер/бот' }));
+    ws.close(1008, 'Autoclicker banned');
+    return;
+  }
   
   // Аккаунт не найден — БД была сброшена (Render), просим перелогиниться
   if (!db.accounts || !db.accounts[accountId]) {
@@ -701,6 +789,13 @@ function handleRestoreSession(ws, data) {
 function handleRegisterGuest(ws, name) {
   const playerId = ws.playerId;
   let playerData = db.players[playerId];
+
+  // если гостевой id уже забанен — не пускаем
+  if (playerData && isPlayerBanned(playerId)) {
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: автокликер/бот' }));
+    ws.close(1008, 'Autoclicker banned');
+    return;
+  }
   
   if (!playerData) {
     playerData = {
