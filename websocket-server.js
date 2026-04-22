@@ -23,9 +23,9 @@ const wsRateLimiter = new WebSocketRateLimiter({
 // ==================== Anti-autoclicker (бан по игроку) ====================
 const AUTCLICK = {
   // жесткий порог "человеческого" CPS на длительном отрезке
-  maxSustainedCps: 25,
+  maxSustainedCps: 35,
   // если за это окно CPS выше maxSustainedCps — баним
-  sustainedWindowMs: 5000,
+  sustainedWindowMs: 1500,
   // бан после детекта
   banMs: 7 * 24 * 60 * 60 * 1000 // 7 дней
 };
@@ -87,6 +87,10 @@ function setPlayerItemCost(player, itemId, cost) {
 
 // Снимки для проверки "невозможного" CPS по saveGame
 const saveSnapshots = new Map(); // playerId -> { t, clicks }
+
+// Трек кликов для CPS по реальным кликам
+const clickTrack = new Map(); // playerId -> { times: number[] }
+const CLICK_TRACK_WINDOW_MS = 3000;
 
 // Путь к БД
 const DB_PATH = path.join(__dirname, 'database.json');
@@ -595,7 +599,27 @@ function handleClick(ws, clientTime) {
     return;
   }
 
-  const clickTime = typeof clientTime === 'number' ? clientTime : Date.now();
+  const now = Date.now();
+  const clickTime = typeof clientTime === 'number' ? clientTime : now;
+
+  // 1) CPS по реальным кликам (скользящее окно)
+  let t = clickTrack.get(id);
+  if (!t) {
+    t = { times: [] };
+    clickTrack.set(id, t);
+  }
+  t.times.push(now);
+  // чистим окно
+  while (t.times.length && now - t.times[0] > CLICK_TRACK_WINDOW_MS) t.times.shift();
+  const cps = (t.times.length * 1000) / CLICK_TRACK_WINDOW_MS;
+  if (cps > AUTCLICK.maxSustainedCps) {
+    banPlayer(id, `cps_click_${cps.toFixed(1)}`);
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком высокий CPS). Доступ заблокирован.' }));
+    ws.close(1008, 'Autoclicker detected');
+    return;
+  }
+
+  // 2) Паттерны (равномерность/слишком быстрые интервалы)
   if (!analyzeClickPattern(id, clickTime)) {
     banPlayer(id, 'click_pattern');
     ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен. Доступ заблокирован.' }));
@@ -623,7 +647,6 @@ function handleSaveGame(ws, data) {
       const dClicks = data.clicks - snap.clicks;
       if (dt > 0 && dClicks >= 0) {
         const cps = (dClicks * 1000) / dt;
-        // проверяем только на окнах побольше, чтобы не ловить редкие всплески
         if (dt >= AUTCLICK.sustainedWindowMs && cps > AUTCLICK.maxSustainedCps) {
           banPlayer(id, `cps_${cps.toFixed(1)}`);
           ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком высокий CPS). Доступ заблокирован.' }));
