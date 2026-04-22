@@ -7,6 +7,7 @@ class DatabaseAdapter {
   constructor() {
     this.pool = null;
     this.usePostgreSQL = process.env.DATABASE_URL && process.env.NODE_ENV === 'production';
+    this.initialized = false;
   }
   
   // Инициализация соединения
@@ -16,6 +17,7 @@ class DatabaseAdapter {
     } else {
       console.log('ℹ️  Используется file-based database (database.json)');
     }
+    this.initialized = true;
   }
 
   async initWithRetry(attempts = 5, delay = 3000) {
@@ -188,6 +190,13 @@ class DatabaseAdapter {
     const createdAt = player.createdAt || player.created_at || Date.now();
     const lastLogin = player.lastLogin || player.last_login || Date.now();
     
+    // Преобразуем в строки если ещё не строки
+    const skills = typeof player.skills === 'string' ? player.skills : JSON.stringify(player.skills || {});
+    const achievements = typeof player.achievements === 'string' ? player.achievements : JSON.stringify(player.achievements || []);
+    const skins = typeof player.skins === 'string' ? player.skins : JSON.stringify(player.skins || { normal: true });
+    const clan = player.clan === null || player.clan === undefined ? null : (typeof player.clan === 'string' ? player.clan : JSON.stringify(player.clan));
+    const pendingBoxes = typeof player.pendingBoxes === 'string' ? player.pendingBoxes : JSON.stringify(player.pendingBoxes || []);
+    
     await this.pool.query(
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
@@ -213,10 +222,8 @@ class DatabaseAdapter {
       [
         player.id, player.accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
-        JSON.stringify(player.skills || {}), JSON.stringify(player.achievements || []),
-        JSON.stringify(player.skins || { normal: true }), player.currentSkin || 'normal',
-        JSON.stringify(player.clan), player.eventRewards || 0,
-        JSON.stringify(player.pendingBoxes || []), createdAt, lastLogin
+        skills, achievements, skins, player.currentSkin || 'normal',
+        clan, player.eventRewards || 0, pendingBoxes, createdAt, lastLogin
       ]
     );
   }

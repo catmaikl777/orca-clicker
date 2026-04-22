@@ -48,6 +48,17 @@ function banPlayer(playerId, reason) {
   savePlayerToDB(playerId);
 }
 
+// Сохранение одного игрока в PostgreSQL
+function savePlayerToDB(accountId) {
+  if (!dbAdapter.usePostgreSQL) return;
+  if (!dbAdapter.initialized) return; // Адаптер ещё не инициализирован
+  const p = db.players[accountId];
+  if (!p) return;
+  dbAdapter.savePlayer({ ...p, accountId }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
+  const acc = db.accounts[accountId];
+  if (acc) dbAdapter.saveAccount(acc).catch(() => {});
+}
+
 // Каталог предметов магазина (цены хранятся пер-игрока в db.players[id].shopItems)
 const SHOP_CATALOG = [
   { id: 'click1', name: 'Острые зубы', baseCost: 50, type: 'click', value: 1 },
@@ -570,7 +581,7 @@ function handleAuthRequest(ws, data) {
   const { username, password } = data;
   
   // Используем функцию из auth.js
-  handleAuthRegister(ws, { username, password }, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB);
+  handleAuthRegister(ws, { username, password }, db, players, savePlayerToDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB);
 }
 
 // Обработчик сохранения данных игрока
@@ -740,6 +751,8 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
 
 // Добавление eventCoins
 function addEventCoins(playerId, amount) {
+  if (!db.event) return;
+  if (!db.event.eventCoins) db.event.eventCoins = {};
   if (!db.event.eventCoins[playerId]) db.event.eventCoins[playerId] = 0;
   db.event.eventCoins[playerId] += amount;
   if (dbAdapter.usePostgreSQL) {
