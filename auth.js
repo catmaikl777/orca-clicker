@@ -98,6 +98,8 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     db.players[accountId] = playerData;
     db.stats.totalPlayers++;
     
+    console.log(`📝 Создаю игрока: id=${accountId}, name=${playerData.name}`);
+    
     ws.authenticated = true;
     ws.accountId = accountId;
     ws.username = username; // Сохраняем username

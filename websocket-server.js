@@ -58,6 +58,9 @@ function savePlayerToDB(accountId) {
   // Проверяем что это зарегистрированный игрок (есть в accounts)
   const isRegistered = db.accounts && db.accounts[accountId];
   
+  // Лог для отладки
+  console.log(`💾 savePlayerToDB: id=${accountId}, name=${p.name}, isRegistered=${isRegistered}`);
+  
   dbAdapter.savePlayer({ 
     ...p, 
     accountId: isRegistered ? accountId : null, // Только зарегистрированные игроки имеют accountId
@@ -337,7 +340,7 @@ const wss = new WebSocket.Server({
     return !origin || allowedOrigins.includes(origin);
   }
 });
-
+  
 // Запуск HTTP сервера
 httpServer.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
@@ -1013,9 +1016,22 @@ function endBattle(battleId, disconnectedPlayer = null) {
 function updateLeaderboard(player) {
   if (!player || !player.id) return;
   const idx = db.leaderboard.findIndex(p => p.id === player.id);
-  const entry = { id: player.id, name: player.name, coins: player.coins || 0, perSecond: player.perSecond || 0, level: player.level || 1 };
+  
+  // Берем актуальное имя из db.players
+  const dbPlayer = db.players[player.id];
+  const name = dbPlayer?.name || player.name || 'Player';
+  
+  const entry = { 
+    id: player.id, 
+    name: name, 
+    coins: player.coins || 0, 
+    perSecond: player.perSecond || 0, 
+    level: player.level || 1 
+  };
+  
   if (idx >= 0) db.leaderboard[idx] = entry;
   else db.leaderboard.push(entry);
+  
   db.leaderboard.sort((a, b) => b.coins - a.coins);
   if (db.leaderboard.length > 100) db.leaderboard.length = 100;
 }

@@ -202,11 +202,21 @@ class DatabaseAdapter {
     const createdAt = player.createdAt || player.created_at || Date.now();
     const lastLogin = player.lastLogin || player.last_login || Date.now();
     
-    // Преобразуем в строки если ещё не строки
+    // Преобразуем JSON поля в строки
     const skills = typeof player.skills === 'string' ? player.skills : JSON.stringify(player.skills || {});
     const achievements = typeof player.achievements === 'string' ? player.achievements : JSON.stringify(player.achievements || []);
     const skins = typeof player.skins === 'string' ? player.skins : JSON.stringify(player.skins || { normal: true });
-    const clan = player.clan === null || player.clan === undefined ? null : (typeof player.clan === 'string' ? player.clan : JSON.stringify(player.clan));
+    
+    // clan может быть null или объект/строка
+    let clan;
+    if (player.clan === null || player.clan === undefined || player.clan === '') {
+      clan = null;
+    } else if (typeof player.clan === 'string') {
+      clan = player.clan;
+    } else {
+      clan = JSON.stringify(player.clan);
+    }
+    
     const pendingBoxes = typeof player.pendingBoxes === 'string' ? player.pendingBoxes : JSON.stringify(player.pendingBoxes || []);
     
     // accountId может быть null для гостей
