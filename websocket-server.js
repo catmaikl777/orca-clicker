@@ -1,13 +1,10 @@
 
 // ============================================
 // WebSocket сервер для Кошка-косатка Кликер
-// Запуск: node websocket-server.js
-// Порт: 3001 (или PORT из env)
+// PostgreSQL - единственный источник истины
 // ============================================
 
 const WebSocket = require('ws');
-const fs = require('fs');
-const path = require('path');
 const http = require('http');
 const { handleRegister: handleAuthRegister, createDefaultPlayer, generateId: generateAuthId } = require('./auth');
 const { WebSocketRateLimiter } = require('./middleware/rate-limiter');
@@ -48,7 +45,6 @@ function banPlayer(playerId, reason) {
   ac.bannedUntil = Date.now() + AUTCLICK.banMs;
   ac.banReason = reason || 'autoclicker';
   ac.bannedAt = Date.now();
-  saveDB();
   savePlayerToDB(playerId);
 }
 
@@ -85,9 +81,6 @@ function setPlayerItemCost(player, itemId, cost) {
   else state.push({ id: itemId, cost });
 }
 
-// Снимки для проверки "невозможного" CPS по saveGame
-const saveSnapshots = new Map(); // playerId -> { t, clicks }
-
 // Трек кликов для CPS по реальным кликам
 const clickTrack = new Map(); // playerId -> { times: number[] }
 const CLICK_TRACK_WINDOW_MS = 3000;
@@ -99,203 +92,23 @@ const MIN_HUMAN_INTERVAL_MS = 25; // <25мс сериями — почти вс�
 const MIN_INTERVAL_STREAK = 8; // сколько подряд "слишком быстрых" интервалов для бана
 const LOW_VARIANCE_THRESHOLD_MS = 2.5; // слишком ровно = подозрительно
 
-// Путь к БД
-const DB_PATH = path.join(__dirname, 'database.json');
+// Снимки для проверки CPS
+const saveSnapshots = new Map(); // playerId -> { t, clicks }
 
-// Загрузка БД
-function loadDB() {
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      const data = fs.readFileSync(DB_PATH, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.error('Ошибка загрузки БД:', e.message);
-  }
-  return {
-    players: {},
-    clans: {},
-    leaderboard: [],
-    battles: {},
-    stats: { totalBattles: 0, totalClans: 0, totalPlayers: 0 },
-    accounts: {},
-    event: {}
-  };
-}
-
-// Сохранение БД
-let dbSaveTimer = null;
-let dbSavePending = false;
-let dbSaveLastAt = 0;
-const DB_SAVE_DEBOUNCE_MS = 150; // "реальное время" без убийства диска
-const DB_SAVE_MAX_WAIT_MS = 1500; // гарантируем сброс даже при спаме
-
-function syncPlayersToDb() {
-  // Синхронизируем данные из players в db.players перед сохранением
-  players.forEach((player, accountId) => {
-    if (db.players[accountId]) {
-      db.players[accountId].coins = player.coins;
-      db.players[accountId].totalCoins = player.totalCoins;
-      db.players[accountId].perClick = player.perClick;
-      db.players[accountId].perSecond = player.perSecond;
-      db.players[accountId].clicks = player.clicks;
-      db.players[accountId].level = player.level;
-      db.players[accountId].skills = player.skills;
-      db.players[accountId].skins = player.skins;
-      db.players[accountId].currentSkin = player.currentSkin;
-      db.players[accountId].achievements = player.achievements;
-      db.players[accountId].pendingBoxes = player.pendingBoxes;
-      db.players[accountId].lastLogin = Date.now();
-    }
-  });
-}
-
-function saveDBNow() {
-  try {
-    syncPlayersToDb();
-
-    const tmpPath = `${DB_PATH}.tmp`;
-    fs.writeFileSync(tmpPath, JSON.stringify(db, null, 2), 'utf-8');
-    try {
-      fs.renameSync(tmpPath, DB_PATH); // атомарнее на большинстве FS
-    } catch (e) {
-      // Windows часто не перезаписывает существующий файл через rename
-      try { if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH); } catch (_) {}
-      fs.renameSync(tmpPath, DB_PATH);
-    }
-    dbSaveLastAt = Date.now();
-    dbSavePending = false;
-    console.log('💾 БД сохранена');
-  } catch (e) {
-    dbSavePending = false;
-    console.error('Ошибка сохранения БД:', e.message);
-  }
-}
-
-// Сохранение "почти в реальном времени": склеиваем частые вызовы в 1 запись
-function saveDB() {
-  dbSavePending = true;
-
-  const now = Date.now();
-  const timeSinceLast = now - dbSaveLastAt;
-
-  // Если давно не сохраняли — пишем сразу
-  if (!dbSaveTimer && timeSinceLast >= DB_SAVE_MAX_WAIT_MS) {
-    saveDBNow();
-    return;
-  }
-
-  if (dbSaveTimer) return;
-
-  dbSaveTimer = setTimeout(() => {
-    dbSaveTimer = null;
-    if (dbSavePending) saveDBNow();
-  }, DB_SAVE_DEBOUNCE_MS);
-}
-
-// Сохранение одного игрока в PostgreSQL
-function savePlayerToDB(accountId) {
-  if (!dbAdapter.usePostgreSQL) return;
-  const p = db.players[accountId];
-  if (!p) return;
-  dbAdapter.savePlayer({ ...p, accountId }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
-  const acc = db.accounts[accountId];
-  if (acc) dbAdapter.saveAccount(acc).catch(() => {});
-}
-
-// Инициализация БД
-let db = loadDB();
-
-// Инициализация адаптера (PostgreSQL или file-based)
-dbAdapter.init().then(async () => {
-  console.log('✅ DB адаптер готов');
-  if (dbAdapter.usePostgreSQL) {
-    // Загружаем аккаунты и игроков из PostgreSQL в память
-    try {
-      const accounts = await dbAdapter.getAccounts();
-      const rows = await dbAdapter.pool.query('SELECT * FROM players');
-      db.accounts = {};
-      rows.rows.forEach(row => {
-        db.accounts[row.account_id] = {
-          id: row.account_id,
-          username: accounts[row.account_id]?.username || row.name,
-          passwordHash: accounts[row.account_id]?.password_hash,
-          createdAt: accounts[row.account_id]?.created_at || Date.now(),
-          lastLogin: accounts[row.account_id]?.last_login || Date.now()
-        };
-        db.players[row.id] = {
-          id: row.id,
-          name: row.name,
-          coins: row.coins,
-          totalCoins: row.total_coins,
-          perClick: row.per_click,
-          perSecond: row.per_second,
-          clicks: row.clicks,
-          level: row.level,
-          skills: row.skills || {},
-          achievements: row.achievements || [],
-          skins: row.skins || { normal: true },
-          currentSkin: row.current_skin,
-          clan: row.clan,
-          eventRewards: row.event_rewards,
-          pendingBoxes: row.pending_boxes || [],
-          createdAt: row.created_at || Date.now(),
-          lastLogin: row.last_login || Date.now()
-        };
-        updateLeaderboard(db.players[row.id]);
-      });
-      // Загружаем аккаунты отдельно (у кого нет игрока)
-      Object.entries(accounts).forEach(([id, acc]) => {
-        db.accounts[id] = {
-          id,
-          username: acc.username,
-          passwordHash: acc.password_hash,
-          createdAt: acc.created_at,
-          lastLogin: acc.last_login
-        };
-      });
-      // Загружаем eventCoins из PostgreSQL
-      const ecRows = await dbAdapter.pool.query('SELECT account_id, coins FROM event_coins');
-      ecRows.rows.forEach(row => {
-        db.event.eventCoins[row.account_id] = row.coins;
-      });
-      console.log(`📦 Загружено из PostgreSQL: ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(db.players).length} игроков, ${ecRows.rows.length} записей ивента`);
-    } catch (e) {
-      console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
-    }
-  }
-}).catch(err => console.error('DB adapter init error:', err.message));
-
-// Убедимся что все необходимые поля есть
-if (!db.accounts) db.accounts = {};
-if (!db.stats) db.stats = { totalBattles: 0, totalClans: 0, totalPlayers: 0 };
-if (!db.event) db.event = {};
-
-// Не сбрасываем ивент при каждом рестарте — сохраняем сезон
-if (!db.event || !db.event.active) {
-  const now = Date.now();
-  db.event = {
-    active: true,
-    startDate: now,
-    endDate: now + 14 * 24 * 60 * 60 * 1000,
-    eventCoins: {},
-    season: 1
-  };
-} else {
-  // Сохраняем существующий ивент
-  if (!db.event.eventCoins) db.event.eventCoins = {};
-}
-
-console.log('База данных загружена');
-console.log(`🎉 Ивент активен! До конца: ${Math.ceil((db.event.endDate - Date.now()) / 60000)} мин.`);
-
-// Хранилище в памяти
+// Хранилище в памяти (только для онлайн игроков)
 const players = new Map();
 const battles = new Map();
 const waitingPlayers = [];
 
-// Стартовое сохранение после инициализации памяти
-saveDB();
+// Данные игроков (загружаются из PostgreSQL при необходимости)
+let db = {
+  players: {},
+  clans: {},
+  leaderboard: [],
+  stats: { totalBattles: 0, totalClans: 0, totalPlayers: 0 },
+  accounts: {},
+  event: {}
+};
 
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
 const battleUpdateBuffer = new Map(); // playerId -> { updates: [], lastSend: timestamp }
@@ -339,12 +152,6 @@ function flushBattleBuffer(playerId) {
 function clearBattleBuffer(playerId) {
   battleUpdateBuffer.delete(playerId);
 }
-
-// Автосохранение раз в 2 минуты (только JSON-файл, без PostgreSQL)
-setInterval(() => {
-  console.log('⏰ Автосохранение...');
-  saveDB();
-}, 2 * 60 * 1000);
 
 // Периодическая отправка буферов обновлений батла (каждую секунду)
 setInterval(() => {
@@ -426,7 +233,6 @@ function distributeEventRewards() {
   db.event.endDate = Date.now() + 14 * 24 * 60 * 60 * 1000; // 2 недели
   db.event.eventCoins = {};
   
-  saveDB();
   broadcastEventInfo();
   console.log(`🎉 Сезон #${oldSeason} завершён! Старт сезона #${db.event.season}`);
   console.log(`📋 Итоги сезона #${oldSeason}:`, oldEventCoins);
@@ -736,7 +542,6 @@ function handleSaveGame(ws, data) {
   if (mem) Object.assign(mem, p);
   
   updateLeaderboard(p);
-  saveDB();
   savePlayerToDB(id);
   console.log('💾 Автосохранение:', id);
 }
@@ -805,7 +610,6 @@ function handleSavePlayerData(ws, data) {
     Object.assign(onlinePlayer, playerData);
   }
   
-  saveDB();
   savePlayerToDB(accountId);
   console.log(`💾 Данные сохранены: ${accountId}`);
   
@@ -851,7 +655,6 @@ function handleRestoreSession(ws, data) {
   ws.accountId = accountId;
   players.set(accountId, { ...playerData, ws });
   updateLeaderboard(playerData);
-  saveDB();
   savePlayerToDB(accountId);
 
   ws.send(JSON.stringify({ 
@@ -907,7 +710,6 @@ function handleRegisterGuest(ws, name) {
   }));
   broadcastLeaderboard();
   broadcastEventInfo();
-  saveDB();
 }
 
 function handleUpdateScore(ws, coins, perClick, perSecond) {
@@ -933,7 +735,6 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
   if (perSecond) db.players[id].perSecond = perSecond;
   
   updateLeaderboard(player);
-  saveDB(); // Сохраняем сразу
   savePlayerToDB(id);
 }
 
@@ -944,7 +745,6 @@ function addEventCoins(playerId, amount) {
   if (dbAdapter.usePostgreSQL) {
     dbAdapter.saveEventCoins(playerId, db.event.eventCoins[playerId]).catch(() => {});
   }
-  saveDB();
 }
 
 function handleFindBattle(ws) {
@@ -1092,7 +892,6 @@ function endBattle(battleId, disconnectedPlayer = null) {
   }
   
   db.stats.totalBattles++;
-  saveDB();
   
   const result = { type: 'battleEnd', winner: winnerName, isDraw, prize: isDraw ? 25 : (winner ? prize : 10) };
   
@@ -1159,7 +958,6 @@ function handleCreateClan(ws, clanName) {
   db.stats.totalClans++;
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
   sendClans(ws);
-  saveDB();
 }
 
 function handleJoinClan(ws, clanId) {
@@ -1176,7 +974,6 @@ function handleJoinClan(ws, clanId) {
   ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name }));
   sendClans(ws);
   sendClanMembers(clanId);
-  saveDB();
 }
 
 function handleLeaveClan(ws) {
@@ -1205,7 +1002,6 @@ function handleLeaveClan(ws) {
   ws.send(JSON.stringify({ type: 'leftClan', clanId: clan.id }));
   sendClans(ws);
   sendClanMembers(clan.id);
-  saveDB();
 }
 
 function sendClanMembers(clanId) {
@@ -1265,7 +1061,6 @@ function handleBuySkill(ws, skillId) {
   p.skills[skillId] = true;
   if (mem) { mem.coins = p.coins; mem.skills = p.skills; }
   
-  saveDB();
   savePlayerToDB(id);
   
   ws.send(JSON.stringify({ 
@@ -1308,7 +1103,7 @@ function handleBuyItem(ws, itemId) {
   const newCost = Math.floor(itemCost * 1.2);
   setPlayerItemCost(p, itemId, newCost);
   
-  saveDB();
+  // МГНОВЕННОЕ сохранение в PostgreSQL
   savePlayerToDB(id);
   
   ws.send(JSON.stringify({ 
@@ -1344,7 +1139,6 @@ function handleEquipSkin(ws, skinId) {
   p.currentSkin = skinId;
   if (mem) mem.currentSkin = skinId;
   
-  saveDB();
   savePlayerToDB(id);
   
   ws.send(JSON.stringify({ 
@@ -1382,28 +1176,24 @@ function analyzeClickPattern(accountId, clickTime) {
     // Если 50 кликов за меньше чем 0.5 секунды - это скорее всего бот
     if (timeSpan < 500) {
       const avgInterval = timeSpan / 49;
-      // Люди не могут кликать с интервалом меньше 5-7 мс стабильно
-      // Боты имеют слишком равномерные интервалы
       if (avgInterval < 10) {
         console.log(`🚨 Anti-bot: Игрок ${accountId} - подозрительный паттерн (avg ${avgInterval.toFixed(1)}ms)`);
-        data.times = []; // Сброс для повторной проверки
+        data.times = [];
         return false;
       }
     }
     
-    // Проверка на равномерность интервалов (боты кликают слишком ровно)
+    // Проверка на равномерность интервалов
     if (data.times.length >= 20) {
       const intervals = [];
       for (let i = 1; i < data.times.length; i++) {
         intervals.push(data.times[i] - data.times[i-1]);
       }
       
-      // Считаем дисперсию интервалов
       const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const variance = intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / intervals.length;
       const stdDev = Math.sqrt(variance);
       
-      // Люди имеют высокую вариативность (stdDev > 15), боты низкую (stdDev < 5)
       if (stdDev < 5 && avg < 20) {
         console.log(`🚨 Anti-bot: Игрок ${accountId} - слишком равномерные клики (stdDev: ${stdDev.toFixed(1)}ms)`);
         data.times = [];
@@ -1411,12 +1201,10 @@ function analyzeClickPattern(accountId, clickTime) {
       }
     }
     
-    // Очищаем старые данные
     data.times = data.times.filter(t => now - t < 2000);
     data.lastCheck = now;
   }
   
-  // Очистка старых записей каждые 10 секунд
   if (Date.now() - data.lastCheck > 10000) {
     clickAnalysis.delete(accountId);
   }
@@ -1477,8 +1265,7 @@ function handleBuyBox(ws) {
     playerMem.pendingBoxes = [...playerDB.pendingBoxes];
   }
   
-  // Сохраняем СРАЗУ в БД
-  saveDB();
+  // Сохраняем СРАЗУ в PostgreSQL
   savePlayerToDB(id);
   
   // Отправляем подтверждение с актуальными данными
@@ -1486,7 +1273,7 @@ function handleBuyBox(ws) {
     type: 'boxBought', 
     boxId,
     coins: playerDB.coins,
-    pendingBoxes: playerDB.pendingBoxes.length // ✅ Количество боксов
+    pendingBoxes: playerDB.pendingBoxes.length
   }));
   
   console.log(`📦 Игрок ${id} купил бокс. Всего боксов: ${playerDB.pendingBoxes.length}`);
@@ -1552,28 +1339,25 @@ function handleOpenBox(ws, boxId) {
     if (playerMem) playerMem.coins = playerDB.coins;
   }
   
-  // Сохраняем СРАЗУ
-  saveDB();
+  // Сохраняем СРАЗУ в PostgreSQL
   savePlayerToDB(id);
   
   // Отправляем подтверждение с актуальным количеством боксов
   ws.send(JSON.stringify({ 
     type: 'boxOpened', 
     reward,
-    pendingBoxes: playerDB.pendingBoxes.length // ✅ Актуальное количество
+    pendingBoxes: playerDB.pendingBoxes.length
   }));
   
   console.log(`🎁 Игрок ${id} открыл бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 process.on('SIGINT', () => {
-  console.log('\n⚠️ SIGINT получен, сохраняем данные...');
-  saveDB();
+  console.log('\n⚠️ SIGINT получен, сервер останавливается...');
   wss.close(() => process.exit(0));
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n⚠️ SIGTERM получен (Render shutdown), сохраняем данные...');
-  saveDB();
+  console.log('\n⚠️ SIGTERM получен (Render shutdown), сервер останавливается...');
   wss.close(() => process.exit(0));
 });

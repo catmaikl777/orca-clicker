@@ -346,3 +346,172 @@ function analyzeClickPattern(accountId, clickTime) {
 3. Получите награду
 4. Проверьте что бокс удалён из инвентаря
 5. Обновите страницу - бокс должен остаться удалённым
+
+---
+
+# 🗄️ PostgreSQL - единственный источник истины
+
+## Проблема решённая в этой версии:
+
+**Данные рассинхронизировались между:**
+1. **localStorage** (браузер клиента)
+2. **memory** (players Map на сервере)  
+3. **JSON file** (database.json)
+4. **PostgreSQL** (если подключён)
+
+**Результат:** После перезагрузки страницы прогресс терялся или возвращался к старой версии. Лидерборд показывал неверные данные.
+
+## Решение:
+
+### 🔴 УДАЛЕНО:
+- ❌ Сохранение в JSON файл (`database.json`)
+- ❌ Автосохранение раз в 2 минуты  
+- ❌ Синхронизация players → db.players перед сохранением
+- ❌ Функция `saveDB()` для JSON
+
+### ✅ ОСТАВЛЕНО:
+- PostgreSQL как **ЕДИНСТВЕННЫЙ** источник истины
+- Мгновенное сохранение после **КАЖДОГО** действия
+- `savePlayerToDB()` вызывается после каждой операции
+
+## Как работает сейчас:
+
+### Все действия сохраняются МГНОВЕННО:
+
+```
+Клик → updateScore → savePlayerToDB() ✅
+Покупка предмета → handleBuyItem → savePlayerToDB() ✅
+Покупка навыка → handleBuySkill → savePlayerToDB() ✅
+Покупка бокса → handleBuyBox → savePlayerToDB() ✅
+Открытие бокса → handleOpenBox → savePlayerToDB() ✅
+Надевание скина → handleEquipSkin → savePlayerToDB() ✅
+Победа в батле → endBattle → coins обновляются ✅
+```
+
+### Функция сохранения:
+
+```javascript
+function savePlayerToDB(accountId) {
+  if (!dbAdapter.usePostgreSQL) return;
+  const p = db.players[accountId];
+  if (!p) return;
+  
+  // Сразу сохраняет в PostgreSQL
+  dbAdapter.savePlayer({ ...p, accountId })
+    .catch(e => console.error('Ошибка сохранения:', e));
+    
+  const acc = db.accounts[accountId];
+  if (acc) dbAdapter.saveAccount(acc).catch(() => {});
+}
+```
+
+### Пример использования:
+
+```javascript
+function handleBuyBox(ws) {
+  const id = ws.accountId;
+  const playerDB = db.players[id];
+  const playerMem = players.get(id);
+  
+  // Проверка денег
+  const coins = playerMem ? playerMem.coins : playerDB.coins;
+  if (coins < boxPrice) {
+    ws.send({ type: 'error', message: 'Недостаточно монет' });
+    return;
+  }
+  
+  // Списываем деньги
+  playerDB.coins = coins - boxPrice;
+  if (playerMem) playerMem.coins = playerDB.coins;
+  
+  // Добавляем бокс
+  playerDB.pendingBoxes.push(boxId);
+  if (playerMem) playerMem.pendingBoxes = [...playerDB.pendingBoxes];
+  
+  // МГНОВЕННОЕ сохранение в PostgreSQL
+  savePlayerToDB(id);
+  
+  // Отправляем подтверждение
+  ws.send({ 
+    type: 'boxBought', 
+    boxId,
+    coins: playerDB.coins,
+    pendingBoxes: playerDB.pendingBoxes.length
+  });
+}
+```
+
+## Загрузка данных:
+
+### При старте сервера:
+1. Загружаются **аккаунты** из PostgreSQL
+2. Загружаются **игроки** из PostgreSQL  
+3. Загружаются **eventCoins** из PostgreSQL
+
+### При подключении игрока:
+1. `restoreSession` загружает актуальные данные из памяти
+2. Если игрока нет в памяти - создаётся новый профиль
+
+## Синхронизация:
+
+### Онлайн игроки:
+- Данные хранятся в `players` Map (память сервера)
+- Изменения **сразу** пишутся в PostgreSQL через `savePlayerToDB()`
+
+### Офлайн игроки:
+- Данные только в PostgreSQL
+- Загружаются при первом подключении после рестарта
+
+## Лидерборд:
+
+### Проблема была:
+Лидерборд показывал старый прогресс из памяти, не отражая актуальные данные.
+
+### Решение:
+```javascript
+function sendLeaderboard(ws) {
+  // Перестраиваем из АКТУАЛЬНЫХ данных игроков в памяти
+  db.leaderboard = Object.values(db.players)
+    .filter(p => p && p.id && p.name)
+    .map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      coins: p.coins || 0, 
+      perSecond: p.perSecond || 0, 
+      level: p.level || 1 
+    }))
+    .sort((a, b) => b.coins - a.coins)
+    .slice(0, 100);
+    
+  ws.send({ type: 'leaderboard', data: db.leaderboard });
+}
+```
+
+## Тестирование:
+
+### ✅ Проверка сохранения:
+1. Наберите прогресс (монеты, навыки, боксы)
+2. Обновите страницу (F5)
+3. Зайдите в тот же аккаунт
+4. **Ожидаем:** Весь прогресс на месте ✅
+
+### ✅ Проверка лидерборда:
+1. Наберите много монет
+2. Откройте лидерборд
+3. **Ожидайте:** Ваш прогресс актуален ✅
+
+### ✅ Проверка боксов:
+1. Купите бокс (1700 монет)
+2. Проверьте количество боксов
+3. Обновите страницу
+4. **Ожидайте:** Бокс остался, монеты не вернулись ✅
+
+### ✅ Проверка скинов:
+1. Купите/откройте скин
+2. Наденьте его
+3. Обновите страницу
+4. **Ожидайте:** Скин выбран ✅
+
+---
+
+**Готово! PostgreSQL теперь единственный источник истины, данные сохраняются мгновенно!** 🚀
