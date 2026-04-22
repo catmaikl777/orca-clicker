@@ -110,7 +110,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
       accountId,
       username: username,
       data: playerData,
-      eventCoins: db.event.eventCoins[accountId] || 0,
+      eventCoins: db.event?.eventCoins?.[accountId] || 0,
       isNew: true
     }));
     

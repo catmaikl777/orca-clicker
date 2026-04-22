@@ -118,7 +118,7 @@ let db = {
   leaderboard: [],
   stats: { totalBattles: 0, totalClans: 0, totalPlayers: 0 },
   accounts: {},
-  event: {}
+  event: { eventCoins: {}, active: true, season: 1 }
 };
 
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
@@ -717,7 +717,7 @@ function handleRegisterGuest(ws, name) {
     playerId, 
     name: playerData.name, 
     data: playerData,
-    eventCoins: db.event.eventCoins[playerId] || 0
+    eventCoins: db.event?.eventCoins?.[playerId] || 0
   }));
   broadcastLeaderboard();
   broadcastEventInfo();
