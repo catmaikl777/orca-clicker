@@ -332,7 +332,13 @@ function handleServerMessage(data) {
     case 'boxBought':
       pendingBoxes.push(data.boxId);
       updateBoxUI();
+      // Обновляем монеты если сервер прислал
+      if (data.coins !== undefined) {
+        game.coins = data.coins;
+      }
       showNotification('🎁 Бокс куплен! Откройте в магазине');
+      updateUI();
+      saveGame(); // Сразу сохраняем
       break;
     case 'boxOpened':
       showBoxReward(data.reward);
@@ -363,6 +369,7 @@ const orcaEmoji = document.getElementById('orcaEmoji');
 // Клик по косатке
 function handleClick(e) {
   e.preventDefault();
+  
   let value = game.perClick * game.multiplier;
   let isCrit = false;
   const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;

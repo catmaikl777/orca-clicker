@@ -655,6 +655,12 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
   const player = players.get(id);
   if (!player || !db.players[id]) return;
   
+  // Проверка паттерна кликов (отличает людей от ботов)
+  if (!analyzeClickPattern(id, Date.now())) {
+    console.log(`🚨 Anti-bot: Данные отклонены для игрока ${id}`);
+    return;
+  }
+  
   // Обновляем в памяти
   player.coins = coins;
   if (perClick) player.perClick = perClick;
@@ -668,8 +674,9 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
   
   updateLeaderboard(player);
   saveDB(); // Сохраняем сразу
+  savePlayerToDB(id);
 }
-  
+
 // Добавление eventCoins
 function addEventCoins(playerId, amount) {
   if (!db.event.eventCoins[playerId]) db.event.eventCoins[playerId] = 0;
@@ -679,7 +686,7 @@ function addEventCoins(playerId, amount) {
   }
   saveDB();
 }
-  
+
 function handleFindBattle(ws) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
@@ -734,6 +741,19 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   if (!battle) return;
   
   const id = ws.accountId || ws.playerId;
+  
+  // Проверка на автокликер для батлов
+  if (!checkAntiCheat(id)) {
+    console.log(`🚨 Anti-cheat: Батл клик отклонен для игрока ${id}`);
+    return;
+  }
+  
+  // Лимит CPS для батлов (максимум 100 кликов в секунду)
+  if (cps > 100) {
+    console.log(`🚨 Anti-cheat: CPS ${cps} слишком высокий для игрока ${id}`);
+    return;
+  }
+  
   const oldScore = battle.scores[id] || 0;
   battle.scores[id] = oldScore + clicks;
   if (cps !== undefined) battle.cps[id] = cps;
@@ -991,6 +1011,72 @@ function handleBuySkill(ws, skillId) {
 
 // Боксы
 const boxPrice = 1700;
+
+// ==================== ЗАЩИТА ОТ БОТОВ (умная) ====================
+// Отличает людей от ботов по паттернам кликов
+const clickAnalysis = new Map(); // accountId -> { times: [], lastCheck: }
+
+function analyzeClickPattern(accountId, clickTime) {
+  let data = clickAnalysis.get(accountId);
+  
+  if (!data) {
+    data = { times: [clickTime], lastCheck: clickTime };
+    clickAnalysis.set(accountId, data);
+    return true; // Первый клик всегда разрешён
+  }
+  
+  // Добавляем время клика
+  data.times.push(clickTime);
+  
+  // Анализируем каждые 50 кликов
+  if (data.times.length >= 50) {
+    const now = Date.now();
+    const timeSpan = now - data.times[0];
+    
+    // Если 50 кликов за меньше чем 0.5 секунды - это скорее всего бот
+    if (timeSpan < 500) {
+      const avgInterval = timeSpan / 49;
+      // Люди не могут кликать с интервалом меньше 5-7 мс стабильно
+      // Боты имеют слишком равномерные интервалы
+      if (avgInterval < 10) {
+        console.log(`🚨 Anti-bot: Игрок ${accountId} - подозрительный паттерн (avg ${avgInterval.toFixed(1)}ms)`);
+        data.times = []; // Сброс для повторной проверки
+        return false;
+      }
+    }
+    
+    // Проверка на равномерность интервалов (боты кликают слишком ровно)
+    if (data.times.length >= 20) {
+      const intervals = [];
+      for (let i = 1; i < data.times.length; i++) {
+        intervals.push(data.times[i] - data.times[i-1]);
+      }
+      
+      // Считаем дисперсию интервалов
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance = intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / intervals.length;
+      const stdDev = Math.sqrt(variance);
+      
+      // Люди имеют высокую вариативность (stdDev > 15), боты низкую (stdDev < 5)
+      if (stdDev < 5 && avg < 20) {
+        console.log(`🚨 Anti-bot: Игрок ${accountId} - слишком равномерные клики (stdDev: ${stdDev.toFixed(1)}ms)`);
+        data.times = [];
+        return false;
+      }
+    }
+    
+    // Очищаем старые данные
+    data.times = data.times.filter(t => now - t < 2000);
+    data.lastCheck = now;
+  }
+  
+  // Очистка старых записей каждые 10 секунд
+  if (Date.now() - data.lastCheck > 10000) {
+    clickAnalysis.delete(accountId);
+  }
+  
+  return true;
+}
 const boxRewards = {
   skins: [
     { id: 'chillcat', weight: 15, name: 'Чилл' },
@@ -1045,11 +1131,17 @@ function handleBuyBox(ws) {
     playerMem.pendingBoxes = playerDB.pendingBoxes;
   }
   
-  // Сохраняем
+  // Сохраняем СРАЗУ
   saveDB();
   savePlayerToDB(id);
   
-  ws.send(JSON.stringify({ type: 'boxBought', boxId }));
+  // Отправляем подтверждение
+  ws.send(JSON.stringify({ 
+    type: 'boxBought', 
+    boxId,
+    coins: playerDB.coins, // Отправляем актуальные монеты
+    pendingBoxes: playerDB.pendingBoxes.length
+  }));
 }
 
 function handleOpenBox(ws, boxId) {
