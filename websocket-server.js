@@ -461,7 +461,11 @@ httpServer.listen(PORT, () => {
           }
         });
         
-        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов`);
+        // Загрузить eventCoins из таблицы event_coins
+        const eventCoins = await dbAdapter.getAllEventCoins();
+        db.event.eventCoins = eventCoins;
+        
+        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins`);
       } catch (e) {
         console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
       }

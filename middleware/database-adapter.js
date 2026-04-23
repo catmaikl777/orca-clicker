@@ -190,6 +190,20 @@ class DatabaseAdapter {
     return result.rows[0]?.coins || 0;
   }
   
+  async getAllEventCoins() {
+    if (!this.usePostgreSQL) return {};
+    
+    const result = await this.pool.query(
+      'SELECT account_id, event_name, coins FROM event_coins'
+    );
+    const eventCoins = {};
+    result.rows.forEach(row => {
+      if (!eventCoins[row.account_id]) eventCoins[row.account_id] = 0;
+      eventCoins[row.account_id] += row.coins;
+    });
+    return eventCoins;
+  }
+  
   async getBans() {
     if (!this.usePostgreSQL) return {};
     
