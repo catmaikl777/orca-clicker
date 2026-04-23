@@ -3,8 +3,8 @@ const game = {
   coins: 0,
   totalCoins: 0,
   level: 1,
-  perClick: 1,
-  perSecond: 0,
+  basePerClick: 1,
+  basePerSecond: 0,
   clicks: 0,
   startTime: Date.now(),
   skills: {},
@@ -16,6 +16,39 @@ const game = {
   playTime: 0,
   multiplier: 1
 };
+
+// ==================== DOM ЭЛЕМЕНТЫ ====================
+let coinsEl, levelEl, perClickEl, perSecondEl;
+let clicker, orcaImg, orcaEmoji;
+let bonus, fishBonus, x2Bonus;
+
+// Инициализация DOM элементов
+function initDOM() {
+  coinsEl = document.getElementById('coins');
+  levelEl = document.getElementById('level');
+  perClickEl = document.getElementById('perClick');
+  perSecondEl = document.getElementById('perSecond');
+  clicker = document.getElementById('clicker');
+  orcaImg = document.getElementById('orcaImage');
+  orcaEmoji = document.getElementById('orcaEmoji');
+  bonus = document.getElementById('bonus');
+  fishBonus = document.getElementById('fishBonus');
+  x2Bonus = document.getElementById('x2Bonus');
+  
+  // Инициализация обработчиков бонусов
+  if (x2Bonus) {
+    x2Bonus.addEventListener('click', handleX2BonusClick);
+  }
+  if (bonus) {
+    bonus.addEventListener('click', handleBonusClick);
+  }
+  if (fishBonus) {
+    fishBonus.addEventListener('click', handleFishBonusClick);
+  }
+  
+  // Запускаем спавн бонусов
+  setInterval(spawnBonus, 12000);
+}
 
 // Утилита для экранирования HTML
 function escapeHtml(text) {
@@ -552,10 +585,57 @@ setInterval(() => {
   saveGame();
 }, 10000);
 
-// Система бонусов
-const bonus = document.getElementById('bonus');
-const fishBonus = document.getElementById('fishBonus');
-const x2Bonus = document.getElementById('x2Bonus');
+// Система бонусов инициализируется в initDOM()
+
+// Обработчики бонусов
+function handleX2BonusClick() {
+  if (!x2Active) {
+    activateX2Multiplier();
+    showFloatingText(
+      x2Bonus.getBoundingClientRect().left + 30,
+      x2Bonus.getBoundingClientRect().top,
+      `x2! 🌟`,
+      '#ffd700'
+    );
+    x2Bonus.classList.add('hidden');
+  }
+}
+
+function handleBonusClick() {
+  // Золотая лихорадка (s4) даёт x3 вместо x2
+  const multiplier = game.skills['s4'] ? 3 : 2;
+  const perClick = getPerClick();
+  const bonusValue = perClick * 15 * multiplier * game.multiplier;
+  game.coins += bonusValue;
+  game.totalCoins += bonusValue;
+  showFloatingText(
+    bonus.getBoundingClientRect().left + 30,
+    bonus.getBoundingClientRect().top,
+    `БОНУС! +${formatNumber(bonusValue)}`,
+    '#ffd700'
+  );
+  playSound('bonusSound');
+  bonus.classList.add('hidden');
+  updateUI();
+  saveGame();
+}
+  
+function handleFishBonusClick() {
+  const perSecond = getPerSecond();
+  const fishValue = Math.max(perSecond * 30 * game.multiplier, getPerClick() * 10);
+  game.coins += fishValue;
+  game.totalCoins += fishValue;
+  showFloatingText(
+    fishBonus.getBoundingClientRect().left + 30,
+    fishBonus.getBoundingClientRect().top,
+    `РЫБКА! +${formatNumber(fishValue)}`,
+    '#4fc3f7'
+  );
+  playSound('bonusSound');
+  fishBonus.classList.add('hidden');
+  updateUI();
+  saveGame();
+}
 
 function spawnBonus() {
   if (Math.random() < 0.4) {
@@ -583,57 +663,7 @@ function spawnBonus() {
   }
 }
 
-setInterval(spawnBonus, 12000);
-
-// x2 Бонус клик
-x2Bonus.addEventListener('click', () => {
-  if (!x2Active) {
-    activateX2Multiplier();
-    showFloatingText(
-      x2Bonus.getBoundingClientRect().left + 30,
-      x2Bonus.getBoundingClientRect().top,
-      `x2! 🌟`,
-      '#ffd700'
-    );
-    x2Bonus.classList.add('hidden');
-  }
-});
-
-bonus.addEventListener('click', () => {
-  // Золотая лихорадка (s4) даёт x3 вместо x2
-  const multiplier = game.skills['s4'] ? 3 : 2;
-  const perClick = getPerClick();
-  const bonusValue = perClick * 15 * multiplier * game.multiplier;
-  game.coins += bonusValue;
-  game.totalCoins += bonusValue;
-  showFloatingText(
-    bonus.getBoundingClientRect().left + 30,
-    bonus.getBoundingClientRect().top,
-    `БОНУС! +${formatNumber(bonusValue)}`,
-    '#ffd700'
-  );
-  playSound('bonusSound');
-  bonus.classList.add('hidden');
-  updateUI();
-  saveGame();
-});
-  
-fishBonus.addEventListener('click', () => {
-  const perSecond = getPerSecond();
-  const fishValue = Math.max(perSecond * 30 * game.multiplier, getPerClick() * 10);
-  game.coins += fishValue;
-  game.totalCoins += fishValue;
-  showFloatingText(
-    fishBonus.getBoundingClientRect().left + 30,
-    fishBonus.getBoundingClientRect().top,
-    `РЫБКА! +${formatNumber(fishValue)}`,
-    '#4fc3f7'
-  );
-  playSound('bonusSound');
-  fishBonus.classList.add('hidden');
-  updateUI();
-  saveGame();
-});
+// Обработчики бонусов вынесены в initDOM()
   
 // ==================== UI ОБНОВЛЕНИЯ ====================
 function updateUI() {
@@ -1476,10 +1506,8 @@ function saveGameToServer() {
       coins: game.coins,
       totalCoins: game.totalCoins,
       level: game.level,
-      perClick: game.perClick,
-      perSecond: game.perSecond,
-      basePerClick: game.basePerClick || game.perClick,
-      basePerSecond: game.basePerSecond || game.perSecond,
+      perClick: game.basePerClick || 1,
+      perSecond: game.basePerSecond || 0,
       clicks: game.clicks,
       skills: game.skills,
       skins: game.skins,
@@ -1499,8 +1527,8 @@ function saveGame() {
     coins: game.coins,
     totalCoins: game.totalCoins,
     level: game.level,
-    perClick: game.perClick,
-    perSecond: game.perSecond,
+    basePerClick: game.basePerClick || 1,
+    basePerSecond: game.basePerSecond || 0,
     clicks: game.clicks,
     skills: game.skills,
     achievements: game.achievements,
@@ -1525,8 +1553,8 @@ function loadGame() {
       game.coins = data.coins || 0;
       game.totalCoins = data.totalCoins || 0;
       game.level = data.level || 1;
-      game.perClick = data.perClick || 1;
-      game.perSecond = data.perSecond || 0;
+      game.basePerClick = data.basePerClick || data.perClick || 1;
+      game.basePerSecond = data.basePerSecond || data.perSecond || 0;
       game.clicks = data.clicks || 0;
       game.skills = data.skills || {};
       game.achievements = data.achievements || [];
@@ -1535,10 +1563,7 @@ function loadGame() {
       game.playTime = data.playTime || 0;
       game.multiplier = data.multiplier || 1;
       
-      // Применяем эффекты навыков
-      skillsData.forEach(skill => {
-        if (game.skills[skill.id] && skill.effect) skill.effect();
-      });
+      // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
       
       if (data.shopItems) {
         data.shopItems.forEach(savedItem => {
@@ -1589,7 +1614,11 @@ function resetGame() {
 }
 
 // Аудио настройки
-const bgMusic = document.getElementById('bgMusic');
+let bgMusic = null;
+
+function initAudio() {
+  bgMusic = document.getElementById('bgMusic');
+}
 
 function toggleBgMusic() {
   const toggle = document.getElementById('bgMusicToggle');
@@ -1656,6 +1685,8 @@ function loadSettings() {
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
+  initDOM();
+  initAudio();
   loadGame();
   loadSettings();
   updateUI();
