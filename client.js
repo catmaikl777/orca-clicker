@@ -431,6 +431,17 @@ function handleServerMessage(data) {
       break;
   }
 }
+
+// Разблокировка аудио на мобильных устройствах
+function unlockAudio() {
+  const audioElements = document.querySelectorAll('audio');
+  audioElements.forEach(audio => {
+    audio.play().catch(() => {});
+    audio.pause();
+    audio.currentTime = 0;
+  });
+}
+
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
