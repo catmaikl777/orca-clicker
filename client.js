@@ -646,14 +646,8 @@ function handleClick(e) {
       clicks: game.clicks,
       totalCoins: game.totalCoins
     }));
-    
-    // Считаем билеты ивента (1 за 100 кликов)
-    if (game.clicks % 100 === 0) {
-      addEventCoins(1);
-      showNotification('+1 🎫');
-    }
   }
-  
+    
   // Сохранение
   scheduleServerSave();
 }

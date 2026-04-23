@@ -659,6 +659,22 @@ function handleClick(ws, payload) {
     ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен. Доступ заблокирован.' }));
     ws.close(1008, 'Autoclicker detected');
   }
+  
+  // 3) Начисляем eventCoins за клики (1 билет за 100 кликов)
+  const player = db.players[id];
+  const oldClicks = player._lastEventClicks || 0;
+  const newClicks = payload.clicks || player.clicks || 0;
+  const clicksDiff = Math.max(0, newClicks - oldClicks);
+  
+  if (clicksDiff >= 100) {
+    const ticketsEarned = Math.floor(clicksDiff / 100);
+    addEventCoins(id, ticketsEarned);
+    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов за ${clicksDiff} кликов`);
+    // Отправляем обновлённые данные ивента всем игрокам
+    broadcastEventInfo();
+  }
+  
+  player._lastEventClicks = newClicks;
 }
 
 function handleSaveGame(ws, data) {
