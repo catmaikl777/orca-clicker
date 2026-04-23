@@ -99,6 +99,10 @@ class DatabaseAdapter {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
+      // Добавить поля бана в players (для совместимости)
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS ban_reason VARCHAR(255)`,
+      
       // Обновить внешний ключ если таблица уже существует (для миграции)
       `DO $$ 
       BEGIN 
@@ -121,6 +125,14 @@ class DatabaseAdapter {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
+      // Таблица банов
+      `CREATE TABLE IF NOT EXISTS bans (
+        id VARCHAR(50) PRIMARY KEY,
+        reason VARCHAR(255) NOT NULL,
+        banned_at BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
       // Таблица награды событий
       `CREATE TABLE IF NOT EXISTS event_coins (
         account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE SET NULL,
@@ -131,7 +143,8 @@ class DatabaseAdapter {
       
       // Индексы для производительности
       `CREATE INDEX IF NOT EXISTS idx_players_account_id ON players(account_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_events_end_time ON events(end_time)`
+      `CREATE INDEX IF NOT EXISTS idx_events_end_time ON events(end_time)`,
+      `CREATE INDEX IF NOT EXISTS idx_bans_id ON bans(id)`
     ];
     
     for (const query of queries) {
@@ -175,6 +188,17 @@ class DatabaseAdapter {
       [accountId]
     );
     return result.rows[0]?.coins || 0;
+  }
+  
+  async getBans() {
+    if (!this.usePostgreSQL) return {};
+    
+    const result = await this.pool.query('SELECT * FROM bans');
+    const bans = {};
+    result.rows.forEach(row => {
+      bans[row.id] = { reason: row.reason, bannedAt: row.banned_at };
+    });
+    return bans;
   }
   
   // Сохранение данных в PostgreSQL
@@ -222,12 +246,17 @@ class DatabaseAdapter {
     // accountId может быть null для гостей
     const accountId = player.accountId || null;
     
+    // Обработка полей бана из antiCheat
+    const bannedAt = player.antiCheat?.bannedAt || null;
+    const banReason = player.antiCheat?.banReason || null;
+    
     await this.pool.query(
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
         clicks, level, skills, achievements, skins, current_skin,
-        clan, event_rewards, pending_boxes, created_at, last_login, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+        clan, event_rewards, pending_boxes, created_at, last_login, updated_at,
+        banned_at, ban_reason
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), $19, $20)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -243,12 +272,15 @@ class DatabaseAdapter {
         event_rewards = EXCLUDED.event_rewards,
         pending_boxes = EXCLUDED.pending_boxes,
         last_login = EXCLUDED.last_login,
-        updated_at = NOW()`,
+        updated_at = NOW(),
+        banned_at = EXCLUDED.banned_at,
+        ban_reason = EXCLUDED.ban_reason`,
       [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal',
-        clan, player.eventRewards || 0, pendingBoxes, createdAt, lastLogin
+        clan, player.eventRewards || 0, pendingBoxes, createdAt, lastLogin,
+        bannedAt, banReason
       ]
     );
   }
@@ -261,6 +293,19 @@ class DatabaseAdapter {
        VALUES ($1, $2, $3)
        ON CONFLICT (account_id, event_name) DO UPDATE SET coins = EXCLUDED.coins`,
       [accountId, 'default', coins]
+    );
+  }
+  
+  async saveBan(playerId, reason) {
+    if (!this.usePostgreSQL) return;
+    
+    await this.pool.query(
+      `INSERT INTO bans (id, reason, banned_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET
+         reason = EXCLUDED.reason,
+         banned_at = EXCLUDED.banned_at`,
+      [playerId, reason, Date.now()]
     );
   }
   

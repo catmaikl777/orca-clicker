@@ -36,16 +36,32 @@ function isPlayerBanned(playerId) {
   const p = db.players[playerId];
   if (!p) return false;
   const ac = getAntiCheatState(p);
-  return typeof ac.bannedUntil === 'number' && ac.bannedUntil > Date.now();
+  // Проверяем бан в памяти или в БД
+  if (typeof ac.bannedUntil === 'number' && ac.bannedUntil > Date.now()) return true;
+  // Если бан сохранён в БД (bannedAt есть), проверяем
+  if (typeof ac.bannedAt === 'number' && dbAdapter.usePostgreSQL) {
+    // Бан permanent (не временный) - проверяем по bannedAt
+    if (!ac.bannedUntil || ac.bannedUntil <= Date.now()) {
+      // Permanent ban - если есть bannedAt, значит забанен навсегда
+      return true;
+    }
+  }
+  return false;
 }
 
 function banPlayer(playerId, reason) {
   if (!db.players[playerId]) return;
   const ac = getAntiCheatState(db.players[playerId]);
-  ac.bannedUntil = Date.now() + AUTCLICK.banMs;
+  // Permanent ban (навсегда)
+  ac.bannedUntil = Infinity; // Никогда не истекает
   ac.banReason = reason || 'autoclicker';
   ac.bannedAt = Date.now();
+  
+  // Сохраняем в БД
   savePlayerToDB(playerId);
+  if (dbAdapter.usePostgreSQL && dbAdapter.initialized) {
+    dbAdapter.saveBan(playerId, reason).catch(e => console.error('Ошибка сохранения бана:', e.message));
+  }
 }
 
 // Сохранение одного игрока в PostgreSQL
@@ -377,8 +393,17 @@ httpServer.listen(PORT, () => {
             eventRewards: row.event_rewards || 0,
             pendingBoxes: typeof row.pending_boxes === 'string' ? JSON.parse(row.pending_boxes) : row.pending_boxes || [],
             createdAt: row.created_at || Date.now(),
-            lastLogin: row.last_login || Date.now()
+            lastLogin: row.last_login || Date.now(),
+            antiCheat: null // Загрузим баны ниже
           };
+          // Восстановить бан если есть
+          if (row.banned_at) {
+            db.players[row.id].antiCheat = {
+              bannedUntil: Infinity,
+              banReason: row.ban_reason || 'autoclicker',
+              bannedAt: row.banned_at
+            };
+          }
         });
         
         // Загрузить аккаунты
@@ -393,7 +418,19 @@ httpServer.listen(PORT, () => {
           };
         });
         
-        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов`);
+        // Загрузить баны из отдельной таблицы
+        const bans = await dbAdapter.getBans();
+        Object.entries(bans).forEach(([playerId, banData]) => {
+          if (db.players[playerId]) {
+            db.players[playerId].antiCheat = {
+              bannedUntil: Infinity,
+              banReason: banData.reason,
+              bannedAt: banData.bannedAt
+            };
+          }
+        });
+        
+        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов`);
       } catch (e) {
         console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
       }
