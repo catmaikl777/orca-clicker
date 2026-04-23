@@ -638,16 +638,18 @@ function handleClick(e) {
   
   // Отправка на сервер
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
+    const clickData = {
       type: 'click',
       coins: game.coins,
       perClick: game.basePerClick,
       perSecond: game.basePerSecond,
       clicks: game.clicks,
       totalCoins: game.totalCoins
-    }));
+    };
+    console.log(`📤 Отправка клика: clicks=${game.clicks}`);
+    ws.send(JSON.stringify(clickData));
   }
-    
+  
   // Сохранение
   scheduleServerSave();
 }

@@ -663,13 +663,15 @@ function handleClick(ws, payload) {
   // 3) Начисляем eventCoins за клики (1 билет за 100 кликов)
   const player = db.players[id];
   const oldClicks = player._lastEventClicks || 0;
-  const newClicks = payload.clicks || player.clicks || 0;
+  const newClicks = typeof payload.clicks === 'number' ? payload.clicks : (player.clicks || 0);
   const clicksDiff = Math.max(0, newClicks - oldClicks);
+  
+  console.log(`🔍 Click check: id=${id}, oldClicks=${oldClicks}, newClicks=${newClicks}, clicksDiff=${clicksDiff}`);
   
   if (clicksDiff >= 100) {
     const ticketsEarned = Math.floor(clicksDiff / 100);
     addEventCoins(id, ticketsEarned);
-    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов за ${clicksDiff} кликов`);
+    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов за ${clicksDiff} кликов. Всего: ${db.event.eventCoins[id]}`);
     // Отправляем обновлённые данные ивента всем игрокам
     broadcastEventInfo();
   }
@@ -846,6 +848,10 @@ function handleRestoreSession(ws, data) {
   db.accounts[accountId].lastLogin = Date.now();
   ws.authenticated = true;
   ws.accountId = accountId;
+  
+  // Инициализируем _lastEventClicks для отслеживания билетов
+  playerData._lastEventClicks = playerData.clicks || 0;
+  
   players.set(accountId, { ...playerData, ws });
   updateLeaderboard(playerData);
   savePlayerToDB(accountId);
@@ -892,6 +898,9 @@ function handleRegisterGuest(ws, name) {
     playerData.name = name || playerData.name;
     playerData.lastLogin = Date.now();
   }
+  
+  // Инициализируем _lastEventClicks для отслеживания билетов
+  playerData._lastEventClicks = playerData.clicks || 0;
   
   players.set(playerId, { ...playerData, ws });
   ws.send(JSON.stringify({ 
