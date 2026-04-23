@@ -1303,14 +1303,12 @@ function addEventCoins(amount) {
 }
 
 function updateEventUI() {
-  const eventCoinsEl = document.getElementById('eventCoins');
-  if (eventCoinsEl) {
-    eventCoinsEl.textContent = formatNumber(eventCoins);
-  }
-  
   const eventCoinsDisplay = document.getElementById('eventCoinsDisplay');
   if (eventCoinsDisplay) {
     eventCoinsDisplay.textContent = formatNumber(eventCoins);
+    console.log(`✅ UI обновлён: eventCoins=${eventCoins}`);
+  } else {
+    console.log(`⚠️ Элемент #eventCoinsDisplay не найден`);
   }
   
   const eventTimerEl = document.getElementById('eventTimer');
@@ -1371,7 +1369,7 @@ function openBox(boxId) {
     isOpeningBox = false;
     return;
   }
-  
+
   // НЕ удаляем локально - ждём подтверждения от сервера
   // Запускаем катсцену
   showBoxOpeningCutscene();
