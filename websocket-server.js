@@ -651,25 +651,39 @@ function handleClick(ws, payload) {
   
   // 3) Начисляем eventCoins за клики (1 билет за 100 кликов)
   const player = db.players[id];
-  const oldClicks = player._lastEventClicks || 0;
+  
+  // Инициализируем _pendingEventClicks если нет (для старых игроков)
+  if (typeof player._pendingEventClicks !== 'number') {
+    player._pendingEventClicks = 0;
+    console.log(`📋 Инициализировано _pendingEventClicks=0 для ${id}`);
+  }
+  
   const newClicks = typeof payload.clicks === 'number' ? payload.clicks : (player.clicks || 0);
-  const clicksDiff = Math.max(0, newClicks - oldClicks);
+  const lastProcessedClicks = player._lastProcessedClicks || 0;
+  const clicksSinceLastCheck = Math.max(0, newClicks - lastProcessedClicks);
   
-  console.log(`🔍 Click check: id=${id}, oldClicks=${oldClicks}, newClicks=${newClicks}, clicksDiff=${clicksDiff}`);
+  console.log(`🔍 Click check: id=${id}, lastProcessed=${lastProcessedClicks}, newClicks=${newClicks}, clicksSinceLast=${clicksSinceLastCheck}, pending=${player._pendingEventClicks}`);
   
-  if (clicksDiff >= 100) {
-    const ticketsEarned = Math.floor(clicksDiff / 100);
-    console.log(`🎫 Начисление билетов: ${ticketsEarned} за ${clicksDiff} кликов`);
+  // Добавляем новые клики к.pending
+  player._pendingEventClicks += clicksSinceLastCheck;
+  
+  if (player._pendingEventClicks >= 100) {
+    const ticketsEarned = Math.floor(player._pendingEventClicks / 100);
+    const usedClicks = ticketsEarned * 100;
+    console.log(`🎫 Начисление билетов: ${ticketsEarned} за ${usedClicks} кликов (pending было ${player._pendingEventClicks})`);
     addEventCoins(id, ticketsEarned);
-    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов. Всего: ${db.event.eventCoins[id]}`);
+    // Вычитаем использованные клики из pending
+    player._pendingEventClicks -= usedClicks;
+    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов. Всего: ${db.event.eventCoins[id]}, pending осталось: ${player._pendingEventClicks}`);
     console.log(`📢 Вызов broadcastEventInfo()`);
     // Отправляем обновлённые данные ивента всем игрокам
     broadcastEventInfo();
   }
   
-  player._lastEventClicks = newClicks;
+  // Сохраняем последний обработанный клик
+  player._lastProcessedClicks = newClicks;
 }
-
+  
 function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
@@ -840,8 +854,9 @@ function handleRestoreSession(ws, data) {
   ws.authenticated = true;
   ws.accountId = accountId;
   
-  // Инициализируем _lastEventClicks для отслеживания билетов
-  playerData._lastEventClicks = playerData.clicks || 0;
+  // Инициализируем поля для отслеживания билетов
+  playerData._pendingEventClicks = 0;
+  playerData._lastProcessedClicks = playerData.clicks || 0;
   
   players.set(accountId, { ...playerData, ws });
   updateLeaderboard(playerData);
@@ -890,8 +905,9 @@ function handleRegisterGuest(ws, name) {
     playerData.lastLogin = Date.now();
   }
   
-  // Инициализируем _lastEventClicks для отслеживания билетов
-  playerData._lastEventClicks = playerData.clicks || 0;
+  // Инициализируем поля для отслеживания билетов
+  playerData._pendingEventClicks = 0;
+  playerData._lastProcessedClicks = playerData.clicks || 0;
   
   players.set(playerId, { ...playerData, ws });
   ws.send(JSON.stringify({ 
