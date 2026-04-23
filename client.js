@@ -360,6 +360,7 @@ function handleServerMessage(data) {
     case 'eventInfo':
       eventInfo = data.event;
       eventCoins = data.event.eventCoins || 0;
+      console.log(`🎫 eventInfo получено: eventCoins=${eventCoins}, topPlayers=${eventInfo.topPlayers?.length || 0}`);
       updateEventUI();
       renderEventLeaderboard();
       break;

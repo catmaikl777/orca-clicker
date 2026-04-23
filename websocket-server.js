@@ -308,22 +308,6 @@ function distributeEventRewards() {
 }
 
 function broadcastEventInfo() {
-  const eventData = JSON.stringify({
-    type: 'eventInfo',
-    event: {
-      active: db.event.active,
-      endDate: db.event.endDate,
-      season: db.event.season,
-      topPlayers: Object.entries(db.event.eventCoins || {})
-        .map(([pid, coins]) => ({ 
-          id: pid, 
-          name: db.players[pid]?.name || 'Player', 
-          coins 
-        }))
-        .sort((a, b) => b.coins - a.coins)
-        .slice(0, 10)
-    }
-  });
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       const clientId = client.accountId || client.playerId;
@@ -346,6 +330,7 @@ function broadcastEventInfo() {
             .slice(0, 10)
         }
       }));
+      console.log(`📤 Отправлено eventInfo игроку ${clientId}: eventCoins=${playerEventCoins}`);
     }
   });
 }
