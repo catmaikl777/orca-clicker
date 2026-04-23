@@ -29,7 +29,7 @@ function initDOM() {
   perClickEl = document.getElementById('perClick');
   perSecondEl = document.getElementById('perSecond');
   clicker = document.getElementById('clicker');
-  orcaImg = document.getElementById('orcaImage');
+  orcaImg = document.getElementById('orcaImg');
   orcaEmoji = document.getElementById('orcaEmoji');
   bonus = document.getElementById('bonus');
   fishBonus = document.getElementById('fishBonus');
