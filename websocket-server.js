@@ -1455,29 +1455,6 @@ function handleEquipSkin(ws, skinId) {
   }
 }
 
-  const p = db.players[id];
-  const mem = players.get(id);
-  
-  console.log(`🎨 handleEquipSkin: id=${id}, skinId=${skinId}, skins=${JSON.stringify(p.skins)}`);
-  
-  // Проверяем что скин открыт (normal всегда доступен)
-  if (skinId === 'normal' || (p.skins && p.skins[skinId])) {
-    p.currentSkin = skinId;
-    if (mem) mem.currentSkin = skinId;
-    
-    savePlayerToDB(id);
-    
-    ws.send(JSON.stringify({ 
-      type: 'skinEquipped',
-      skinId: skinId
-    }));
-    
-    console.log(`✅ Игрок ${id} надел скин: ${skinId}`);
-  } else {
-    console.log(`❌ Скин ${skinId} не открыт у игрока ${id}. Доступные: ${Object.keys(skins).join(', ')}`);
-    ws.send(JSON.stringify({ type: 'error', message: `Скин "${skinId}" не открыт` }));
-  }
-
 // Боксы
 const boxPrice = 1700;
 
