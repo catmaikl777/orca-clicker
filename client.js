@@ -35,6 +35,11 @@ function initDOM() {
   fishBonus = document.getElementById('fishBonus');
   x2Bonus = document.getElementById('x2Bonus');
   
+  // Обработчик клика по косатке
+  if (clicker) {
+    clicker.addEventListener('click', handleClick);
+  }
+  
   // Инициализация обработчиков бонусов
   if (x2Bonus) {
     x2Bonus.addEventListener('click', handleX2BonusClick);
@@ -586,6 +591,72 @@ setInterval(() => {
 }, 10000);
 
 // Система бонусов инициализируется в initDOM()
+
+// Обработчик клика по косатке
+function handleClick(e) {
+  const perClick = getPerClick();
+  const critChance = 0.1; // 10% шанс крита
+  const critMultiplier = 10;
+  
+  let earned = perClick * game.multiplier;
+  let isCrit = false;
+  
+  // Проверяем критический удар (s2)
+  if (game.skills['s2'] && Math.random() < critChance) {
+    earned *= critMultiplier;
+    isCrit = true;
+    playSound('critSound');
+  }
+  
+  game.coins += earned;
+  game.totalCoins += earned;
+  game.clicks++;
+  
+  // Плавающий текст
+  const rect = clicker.getBoundingClientRect();
+  const x = e.clientX || (rect.left + rect.width / 2);
+  const y = e.clientY || (rect.top + rect.height / 2);
+  const text = isCrit ? `КРИТ! x${critMultiplier}` : `+${formatNumber(earned)}`;
+  const color = isCrit ? '#ff6b6b' : '#4fc3f7';
+  showFloatingText(x, y, text, color);
+  
+  // Звук клика
+  playSound('clickSound');
+  
+  // Анимация клика
+  clicker.style.transform = 'scale(0.95)';
+  setTimeout(() => {
+    clicker.style.transform = 'scale(1)';
+  }, 100);
+  
+  // Обновление UI
+  updateUI();
+  
+  // Проверка достижений и квестов
+  checkAchievements();
+  checkQuests();
+  
+  // Отправка на сервер
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'click',
+      coins: game.coins,
+      perClick: game.basePerClick,
+      perSecond: game.basePerSecond,
+      clicks: game.clicks,
+      totalCoins: game.totalCoins
+    }));
+    
+    // Считаем билеты ивента (1 за 100 кликов)
+    if (game.clicks % 100 === 0) {
+      addEventCoins(1);
+      showNotification('+1 🎫');
+    }
+  }
+  
+  // Сохранение
+  scheduleServerSave();
+}
 
 // Обработчики бонусов
 function handleX2BonusClick() {
