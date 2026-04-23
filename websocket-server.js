@@ -507,16 +507,24 @@ function handleClick(ws, payload) {
   const now = Date.now();
   const clickTime = typeof payload?.t === 'number' ? payload.t : now;
 
-  // Жёсткие признаки: не-trusted / не в фокусе / вкладка скрыта
+  // Адаптированные проверки для мобильных устройств
   const trusted = payload?.trusted !== undefined ? !!payload.trusted : true;
   const focus = payload?.focus !== undefined ? !!payload.focus : true;
   const vis = typeof payload?.vis === 'string' ? payload.vis : 'visible';
-  if (!trusted || !focus || vis !== 'visible') {
-    banPlayer(id, `overlay_trusted:${trusted}_focus:${focus}_vis:${vis}`);
-    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Запрещены клики в фоне/через автокликер. Доступ заблокирован.' }));
-    ws.close(1008, 'Overlay/autoclicker detected');
-    return;
+  
+  // На мобильных устройствах ослабляем trusted/focus/vis проверки
+  const isMobile = payload?.isMobile === true || (payload?.userAgent || '').includes('Mobi');
+  
+  if (!isMobile) {
+    // Для десктопа - строгие проверки trusted/focus/vis
+    if (!trusted || !focus || vis !== 'visible') {
+      banPlayer(id, `overlay_trusted:${trusted}_focus:${focus}_vis:${vis}`);
+      ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Запрещены клики в фоне/через автокликер. Доступ заблокирован.' }));
+      ws.close(1008, 'Overlay/autoclicker detected');
+      return;
+    }
   }
+  // Для мобильных - пропускаем trusted/focus/vis, но проверяем CPS и паттерны
   
   // 0) Интервалы между кликами
   let it = clickIntervals.get(id);

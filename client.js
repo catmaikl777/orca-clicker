@@ -489,7 +489,8 @@ function handleClick(e) {
       t: Date.now(),
       trusted: !!e.isTrusted,
       focus: typeof document.hasFocus === 'function' ? document.hasFocus() : true,
-      vis: document.visibilityState || 'unknown'
+      vis: document.visibilityState || 'unknown',
+      isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     }));
   }
 }
