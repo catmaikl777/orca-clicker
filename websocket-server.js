@@ -1419,26 +1419,64 @@ function handleBuySkin(ws, skinId) {
 // Надевание скина
 function handleEquipSkin(ws, skinId) {
   const id = ws.accountId || ws.playerId;
-  if (!id || !db.players[id]) return;
+  if (!id || !db.players[id]) {
+    console.log(`⚠️ handleEquipSkin: игрок не найден id=${id}`);
+    return;
+  }
   
   const p = db.players[id];
   const mem = players.get(id);
   
-  // Проверяем что скин открыт
-  if (!p.skins || !p.skins[skinId]) return;
+  // Парсим skins если это строка
+  let skins = p.skins;
+  if (typeof skins === 'string') {
+    try { skins = JSON.parse(skins); } catch(e) { skins = { normal: true }; }
+  }
+  if (!skins) skins = { normal: true };
   
-  p.currentSkin = skinId;
-  if (mem) mem.currentSkin = skinId;
+  console.log(`🎨 handleEquipSkin: id=${id}, skinId=${skinId}, skins=${JSON.stringify(skins)}`);
   
-  savePlayerToDB(id);
-  
-  ws.send(JSON.stringify({ 
-    type: 'skinEquipped',
-    skinId: skinId
-  }));
-  
-  console.log(`🎨 Игрок ${id} надел скин: ${skinId}`);
+  // Проверяем что скин открыт (normal всегда доступен)
+  if (skinId === 'normal' || skins[skinId]) {
+    p.currentSkin = skinId;
+    if (mem) mem.currentSkin = skinId;
+    
+    savePlayerToDB(id);
+    
+    ws.send(JSON.stringify({ 
+      type: 'skinEquipped',
+      skinId: skinId
+    }));
+    
+    console.log(`✅ Игрок ${id} надел скин: ${skinId}`);
+  } else {
+    console.log(`❌ Скин ${skinId} не открыт у игрока ${id}`);
+    ws.send(JSON.stringify({ type: 'error', message: `Скин "${skinId}" не открыт` }));
+  }
 }
+
+  const p = db.players[id];
+  const mem = players.get(id);
+  
+  console.log(`🎨 handleEquipSkin: id=${id}, skinId=${skinId}, skins=${JSON.stringify(p.skins)}`);
+  
+  // Проверяем что скин открыт (normal всегда доступен)
+  if (skinId === 'normal' || (p.skins && p.skins[skinId])) {
+    p.currentSkin = skinId;
+    if (mem) mem.currentSkin = skinId;
+    
+    savePlayerToDB(id);
+    
+    ws.send(JSON.stringify({ 
+      type: 'skinEquipped',
+      skinId: skinId
+    }));
+    
+    console.log(`✅ Игрок ${id} надел скин: ${skinId}`);
+  } else {
+    console.log(`❌ Скин ${skinId} не открыт у игрока ${id}. Доступные: ${Object.keys(skins).join(', ')}`);
+    ws.send(JSON.stringify({ type: 'error', message: `Скин "${skinId}" не открыт` }));
+  }
 
 // Боксы
 const boxPrice = 1700;
