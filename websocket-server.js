@@ -310,11 +310,42 @@ function distributeEventRewards() {
 function broadcastEventInfo() {
   const eventData = JSON.stringify({
     type: 'eventInfo',
-    event: db.event
+    event: {
+      active: db.event.active,
+      endDate: db.event.endDate,
+      season: db.event.season,
+      topPlayers: Object.entries(db.event.eventCoins || {})
+        .map(([pid, coins]) => ({ 
+          id: pid, 
+          name: db.players[pid]?.name || 'Player', 
+          coins 
+        }))
+        .sort((a, b) => b.coins - a.coins)
+        .slice(0, 10)
+    }
   });
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(eventData);
+      const clientId = client.accountId || client.playerId;
+      // Отправляем персональные eventCoins каждому игроку
+      const playerEventCoins = db.event.eventCoins?.[clientId] || 0;
+      client.send(JSON.stringify({
+        type: 'eventInfo',
+        event: {
+          active: db.event.active,
+          endDate: db.event.endDate,
+          season: db.event.season,
+          eventCoins: playerEventCoins,
+          topPlayers: Object.entries(db.event.eventCoins || {})
+            .map(([pid, coins]) => ({ 
+              id: pid, 
+              name: db.players[pid]?.name || 'Player', 
+              coins 
+            }))
+            .sort((a, b) => b.coins - a.coins)
+            .slice(0, 10)
+        }
+      }));
     }
   });
 }
@@ -685,6 +716,8 @@ function handleSaveGame(ws, data) {
   
 function sendEventInfo(ws) {
   const id = ws.accountId || ws.playerId;
+  const playerName = db.players[id]?.name || 'Player';
+  
   ws.send(JSON.stringify({ 
     type: 'eventInfo',
     event: {
@@ -693,9 +726,9 @@ function sendEventInfo(ws) {
       season: db.event.season,
       eventCoins: db.event.eventCoins[id] || 0,
       topPlayers: Object.entries(db.event.eventCoins || {})
-        .map(([id, coins]) => ({ 
-          id, 
-          name: db.players[id]?.name || ws.username || 'Player', 
+        .map(([pid, coins]) => ({ 
+          id: pid, 
+          name: db.players[pid]?.name || 'Player', 
           coins 
         }))
         .sort((a, b) => b.coins - a.coins)

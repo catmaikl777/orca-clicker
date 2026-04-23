@@ -66,15 +66,40 @@ const achievementsData = [
   { id: 'a6', name: 'Пассивный доход', desc: 'Достигните 1000/сек', icon: '📈' }
 ];
 
-// Навыки (дерево)
+// Навыки (дерево) - effect() больше не изменяет game.perClick/perSecond напрямую
+// Бонусы рассчитываются динамически в getPerClick() и getPerSecond()
 const skillsData = [
-  { id: 's1', name: 'Двойной клик', desc: '2x за клик', cost: 1000, effect: () => { game.basePerClick = game.basePerClick || game.perClick; game.perClick = game.basePerClick * 2; } },
-  { id: 's2', name: 'Критический удар', desc: '10% шанс 10x', cost: 5000, effect: () => {} },
-  { id: 's3', name: 'Авто-эффективность', desc: '2x за секунду', cost: 3000, effect: () => { game.basePerSecond = game.basePerSecond || game.perSecond; game.perSecond = game.basePerSecond * 2; } },
-  { id: 's4', name: 'Золотая лихорадка', desc: 'Бонусы дают 3x', cost: 2000, effect: () => {} },
-  { id: 's5', name: 'Мастер клика', desc: '5x за клик', cost: 10000, effect: () => { game.basePerClick = game.basePerClick || game.perClick; game.perClick = game.basePerClick * 5; } },
-  { id: 's6', name: 'Бизнес-косатка', desc: '5x за секунду', cost: 15000, effect: () => { game.basePerSecond = game.basePerSecond || game.perSecond; game.perSecond = game.basePerSecond * 5; } }
+  { id: 's1', name: 'Двойной клик', desc: 'Клики дают +100% (x2)', cost: 1000, multiplier: 'click', value: 2 },
+  { id: 's2', name: 'Критический удар', desc: '10% шанс получить x10 за клик', cost: 5000, effect: () => {} },
+  { id: 's3', name: 'Авто-эффективность', desc: 'Авто-доход +100% (x2)', cost: 3000, multiplier: 'auto', value: 2 },
+  { id: 's4', name: 'Золотая лихорадка', desc: 'Бонусы (рыба/сундук) дают +200% (x3)', cost: 2000, effect: () => {} },
+  { id: 's5', name: 'Мастер клика', desc: 'Клики дают +400% (x5)', cost: 10000, multiplier: 'click', value: 5 },
+  { id: 's6', name: 'Бизнес-косатка', desc: 'Авто-доход +400% (x5)', cost: 15000, multiplier: 'auto', value: 5 }
 ];
+
+// Расчет perClick с учётом навыков
+function getPerClick() {
+  let base = game.basePerClick || 1;
+  let multiplier = 1;
+  
+  // Применяем навыки множители
+  if (game.skills['s1']) multiplier *= 2; // Двойной клик x2
+  if (game.skills['s5']) multiplier *= 5; // Мастер клика x5
+  
+  return base * multiplier;
+}
+
+// Расчет perSecond с учётом навыков
+function getPerSecond() {
+  let base = game.basePerSecond || 0;
+  let multiplier = 1;
+  
+  // Применяем навыки множители
+  if (game.skills['s3']) multiplier *= 2; // Авто-эффективность x2
+  if (game.skills['s6']) multiplier *= 5; // Бизнес-косатка x5
+  
+  return base * multiplier;
+}
 
 // ==================== WEBSOCKET ====================
 let ws = null;
@@ -202,8 +227,9 @@ function handleServerMessage(data) {
       game.coins = d.coins || 0;
       game.totalCoins = d.totalCoins || 0;
       game.level = d.level || 1;
-      game.perClick = d.perClick || 1;
-      game.perSecond = d.perSecond || 0;
+      // НЕ загружаем perClick/perSecond напрямую - они рассчитываются через getPerClick()/getPerSecond()
+      game.basePerClick = d.perClick || 1; // Базовое значение для предметов
+      game.basePerSecond = d.perSecond || 0; // Базовое значение для предметов
       game.clicks = d.clicks || 0;
       game.skills = d.skills || {};
       game.achievements = d.achievements || [];
@@ -232,13 +258,10 @@ function handleServerMessage(data) {
         initQuests();
       }
       
-      // Применяем эффекты навыков
-      skillsData.forEach(skill => {
-        if (game.skills[skill.id] && skill.effect) skill.effect();
-      });
-      
       // Билеты ивента
       if (data.eventCoins) eventCoins = data.eventCoins;
+      
+      // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
     }
     
     playerId = data.accountId;
@@ -277,8 +300,8 @@ function handleServerMessage(data) {
         const oldCoins = game.coins;
         game.coins = data.data.coins || 0;
         game.totalCoins = data.data.totalCoins || 0;
-        game.perClick = data.data.perClick || 1;
-        game.perSecond = data.data.perSecond || 0;
+        game.basePerClick = data.data.perClick || 1;
+        game.basePerSecond = data.data.perSecond || 0;
         game.clicks = data.data.clicks || 0;
         game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
@@ -339,10 +362,8 @@ function handleServerMessage(data) {
       showNotification('🚪 Вы вышли из клана');
       break;
     case 'skillBought':
+      // Сервер подтвердил покупку навыка
       game.skills[data.skillId] = true;
-      // Применяем эффект навыка
-      const boughtSkill = skillsData.find(s => s.id === data.skillId);
-      if (boughtSkill && boughtSkill.effect) boughtSkill.effect();
       showNotification(`✨ Навык «${data.skillName}» куплен!`);
       renderSkills();
       updateUI();
@@ -359,7 +380,6 @@ function handleServerMessage(data) {
       updateBoxUI();
       updateUI();
       showNotification('🎁 Бокс куплен! Откройте в магазине');
-      // Сохраняем чтобы данные зафиксировались локально
       saveGame();
       break;
     case 'boxOpened':
@@ -380,8 +400,8 @@ function handleServerMessage(data) {
     case 'itemBought':
       // Сервер подтвердил покупку предмета
       if (data.coins !== undefined) game.coins = data.coins;
-      if (data.perClick !== undefined) game.perClick = data.perClick;
-      if (data.perSecond !== undefined) game.perSecond = data.perSecond;
+      if (data.perClick !== undefined) game.basePerClick = data.perClick;
+      if (data.perSecond !== undefined) game.basePerSecond = data.perSecond;
       if (data.itemCost !== undefined) {
         const item = shopItems.find(i => i.id === data.itemId);
         if (item) item.cost = data.itemCost;
@@ -391,20 +411,6 @@ function handleServerMessage(data) {
       renderShop();
       updateUI();
       saveGame();
-      break;
-    case 'skillBought':
-      // Сервер подтвердил покупку навыка
-      game.skills[data.skillId] = true;
-      const skill = skillsData.find(s => s.id === data.skillId);
-      if (skill && skill.effect) skill.effect();
-      showNotification(`✨ Навык получен: ${data.skillName}`);
-      renderSkills();
-      updateUI();
-      saveGame();
-      break;
-    case 'skinBought':
-      // Покупка скина отключена; оставляем совместимость если сервер где-то ещё шлёт
-      showNotification('🎁 Скины можно получить только из ящика');
       break;
     case 'skinEquipped':
       // Сервер подтвердил выбор скина
@@ -419,123 +425,11 @@ function handleServerMessage(data) {
       break;
     case 'autoclickerBlocked':
       showNotification(`🚫 ${data.message || 'Доступ заблокирован'}`);
-      // Блокируем повторные действия (и дадим серверу закрыть соединение)
       try {
         document.getElementById('clicker')?.classList.add('locked');
       } catch (_) {}
       break;
   }
-}
-
-// ==================== ОСНОВНАЯ МЕХАНИКА ====================
-const clicker = document.getElementById('clicker');
-const coinsEl = document.getElementById('coins');
-const levelEl = document.getElementById('level');
-const perClickEl = document.getElementById('perClick');
-const perSecondEl = document.getElementById('perSecond');
-const orcaImg = document.getElementById('orcaImg');
-const orcaEmoji = document.getElementById('orcaEmoji');
-
-// Клик по косатке
-function handleClick(e) {
-  e.preventDefault();
-
-  // Жёстко не даём кликать, если вкладка/окно не активно
-  if (!canPlayActions()) {
-    const now = Date.now();
-    if (now - lastFocusWarnAt > 1500) {
-      lastFocusWarnAt = now;
-      showNotification('⚠️ Вернитесь в игру (вкладка должна быть активна)');
-    }
-    return;
-  }
-  
-  let value = game.perClick * game.multiplier;
-  let isCrit = false;
-  const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;
-  const y = e.clientY || (e.touches && e.touches[0]?.clientY) || window.innerHeight / 2;
-  
-  if (game.skills['s2'] && Math.random() < 0.1) {
-    value *= 10;
-    isCrit = true;
-    showFloatingText(x, y, `КРИТ! +${formatNumber(value)}`, '#ff5252');
-    playSound('critSound');
-  } else {
-    showFloatingText(x, y, `+${formatNumber(value)}`, '#4fc3f7');
-    playSound('clickSound');
-  }
-  
-  if (x2Active) showFloatingText(x, y - 50, `x2! ⭐`, '#ffd700');
-  createClickParticles(x, y, x2Active ? 'gold' : '#4fc3f7', isCrit);
-  
-  game.coins += value;
-  game.totalCoins += value;
-  game.clicks++;
-  
-  if (game.clicks % 100 === 0) addEventCoins(1);
-  
-  clicker.style.transform = 'scale(0.9)';
-  setTimeout(() => clicker.style.transform = 'scale(1)', 100);
-  
-  checkAchievements();
-  checkQuests();
-  updateUI();
-  saveGame();
-
-  // Сигнал клика на сервер для анти-автокликера
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'click',
-      t: Date.now(),
-      trusted: !!e.isTrusted,
-      focus: typeof document.hasFocus === 'function' ? document.hasFocus() : true,
-      vis: document.visibilityState || 'unknown',
-      isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    }));
-  }
-}
-
-clicker.addEventListener('click', handleClick);
-clicker.addEventListener('touchstart', handleClick, { passive: false });
-
-// Функция для создания частиц при клике
-function createClickParticles(x, y, color, intense = false) {
-  const particleCount = intense ? 20 : 12;
-  
-  for (let i = 0; i < particleCount; i++) {
-    const particle = document.createElement('div');
-    particle.className = 'particle';
-    particle.style.left = `${x}px`;
-    particle.style.top = `${y}px`;
-    particle.style.background = color;
-    particle.style.boxShadow = `0 0 ${intense ? 15 : 10}px ${color}`;
-    
-    // Случайное направление разлета
-    const angle = (Math.PI * 2 * i) / particleCount;
-    const speed = intense ? 150 + Math.random() * 100 : 100 + Math.random() * 80;
-    const tx = Math.cos(angle) * speed;
-    const ty = Math.sin(angle) * speed;
-    
-    particle.style.setProperty('--tx', `${tx}px`);
-    particle.style.setProperty('--ty', `${ty}px`);
-    
-    document.getElementById('clickEffects').appendChild(particle);
-    
-    setTimeout(() => particle.remove(), 900);
-  }
-}
-
-// Мобильный аудио unlock (iOS/Android блокируют звук без жеста пользователя)
-let audioUnlocked = false;
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  const sounds = document.querySelectorAll('audio');
-  sounds.forEach(s => {
-    s.play().catch(() => {});
-    s.pause();
-    s.currentTime = 0;
-  });
 }
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
@@ -621,11 +515,12 @@ function deactivateX2Multiplier() {
   saveGame();
 }
 
-// Автокликер
+// Автокликер - используем getPerSecond() для расчета с учётом навыков
 setInterval(() => {
-  if (game.perSecond > 0) {
-    game.coins += game.perSecond * game.multiplier;
-    game.totalCoins += game.perSecond * game.multiplier;
+  const perSecond = getPerSecond();
+  if (perSecond > 0) {
+    game.coins += perSecond * game.multiplier;
+    game.totalCoins += perSecond * game.multiplier;
     updateUI();
     checkQuests();
     // фиксируем автодоход "в реальном времени" (сервер), локалку не спамим
@@ -694,8 +589,10 @@ x2Bonus.addEventListener('click', () => {
 });
 
 bonus.addEventListener('click', () => {
+  // Золотая лихорадка (s4) даёт x3 вместо x2
   const multiplier = game.skills['s4'] ? 3 : 2;
-  const bonusValue = game.perClick * 15 * multiplier * game.multiplier;
+  const perClick = getPerClick();
+  const bonusValue = perClick * 15 * multiplier * game.multiplier;
   game.coins += bonusValue;
   game.totalCoins += bonusValue;
   showFloatingText(
@@ -709,9 +606,10 @@ bonus.addEventListener('click', () => {
   updateUI();
   saveGame();
 });
-
+  
 fishBonus.addEventListener('click', () => {
-  const fishValue = Math.max(game.perSecond * 30 * game.multiplier, game.perClick * 10);
+  const perSecond = getPerSecond();
+  const fishValue = Math.max(perSecond * 30 * game.multiplier, getPerClick() * 10);
   game.coins += fishValue;
   game.totalCoins += fishValue;
   showFloatingText(
@@ -728,10 +626,14 @@ fishBonus.addEventListener('click', () => {
   
 // ==================== UI ОБНОВЛЕНИЯ ====================
 function updateUI() {
+  // Используем функции расчета с учётом навыков
+  const perClick = getPerClick();
+  const perSecond = getPerSecond();
+  
   coinsEl.textContent = formatNumber(Math.floor(game.coins));
   levelEl.textContent = game.level;
-  perClickEl.textContent = formatNumber(game.perClick * game.multiplier);
-  perSecondEl.textContent = formatNumber(game.perSecond * game.multiplier);
+  perClickEl.textContent = formatNumber(perClick * game.multiplier);
+  perSecondEl.textContent = formatNumber(perSecond * game.multiplier);
   
   // Расчет уровня
   const newLevel = Math.floor(Math.log10(game.totalCoins + 1)) + 1;
@@ -851,8 +753,8 @@ function buyItem(item) {
     // Локальный режим (без сервера)
     if (game.coins >= item.cost) {
       game.coins -= item.cost;
-      if (item.type === 'click') game.perClick += item.value;
-      if (item.type === 'auto') game.perSecond += item.value;
+      if (item.type === 'click') game.basePerClick += item.value;
+      if (item.type === 'auto') game.basePerSecond += item.value;
       item.cost = Math.floor(item.cost * 1.2);
       showNotification(`✅ Куплено: ${item.name}`);
       playSound('buySound');
@@ -963,14 +865,17 @@ function renderSkills() {
   skillsDiv.className = 'skills';
   
   skillsData.forEach(skill => {
+    const bought = game.skills[skill.id];
+    const canAfford = game.coins >= skill.cost;
     const div = document.createElement('div');
-    div.className = `skill ${game.skills[skill.id] ? 'bought' : ''} ${game.coins < skill.cost && !game.skills[skill.id] ? 'locked' : ''}`;
+    div.className = `skill ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
     div.innerHTML = `
       <div>⭐</div>
       <div>${skill.name}</div>
-      <small>${formatNumber(skill.cost)}</small>
+      <small>${bought ? '✅ Куплено' : formatNumber(skill.cost)}</small>
+      ${bought ? '' : `<div class="skill-desc">${skill.desc}</div>`}
     `;
-    if (!game.skills[skill.id]) {
+    if (!bought) {
       div.onclick = () => buySkill(skill);
     }
     skillsDiv.appendChild(div);
@@ -991,7 +896,7 @@ function buySkill(skill) {
         // Локальная покупка если нет сервера
         game.coins -= skill.cost;
         game.skills[skill.id] = true;
-        if (skill.effect) skill.effect();
+        // НЕ применяем эффект - навыки работают через getPerClick()/getPerSecond()
         showNotification(`✨ Навык получен: ${skill.name}`);
         renderSkills();
         updateUI();
@@ -1030,8 +935,8 @@ function checkAchievements() {
     { id: 'a2', check: () => game.clicks >= 100 },
     { id: 'a3', check: () => game.totalCoins >= 1000000 },
     { id: 'a4', check: () => shopItems.every(i => i.cost >= 1000) },
-    { id: 'a5', check: () => game.perClick >= 1000 },
-    { id: 'a6', check: () => game.perSecond >= 1000 }
+    { id: 'a5', check: () => getPerClick() >= 1000 },
+    { id: 'a6', check: () => getPerSecond() >= 1000 }
   ];
   
   checks.forEach(({ id, check }) => {
