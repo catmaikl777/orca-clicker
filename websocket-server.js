@@ -56,19 +56,24 @@ function savePlayerToDB(accountId) {
   if (!p) return;
   
   // Проверяем что это зарегистрированный игрок (есть в accounts)
-  const isRegistered = db.accounts && db.accounts[accountId];
+  const acc = db.accounts[accountId];
+  const isRegistered = !!acc;
   
   // Лог для отладки
   console.log(`💾 savePlayerToDB: id=${accountId}, name=${p.name}, isRegistered=${isRegistered}`);
   
+  // Если игрок зарегистрирован но аккаунт ещё не сохранён в БД - сохраняем сначала
+  if (isRegistered && acc) {
+    // Сохраняем аккаунт НЕ awaiting (чтобы не блокировать)
+    dbAdapter.saveAccount(acc).catch(e => console.error('Ошибка сохранения аккаунта:', e.message));
+  }
+  
+  // Затем сохраняем игрока
   dbAdapter.savePlayer({ 
     ...p, 
     accountId: isRegistered ? accountId : null, // Только зарегистрированные игроки имеют accountId
     id: accountId // id всегда есть
   }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
-  
-  const acc = db.accounts[accountId];
-  if (acc) dbAdapter.saveAccount(acc).catch(() => {});
 }
 
 // Каталог предметов магазина (цены хранятся пер-игрока в db.players[id].shopItems)
