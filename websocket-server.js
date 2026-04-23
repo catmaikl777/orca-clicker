@@ -659,8 +659,10 @@ function handleClick(ws, payload) {
   
   if (clicksDiff >= 100) {
     const ticketsEarned = Math.floor(clicksDiff / 100);
+    console.log(`🎫 Начисление билетов: ${ticketsEarned} за ${clicksDiff} кликов`);
     addEventCoins(id, ticketsEarned);
-    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов за ${clicksDiff} кликов. Всего: ${db.event.eventCoins[id]}`);
+    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов. Всего: ${db.event.eventCoins[id]}`);
+    console.log(`📢 Вызов broadcastEventInfo()`);
     // Отправляем обновлённые данные ивента всем игрокам
     broadcastEventInfo();
   }
@@ -935,8 +937,11 @@ function addEventCoins(playerId, amount) {
   if (!db.event.eventCoins) db.event.eventCoins = {};
   if (!db.event.eventCoins[playerId]) db.event.eventCoins[playerId] = 0;
   db.event.eventCoins[playerId] += amount;
+  console.log(`💰 addEventCoins: ${playerId} +${amount} = ${db.event.eventCoins[playerId]}`);
   if (dbAdapter.usePostgreSQL) {
-    dbAdapter.saveEventCoins(playerId, db.event.eventCoins[playerId]).catch(() => {});
+    dbAdapter.saveEventCoins(playerId, db.event.eventCoins[playerId]).catch(err => {
+      console.error('❌ Ошибка сохранения eventCoins:', err.message);
+    });
   }
 }
 

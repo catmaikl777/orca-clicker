@@ -1295,7 +1295,9 @@ let eventCoins = 0;
 let eventInfo = null;
 
 function addEventCoins(amount) {
+  const oldCoins = eventCoins;
   eventCoins += amount;
+  console.log(`🎫 addEventCoins: +${amount} (было ${oldCoins}, стало ${eventCoins})`);
   updateEventUI();
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'addEventCoins', amount }));
