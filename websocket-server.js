@@ -64,6 +64,22 @@ function banPlayer(playerId, reason) {
   }
 }
 
+// Сохранение клана в PostgreSQL
+function saveClanToDB(clanId) {
+  if (!dbAdapter.usePostgreSQL) return;
+  if (!dbAdapter.initialized) return;
+  const clan = db.clans[clanId];
+  if (!clan) return;
+  dbAdapter.saveClan(clan).catch(e => console.error('Ошибка сохранения клана:', e.message));
+}
+
+// Удаление клана из PostgreSQL
+function deleteClanFromDB(clanId) {
+  if (!dbAdapter.usePostgreSQL) return;
+  if (!dbAdapter.initialized) return;
+  dbAdapter.deleteClan(clanId).catch(e => console.error('Ошибка удаления клана:', e.message));
+}
+
 // Сохранение одного игрока в PostgreSQL
 function savePlayerToDB(accountId) {
   if (!dbAdapter.usePostgreSQL) return;
@@ -450,7 +466,14 @@ httpServer.listen(PORT, () => {
         const eventCoins = await dbAdapter.getAllEventCoins();
         db.event.eventCoins = eventCoins;
         
-        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins`);
+        // Загрузить кланы
+        const clans = await dbAdapter.getAllClans();
+        clans.forEach(clan => {
+          db.clans[clan.id] = clan;
+        });
+        db.stats.totalClans = clans.length;
+
+        console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins, ${clans.length} кланов`);
       } catch (e) {
         console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
       }
@@ -547,6 +570,7 @@ function handleMessage(ws, data) {
     case 'buyBox': handleBuyBox(ws); break;
     case 'openBox': handleOpenBox(ws, data.boxId); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
+    case 'forceSaveAll': handleForceSaveAll(ws); break;
   }
 }
   
@@ -736,6 +760,37 @@ function handleSaveGame(ws, data) {
   savePlayerToDB(id);
   console.log('💾 Автосохранение:', id);
 }
+
+// Принудительное сохранение ВСЕх данных игрока и клана
+function handleForceSaveAll(ws) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
+  
+  const p = db.players[id];
+  const mem = players.get(id);
+  
+  // Сохраняем игрока
+  savePlayerToDB(id);
+  
+  // Сохраняем клан если игрок в клане
+  if (p.clan) {
+    saveClanToDB(p.clan);
+  }
+  
+  console.log(`💾 Принудительное сохранение всех данных: ${id}, клан: ${p.clan || 'нет'}`);
+  
+  // Отправляем подтверждение
+  ws.send(JSON.stringify({ 
+    type: 'forceSaveCompleted',
+    success: true,
+    message: 'Все данные сохранены!',
+    timestamp: Date.now(),
+    clanId: p.clan || null
+  }));
+}
   
 function sendEventInfo(ws) {
   const id = ws.accountId || ws.playerId;
@@ -875,7 +930,15 @@ function handleRestoreSession(ws, data) {
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
   
-  console.log(`🔄 Сессия восстановлена: ${username} (${accountId})`);
+  // Отправляем список кланов
+  setTimeout(() => sendClans(ws), 100);
+  
+  // Если игрок в клане - отправляем информацию о членах клана
+  if (playerData.clan && db.clans[playerData.clan]) {
+    setTimeout(() => sendClanMembers(playerData.clan), 150);
+  }
+  
+  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), клан: ${playerData.clan || 'нет'}`);
   broadcastLeaderboard();
   broadcastEventInfo();
 }
@@ -1250,6 +1313,7 @@ function handleCreateClan(ws, clanName) {
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
   sendClans(ws);
   savePlayerToDB(id);
+  saveClanToDB(clanId);
 }
   
 function handleJoinClan(ws, clanId) {
@@ -1296,6 +1360,7 @@ function handleJoinClan(ws, clanId) {
   sendClans(ws);
   sendClanMembers(clanId);
   savePlayerToDB(id);
+  saveClanToDB(clanId);
 }
   
 function handleLeaveClan(ws) {
@@ -1306,14 +1371,22 @@ function handleLeaveClan(ws) {
   const clan = db.clans[player.clan];
   if (!clan) { player.clan = null; return; }
   
+  const clanId = clan.id;
+
   if (clan.owner === id) {
     if (clan.members.length > 1) {
       const newOwner = clan.members.find(mid => mid !== id);
       clan.owner = newOwner;
       clan.ownerName = players.get(newOwner)?.name || 'Unknown';
     } else {
-      delete db.clans[player.clan];
+      delete db.clans[clanId];
       db.stats.totalClans--;
+      deleteClanFromDB(clanId);
+      player.clan = null;
+      db.players[id].clan = null;
+      ws.send(JSON.stringify({ type: 'leftClan', clanId }));
+      sendClans(ws);
+      return;
     }
   }
   
@@ -1321,9 +1394,10 @@ function handleLeaveClan(ws) {
   clan.memberNames = clan.memberNames.filter(n => n !== player.name);
   player.clan = null;
   db.players[id].clan = null;
-  ws.send(JSON.stringify({ type: 'leftClan', clanId: clan.id }));
+  ws.send(JSON.stringify({ type: 'leftClan', clanId }));
   sendClans(ws);
   sendClanMembers(clan.id);
+  saveClanToDB(clanId);
 }
 
 function sendClanMembers(clanId) {

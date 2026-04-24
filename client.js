@@ -503,6 +503,11 @@ function handleServerMessage(data) {
         document.getElementById('clicker')?.classList.add('locked');
       } catch (_) {}
       break;
+    case 'forceSaveCompleted':
+      if (window.handleForceSaveResponse) {
+        window.handleForceSaveResponse(data);
+      }
+      break;
   }
 }
 
@@ -1576,6 +1581,49 @@ function resetGame() {
   }
 }
 
+// Принудительное сохранение всех данных
+window.forceSave = function() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    saveStatus.textContent = '⏳ Сохранение...';
+    saveStatus.style.color = 'rgba(255, 215, 0, 0.8)';
+  }
+  
+  // Отправляем команду сохранения
+  ws.send(JSON.stringify({ type: 'forceSaveAll' }));
+  
+  // Ожидаем ответ
+  const timeout = setTimeout(() => {
+    if (saveStatus) {
+      saveStatus.textContent = '✅ Готово! Все данные сохранены';
+      saveStatus.style.color = 'rgba(0, 212, 255, 0.8)';
+    }
+  }, 1000);
+  
+  console.log('💾 Запрос принудительного сохранения отправлен');
+};
+
+// Обработка ответа на forceSaveAll
+window.handleForceSaveResponse = function(data) {
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    if (data.success) {
+      saveStatus.textContent = `✅ Всё сохранено! Клан: ${data.clanId ? '✓' : 'нет'}`;
+      saveStatus.style.color = 'rgba(0, 212, 255, 0.8)';
+      showNotification(`✅ ${data.message}`);
+    } else {
+      saveStatus.textContent = '❌ Ошибка сохранения';
+      saveStatus.style.color = 'rgba(244, 67, 54, 0.8)';
+    }
+  }
+  console.log('💾 Ответ на forceSaveAll:', data);
+};
+
 // ==================== СОХРАНЕНИЕ ====================
 
 // "Реальное время" для сервера: склеиваем частые изменения в 1 отправку
@@ -1632,14 +1680,12 @@ function saveGame() {
   const saveData = {
     coins: game.coins,
     totalCoins: game.totalCoins,
-    level: game.level,
-    basePerClick: game.basePerClick || 1,
-    basePerSecond: game.basePerSecond || 0,
+    perClick: game.basePerClick,
+    perSecond: game.basePerSecond,
     clicks: game.clicks,
+    level: game.level,
     skills: game.skills,
     achievements: game.achievements,
-    shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-    questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
     skins: game.skins,
     currentSkin: game.currentSkin,
     playTime: game.playTime,
@@ -1650,6 +1696,59 @@ function saveGame() {
   // Также отправляем на сервер
   scheduleServerSave();
 }
+
+// Принудительное сохранение всех данных на сервер
+window.forceSave = function() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  showNotification('💾 Сохранение данных...');
+  
+  ws.send(JSON.stringify({
+    type: 'saveGame',
+    data: {
+      coins: game.coins,
+      totalCoins: game.totalCoins,
+      perClick: game.basePerClick,
+      perSecond: game.basePerSecond,
+      clicks: game.clicks,
+      level: game.level,
+      skills: game.skills,
+      skins: game.skins,
+      currentSkin: game.currentSkin,
+      achievements: game.achievements,
+      pendingBoxes: pendingBoxes,
+      playTime: game.playTime,
+      shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
+      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed }))
+    }
+  }));
+
+  // Обновляем статус сохранения
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    saveStatus.textContent = '💾 Сохранение...';
+    saveStatus.style.color = '#ffd700';
+  }
+
+  // Через 2 секунды возвращаем обратно
+  setTimeout(() => {
+    if (saveStatus) {
+      saveStatus.textContent = '✅ Сохранено!';
+      saveStatus.style.color = '#4caf50';
+    }
+    setTimeout(() => {
+      if (saveStatus) {
+        saveStatus.textContent = '💾 Автосохранение включено';
+        saveStatus.style.color = 'rgba(255,255,255,0.5)';
+      }
+    }, 2000);
+  }, 1000);
+
+  console.log('💾 Принудительное сохранение инициировано');
+};
 
 function loadGame() {
   const saved = localStorage.getItem('cosatkaClicker');

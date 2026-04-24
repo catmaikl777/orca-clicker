@@ -133,6 +133,19 @@ class DatabaseAdapter {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
+      // Таблица кланов
+      `CREATE TABLE IF NOT EXISTS clans (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        owner VARCHAR(50) NOT NULL,
+        owner_name VARCHAR(100) NOT NULL,
+        members JSONB DEFAULT '[]',
+        member_names JSONB DEFAULT '[]',
+        total_coins INTEGER DEFAULT 0,
+        created_at BIGINT NOT NULL,
+        description TEXT DEFAULT ''
+      )`,
+      
       // Таблица награды событий
       `CREATE TABLE IF NOT EXISTS event_coins (
         account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE SET NULL,
@@ -140,7 +153,7 @@ class DatabaseAdapter {
         coins INTEGER DEFAULT 0,
         PRIMARY KEY (account_id, event_name)
       )`,
-      
+
       // Индексы для производительности
       `CREATE INDEX IF NOT EXISTS idx_players_account_id ON players(account_id)`,
       `CREATE INDEX IF NOT EXISTS idx_events_end_time ON events(end_time)`,
@@ -323,6 +336,51 @@ class DatabaseAdapter {
     );
   }
   
+  // === КЛАНЫ ===
+  async saveClan(clan) {
+    if (!this.usePostgreSQL) return;
+
+    const members = typeof clan.members === 'string' ? clan.members : JSON.stringify(clan.members || []);
+    const memberNames = typeof clan.memberNames === 'string' ? clan.memberNames : JSON.stringify(clan.memberNames || []);
+
+    await this.pool.query(
+      `INSERT INTO clans (id, name, owner, owner_name, members, member_names, total_coins, created_at, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         owner = EXCLUDED.owner,
+         owner_name = EXCLUDED.owner_name,
+         members = EXCLUDED.members,
+         member_names = EXCLUDED.member_names,
+         total_coins = EXCLUDED.total_coins,
+         description = EXCLUDED.description`,
+      [clan.id, clan.name, clan.owner, clan.ownerName || clan.owner_name || 'Unknown', members, memberNames, clan.totalCoins || 0, clan.createdAt || Date.now(), clan.description || '']
+    );
+  }
+  
+  async deleteClan(clanId) {
+    if (!this.usePostgreSQL) return;
+
+    await this.pool.query('DELETE FROM clans WHERE id = $1', [clanId]);
+  }
+
+  async getAllClans() {
+    if (!this.usePostgreSQL) return [];
+
+    const result = await this.pool.query('SELECT * FROM clans');
+    return result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      owner: row.owner,
+      ownerName: row.owner_name,
+      members: typeof row.members === 'string' ? JSON.parse(row.members) : row.members || [],
+      memberNames: typeof row.member_names === 'string' ? JSON.parse(row.member_names) : row.member_names || [],
+      totalCoins: row.total_coins || 0,
+      createdAt: row.created_at || Date.now(),
+      description: row.description || ''
+    }));
+  }
+
   // Получить лидерборд
   async getLeaderboard(limit = 100) {
     if (!this.usePostgreSQL) return [];
