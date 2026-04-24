@@ -55,16 +55,16 @@ async function clearAllData() {
     console.log('   - ВСЕ записи event_coins');
     console.log('\nТабличная структура БД НЕ изменится!\n');
     
-    const confirm = await new Promise(resolve => {
-      process.stdin.setEncoding('utf8');
-      console.log('Введите "DELETE ALL" для подтверждения:');
-      process.stdin.once('data', (input) => resolve(input.trim().toUpperCase() === 'DELETE ALL'));
-    });
+    // const confirm = await new Promise(resolve => {
+    //   process.stdin.setEncoding('utf8');
+    //   console.log('Введите "DELETE ALL" для подтверждения:');
+    //   process.stdin.once('data', (input) => resolve(input.trim().toUpperCase() === 'DELETE ALL'));
+    // });
     
-    if (!confirm) {
-      console.log('❌ Операция отменена');
-      process.exit(0);
-    }
+    // if (!confirm) {
+    //   console.log('❌ Операция отменена');
+    //   process.exit(0);
+    // }
     
     console.log('\n🗑️  Очистка данных...');
     
