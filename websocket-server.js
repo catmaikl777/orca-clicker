@@ -954,14 +954,20 @@ function handleRestoreSession(ws, data) {
   savePlayerToDB(accountId);
 
   // Лог для отладки высоких значений perSecond
-  const calcPerSecond = (playerData.basePerSecond || 0) * (playerData.skills?.['s3'] ? 2 : 1) * (playerData.skills?.['s6'] ? 5 : 1);
-  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), basePerSecond=${playerData.basePerSecond}, skills=s3:${!!playerData.skills?.['s3']} s6:${!!playerData.skills?.['s6']}, calcPerSecond=${calcPerSecond}`);
+  const basePS = playerData.perSecond || 0;
+  const calcPerSecond = basePS * (playerData.skills?.['s3'] ? 2 : 1) * (playerData.skills?.['s6'] ? 5 : 1);
+  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), basePerSecond=${basePS}, skills=s3:${!!playerData.skills?.['s3']} s6:${!!playerData.skills?.['s6']}, calcPerSecond=${calcPerSecond}`);
 
+  // Отправляем данные игроку (perSecond = basePerSecond, множители применяются на клиенте)
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
     username: username || playerData.name,
-    data: playerData,
+    data: {
+      ...playerData,
+      basePerClick: playerData.perClick,  // Явно указываем что это база
+      basePerSecond: playerData.perSecond  // Явно указываем что это база
+    },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
   
@@ -1754,9 +1760,12 @@ function handleBuyItem(ws, itemId) {
   p.coins = coins - itemCost;
   if (mem) mem.coins = p.coins;
   
-  // Применяем улучшения
+  // Применяем улучшения к basePerClick/basePerSecond (без множителей навыков)
   if (item.type === 'click') p.perClick += item.value;
   if (item.type === 'auto') p.perSecond += item.value;
+  
+  // Лог для отладки
+  console.log(`🛒 Игрок ${id} купил предмет: ${item.name}, basePerSecond теперь: ${p.perSecond}`);
   
   // Увеличиваем цену (пер-игрока)
   const newCost = Math.floor(itemCost * 1.2);
@@ -1774,8 +1783,6 @@ function handleBuyItem(ws, itemId) {
     perSecond: p.perSecond,
     itemCost: newCost
   }));
-  
-  console.log(`🛒 Игрок ${id} купил предмет: ${item.name}`);
 }
 
 // Покупка скина

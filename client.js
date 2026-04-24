@@ -306,9 +306,9 @@ function handleServerMessage(data) {
       game.coins = d.coins || 0;
       game.totalCoins = d.totalCoins || 0;
       game.level = d.level || 1;
-      // НЕ загружаем perClick/perSecond напрямую - они рассчитываются через getPerClick()/getPerSecond()
-      game.basePerClick = d.perClick || 1; // Базовое значение для предметов
-      game.basePerSecond = d.perSecond || 0; // Базовое значение для предметов
+      // Загружаем БАЗОВЫЕ значения (множители навыков применяются динамически через getPerClick()/getPerSecond())
+      game.basePerClick = d.basePerClick ?? d.perClick ?? 1;
+      game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
       game.clicks = d.clicks || 0;
       game.skills = d.skills || {};
       game.achievements = d.achievements || [];
@@ -342,6 +342,10 @@ function handleServerMessage(data) {
       
       // Билеты ивента
       if (data.eventCoins) eventCoins = data.eventCoins;
+      
+      // Лог для отладки
+      const calcPS = getPerSecond();
+      console.log(`🎮 Данные загружены: basePerSecond=${game.basePerSecond}, skills=s3:${!!game.skills['s3']} s6:${!!game.skills['s6']}, finalPerSecond=${calcPS}`);
       
       // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
     }
@@ -390,13 +394,17 @@ function handleServerMessage(data) {
         const oldCoins = game.coins;
         game.coins = data.data.coins || 0;
         game.totalCoins = data.data.totalCoins || 0;
-        game.basePerClick = data.data.perClick || 1;
-        game.basePerSecond = data.data.perSecond || 0;
+        game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 1;
+        game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
         game.clicks = data.data.clicks || 0;
         game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
         eventCoins = data.eventCoins || 0;
+        
+        // Лог для отладки
+        const calcPS = getPerSecond();
+        console.log(`🎮 Гость: basePerSecond=${game.basePerSecond}, finalPerSecond=${calcPS}`);
         
         // Показываем уведомление если монеты изменились (награды ивента)
         if (game.coins > oldCoins + 1000) {
