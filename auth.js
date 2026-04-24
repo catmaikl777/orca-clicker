@@ -130,8 +130,8 @@ function createDefaultPlayer(accountId, username) {
     name: username,
     coins: 0,
     totalCoins: 0,
-    perClick: 1,
-    perSecond: 0,
+    perClick: 0,  // Сумма апгрейдов из магазина (без базового 1)
+    perSecond: 0, // Сумма апгрейдов из магазина
     clicks: 0,
     level: 1,
     skills: {},

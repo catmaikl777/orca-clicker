@@ -129,27 +129,31 @@ const skillsData = [
 ];
 
 // Расчет perClick с учётом навыков
+// Множитель навыков применяется ко всему клику (базовый + все апгрейды)
 function getPerClick() {
-  let base = game.basePerClick || 1;
-  let multiplier = 1;
+  const baseValue = 1; // Базовый клик всегда 1
+  const upgradesValue = game.basePerClick || 0; // Сумма всех апгрейдов из магазина
   
-  // Применяем навыки множители
+  let multiplier = 1;
+  // Применяем навыки множители ко ВСЕМУ клику
   if (game.skills['s1']) multiplier *= 2; // Двойной клик x2
   if (game.skills['s5']) multiplier *= 5; // Мастер клика x5
   
-  return base * multiplier;
+  return (baseValue + upgradesValue) * multiplier;
 }
 
 // Расчет perSecond с учётом навыков
+// Множитель навыков применяется ко всему авто-доходу (базовый + все апгрейды)
 function getPerSecond() {
-  let base = game.basePerSecond || 0;
-  let multiplier = 1;
+  const baseValue = 0; // Базовый авто-доход 0 (нужно купить апгрейд)
+  const upgradesValue = game.basePerSecond || 0; // Сумма всех апгрейдов из магазина
   
-  // Применяем навыки множители
+  let multiplier = 1;
+  // Применяем навыки множители ко ВСЕМУ авто-доходу
   if (game.skills['s3']) multiplier *= 2; // Авто-эффективность x2
   if (game.skills['s6']) multiplier *= 5; // Бизнес-косатка x5
   
-  return base * multiplier;
+  return (baseValue + upgradesValue) * multiplier;
 }
 
 // ==================== WEBSOCKET ====================
@@ -311,8 +315,9 @@ function handleServerMessage(data) {
       game.coins = d.coins || 0;
       game.totalCoins = d.totalCoins || 0;
       game.level = d.level || 1;
-      // Загружаем БАЗОВЫЕ значения (множители навыков применяются динамически через getPerClick()/getPerSecond())
-      game.basePerClick = d.basePerClick ?? d.perClick ?? 1;
+      // Загружаем БАЗОВЫЕ значения апгрейдов (множители навыков применяются отдельно)
+      // basePerClick/basePerSecond = сумма апгрейдов из магазина (без базового 1/0)
+      game.basePerClick = d.basePerClick ?? d.perClick ?? 1; // 0 если апгрейдов нет
       game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
       game.clicks = d.clicks || 0;
       game.skills = d.skills || {};
@@ -348,9 +353,18 @@ function handleServerMessage(data) {
       // Билеты ивента
       if (data.eventCoins) eventCoins = data.eventCoins;
       
-      // Лог для отладки
-      const calcPS = getPerSecond();
-      console.log(`🎮 Данные загружены: basePerSecond=${game.basePerSecond}, skills=s3:${!!game.skills['s3']} s6:${!!game.skills['s6']}, finalPerSecond=${calcPS}`);
+      // Лог для отладки новой формулы (множитель применяется ко всему клику)
+      const baseValue = 1;
+      const upgradesValue = game.basePerClick;
+      const multiplier = (game.skills['s1'] ? 2 : 1) * (game.skills['s5'] ? 5 : 1);
+      const calcPerClick = (baseValue + upgradesValue) * multiplier;
+      const calcPerSecond = game.basePerSecond * multiplier; // baseValue = 0 для auto
+      
+      console.log(`🎮 Данные загружены:`);
+      console.log(`   basePerClick (апгрейды): ${game.basePerClick}`);
+      console.log(`   Навыки: s1=${!!game.skills['s1']} s5=${!!game.skills['s5']}, multiplier=${multiplier}`);
+      console.log(`   calcPerClick = (${baseValue} + ${upgradesValue}) * ${multiplier} = ${calcPerClick}`);
+      console.log(`   calcPerSecond = ${calcPerSecond}`);
       
       // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
     }
@@ -399,7 +413,7 @@ function handleServerMessage(data) {
         const oldCoins = game.coins;
         game.coins = data.data.coins || 0;
         game.totalCoins = data.data.totalCoins || 0;
-        game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 1;
+        game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 0;
         game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
         game.clicks = data.data.clicks || 0;
         game.skills = data.data.skills || {};
@@ -407,9 +421,14 @@ function handleServerMessage(data) {
         game.currentSkin = data.data.currentSkin || 'normal';
         eventCoins = data.eventCoins || 0;
         
-        // Лог для отладки
-        const calcPS = getPerSecond();
-        console.log(`🎮 Гость: basePerSecond=${game.basePerSecond}, finalPerSecond=${calcPS}`);
+        // Лог для отладки новой формулы (множитель применяется ко всему клику)
+        const baseValue = 1;
+        const upgradesValue = game.basePerClick;
+        const multiplier = (game.skills['s1'] ? 2 : 1) * (game.skills['s5'] ? 5 : 1);
+        const calcPerClick = (baseValue + upgradesValue) * multiplier;
+        const calcPerSecond = game.basePerSecond * multiplier;
+        
+        console.log(`🎮 Гость: basePerClick=${game.basePerClick}, multiplier=${multiplier}, calcPerClick=${calcPerClick}, calcPerSecond=${calcPerSecond}`);
         
         // Показываем уведомление если монеты изменились (награды ивента)
         if (game.coins > oldCoins + 1000) {
@@ -713,12 +732,14 @@ autoClickInterval = setInterval(() => {
   const perSecond = getPerSecond();
   if (perSecond > 0) {
     const oldCoins = game.coins;
-    game.coins += perSecond * game.multiplier;
-    game.totalCoins += perSecond * game.multiplier;
+    // multiplier применяется только к монетам, не к basePerSecond
+    const earned = perSecond * game.multiplier;
+    game.coins += earned;
+    game.totalCoins += earned;
     
     // Лог для отладки если монеты растут слишком быстро
     if (perSecond > 10000) {
-      console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${(perSecond * game.multiplier).toFixed(0)}`);
+      console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${earned.toFixed(0)}`);
     }
     
     updateUI();
@@ -875,9 +896,10 @@ function handleX2BonusClick() {
 
 function handleBonusClick() {
   // Золотая лихорадка (s4) даёт x3 вместо x2
-  const multiplier = game.skills['s4'] ? 3 : 2;
+  const bonusMultiplier = game.skills['s4'] ? 3 : 2;
   const perClick = getPerClick();
-  const bonusValue = perClick * 15 * multiplier * game.multiplier;
+  // Бонус умножает perClick, но не применяет game.multiplier (x2 бонус не влияет на бонусы)
+  const bonusValue = perClick * 15 * bonusMultiplier;
   game.coins += bonusValue;
   game.totalCoins += bonusValue;
   showFloatingText(
@@ -894,7 +916,9 @@ function handleBonusClick() {
   
 function handleFishBonusClick() {
   const perSecond = getPerSecond();
-  const fishValue = Math.max(perSecond * 30 * game.multiplier, getPerClick() * 10);
+  const perClick = getPerClick();
+  // Рыбка умножает perSecond/perClick, но не применяет game.multiplier
+  const fishValue = Math.max(perSecond * 30, perClick * 10);
   game.coins += fishValue;
   game.totalCoins += fishValue;
   showFloatingText(
@@ -908,7 +932,7 @@ function handleFishBonusClick() {
   updateUI();
   saveGame();
 }
-
+  
 function spawnBonus() {
   if (Math.random() < 0.4) {
     const x = 50 + Math.random() * (window.innerWidth - 150);
@@ -939,14 +963,15 @@ function spawnBonus() {
   
 // ==================== UI ОБНОВЛЕНИЯ ====================
 function updateUI() {
-  // Используем функции расчета с учётом навыков
+  // Используем функции расчета с учётом навыков (без x2 бонуса)
   const perClick = getPerClick();
   const perSecond = getPerSecond();
   
   coinsEl.textContent = formatNumber(Math.floor(game.coins));
   levelEl.textContent = game.level;
-  perClickEl.textContent = formatNumber(perClick * game.multiplier);
-  perSecondEl.textContent = formatNumber(perSecond * game.multiplier);
+  // Показываем базовые значения (множитель x2 применяется только к монетам, не к статам)
+  perClickEl.textContent = formatNumber(perClick);
+  perSecondEl.textContent = formatNumber(perSecond);
   
   // Расчет уровня
   const newLevel = Math.floor(Math.log10(game.totalCoins + 1)) + 1;
@@ -1069,6 +1094,7 @@ function buyItem(item) {
     // Локальный режим (без сервера)
     if (game.coins >= item.cost) {
       game.coins -= item.cost;
+      // Добавляем к basePerClick/basePerSecond (сумма апгрейдов)
       if (item.type === 'click') game.basePerClick += item.value;
       if (item.type === 'auto') game.basePerSecond += item.value;
       item.cost = Math.floor(item.cost * 1.2);
