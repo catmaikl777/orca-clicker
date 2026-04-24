@@ -161,6 +161,7 @@ let battleClicks = 0;
 let lastBattleUpdate = 0;
 let battleInterval = null;
 let wsConnected = false;
+let autoClickInterval = null; // Храним интервал автодохода
 
 // ==================== АНТИ-ОВЕРЛЕЙ / ФОКУС ====================
 let windowFocused = document.hasFocus();
@@ -689,11 +690,24 @@ function deactivateX2Multiplier() {
 }
   
 // Автокликер - используем getPerSecond() для расчета с учётом навыков
-setInterval(() => {
+let lastAutoClickTime = 0;
+autoClickInterval = setInterval(() => {
+  const now = Date.now();
+  // Защита от дублирования интервалов
+  if (now - lastAutoClickTime < 900) return; // минимум 900мс между вызовами
+  lastAutoClickTime = now;
+  
   const perSecond = getPerSecond();
   if (perSecond > 0) {
+    const oldCoins = game.coins;
     game.coins += perSecond * game.multiplier;
     game.totalCoins += perSecond * game.multiplier;
+    
+    // Лог для отладки если монеты растут слишком быстро
+    if (perSecond > 10000) {
+      console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${(perSecond * game.multiplier).toFixed(0)}`);
+    }
+    
     updateUI();
     checkQuests();
     // фиксируем автодоход "в реальном времени" (сервер), локалку не спамим
@@ -714,7 +728,17 @@ setInterval(() => {
   saveGame();
 }, 10000);
 
-// Система бонусов инициализируется в initDOM()
+// Запускаем спавн бонусов
+setInterval(spawnBonus, 12000);
+
+// Защита от дублирования интервалов при переподключении
+function cleanupIntervals() {
+  if (autoClickInterval) {
+    clearInterval(autoClickInterval);
+    autoClickInterval = null;
+  }
+  console.log('🧹 Интервалы очищены');
+}
 
 // Обработчик клика по косатке
 function handleClick(e) {

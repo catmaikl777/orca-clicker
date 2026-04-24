@@ -43,7 +43,7 @@ body {
       left: 0;
       width: 100%;
       height: 100%;
-      background: #731BFF;
+      background: #e49c37;
       opacity: 0.35;        /* Прозрачность 35% - всё видно */
       mix-blend-mode: overlay; /* Цветное наложение */
       pointer-events: none;  /* 🔑 Клики проходят сквозь */

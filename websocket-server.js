@@ -953,6 +953,10 @@ function handleRestoreSession(ws, data) {
   updateLeaderboard(playerData);
   savePlayerToDB(accountId);
 
+  // Лог для отладки высоких значений perSecond
+  const calcPerSecond = (playerData.basePerSecond || 0) * (playerData.skills?.['s3'] ? 2 : 1) * (playerData.skills?.['s6'] ? 5 : 1);
+  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), basePerSecond=${playerData.basePerSecond}, skills=s3:${!!playerData.skills?.['s3']} s6:${!!playerData.skills?.['s6']}, calcPerSecond=${calcPerSecond}`);
+
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
@@ -1009,6 +1013,11 @@ function handleRegisterGuest(ws, name) {
   playerData._lastProcessedClicks = playerData.clicks || 0;
   
   players.set(playerId, { ...playerData, ws });
+  
+  // Лог для отладки
+  const calcPerSecond = (playerData.basePerSecond || 0) * (playerData.skills?.['s3'] ? 2 : 1) * (playerData.skills?.['s6'] ? 5 : 1);
+  console.log(`🎮 Гость зарегистрирован: ${playerId}, basePerSecond=${playerData.basePerSecond}, calcPerSecond=${calcPerSecond}`);
+  
   ws.send(JSON.stringify({ 
     type: 'registered', 
     playerId, 
