@@ -134,7 +134,7 @@
     <nav class="menu">
       <button class="menu-btn" onclick="showModal('shop')">🛒 Магазин</button>
       <button class="menu-btn" onclick="showModal('quests')">📋 Квесты</button>
-      <button class="menu-btn" onclick="showModal('skills')">🌳 Дерево</button>
+      <button class="menu-btn" onclick="showModal('effects')">✨ Эффекты</button>
       <button class="menu-btn" onclick="showModal('achievements')">🏆 Достижения</button>
       <button class="menu-btn" onclick="showModal('stats')">📈 Статистика</button>
       <button class="menu-btn" onclick="showModal('leaderboard')">📊 Лидеры</button>
@@ -161,10 +161,12 @@
         <button class="shop-tab active" onclick="switchShopTab('upgrades', this)">⚡ Улучшения</button>
         <button class="shop-tab" onclick="switchShopTab('skins', this)">🎨 Скины</button>
         <button class="shop-tab" onclick="switchShopTab('boxes', this)">🎁 Боксы</button>
+        <button class="shop-tab" onclick="switchShopTab('effects', this)">✨ Эффекты</button>
       </div>
       <div id="shopUpgrades" class="shop-items"></div>
       <div id="shopSkins" class="skins-grid" style="display:none"></div>
       <div id="shopBoxes" class="shop-boxes" style="display:none"></div>
+      <div id="shopEffects" class="effects-grid" style="display:none"></div>
     </div>
   </div>
 
@@ -207,14 +209,14 @@
     </div>
   </div>
 
-  <!-- Дерево навыков -->
-  <div id="skills" class="modal">
+  <!-- Эффекты -->
+  <div id="effects" class="modal">
     <div class="modal-header">
-      <h2>🌳 Дерево навыков</h2>
+      <h2>✨ Визуальные эффекты</h2>
       <button class="close-btn" onclick="closeAllModals()">×</button>
     </div>
     <div class="modal-content">
-      <div id="skillTree" class="skill-tree"></div>
+      <div id="effectList" class="effects-list"></div>
     </div>
   </div>
 

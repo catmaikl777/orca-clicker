@@ -1636,6 +1636,85 @@ body.bg-dark .bg-dark { opacity: 1; }
   display: none;
 }
 
+/* === ЭФФЕКТЫ === */
+.effects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.effect-item {
+  background: linear-gradient(145deg, rgba(255,215,0,0.15), rgba(255,150,0,0.1));
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.effect-item:hover:not(.bought):not(.locked) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(255,215,0,0.4);
+  border-color: rgba(255,215,0,0.7);
+  background: linear-gradient(145deg, rgba(255,215,0,0.25), rgba(255,150,0,0.15));
+}
+
+.effect-item.bought {
+  background: linear-gradient(145deg, rgba(76,175,80,0.25), rgba(56,142,60,0.15));
+  border-color: rgba(76,175,80,0.5);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.effect-item.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.effect-icon {
+  font-size: 28px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.effect-info {
+  flex: 1;
+}
+
+.effect-info h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.effect-info p {
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  margin: 0;
+}
+
+.effect-price {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 50px;
+  text-align: right;
+}
+
+.effect-item.bought .effect-price {
+  color: #4caf50;
+}
+
+.effects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 /* === ДОСТИЖЕНИЯ === */
 .achievement-list {
   display: flex;

@@ -117,43 +117,24 @@ const achievementsData = [
   { id: 'a6', name: 'Пассивный доход', desc: 'Достигните 1000/сек', icon: '📈' }
 ];
 
-// Навыки (дерево) - effect() больше не изменяет game.perClick/perSecond напрямую
-// Бонусы рассчитываются динамически в getPerClick() и getPerSecond()
-const skillsData = [
-  { id: 's1', name: 'Двойной клик', desc: 'Клики дают +100% (x2)', cost: 1000, multiplier: 'click', value: 2 },
-  { id: 's2', name: 'Критический удар', desc: '10% шанс получить x10 за клик', cost: 5000, effect: () => {} },
-  { id: 's3', name: 'Авто-эффективность', desc: 'Авто-доход +100% (x2)', cost: 3000, multiplier: 'auto', value: 2 },
-  { id: 's4', name: 'Золотая лихорадка', desc: 'Бонусы (рыба/сундук) дают +200% (x3)', cost: 2000, effect: () => {} },
-  { id: 's5', name: 'Мастер клика', desc: 'Клики дают +400% (x5)', cost: 10000, multiplier: 'click', value: 5 },
-  { id: 's6', name: 'Бизнес-косатка', desc: 'Авто-доход +400% (x5)', cost: 15000, multiplier: 'auto', value: 5 }
+// Эффекты (визуальные изменения) - сохраняются как в магазине
+const effectsData = [
+  { id: 'e1', name: 'Золотой клик', desc: 'Кликеры становятся золотыми', cost: 500, icon: '✨' },
+  { id: 'e2', name: 'Неоновый свет', desc: 'Косатка светится неоновым светом', cost: 1000, icon: '💡' },
+  { id: 'e3', name: 'Радужный след', desc: 'За косаткой остаётся радужный след', cost: 2000, icon: '🌈' },
+  { id: 'e4', name: 'Частицы звёзд', desc: 'При клике вылетают звёздные частицы', cost: 3000, icon: '⭐' },
+  { id: 'e5', name: 'Эффект волны', desc: 'При клике идёт волновая анимация', cost: 1500, icon: '🌊' },
+  { id: 'e6', name: 'Огненное сияние', desc: 'Косатка окутана огненным сиянием', cost: 2500, icon: '🔥' }
 ];
 
-// Расчет perClick с учётом навыков
-// Множитель навыков применяется ко всему клику (базовый + все апгрейды)
+// Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
-  const baseValue = 1; // Базовый клик всегда 1
-  const upgradesValue = game.basePerClick || 0; // Сумма всех апгрейдов из магазина
-  
-  let multiplier = 1;
-  // Применяем навыки множители ко ВСЕМУ клику
-  if (game.skills['s1']) multiplier *= 2; // Двойной клик x2
-  if (game.skills['s5']) multiplier *= 5; // Мастер клика x5
-  
-  return (baseValue + upgradesValue) * multiplier;
+  return (1 + (game.basePerClick || 0));
 }
 
-// Расчет perSecond с учётом навыков
-// Множитель навыков применяется ко всему авто-доходу (базовый + все апгрейды)
+// Расчет perSecond (без навыков - только апгрейды из магазина)
 function getPerSecond() {
-  const baseValue = 0; // Базовый авто-доход 0 (нужно купить апгрейд)
-  const upgradesValue = game.basePerSecond || 0; // Сумма всех апгрейдов из магазина
-  
-  let multiplier = 1;
-  // Применяем навыки множители ко ВСЕМУ авто-доходу
-  if (game.skills['s3']) multiplier *= 2; // Авто-эффективность x2
-  if (game.skills['s6']) multiplier *= 5; // Бизнес-косатка x5
-  
-  return (baseValue + upgradesValue) * multiplier;
+  return (game.basePerSecond || 0);
 }
 
 // ==================== WEBSOCKET ====================
@@ -317,10 +298,10 @@ function handleServerMessage(data) {
       game.level = d.level || 1;
       // Загружаем БАЗОВЫЕ значения апгрейдов (множители навыков применяются отдельно)
       // basePerClick/basePerSecond = сумма апгрейдов из магазина (без базового 1/0)
-      game.basePerClick = d.basePerClick ?? d.perClick ?? 1; // 0 если апгрейдов нет
+      game.basePerClick = d.basePerClick ?? d.perClick ?? 0; // 0 если апгрейдов нет
       game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
       game.clicks = d.clicks || 0;
-      game.skills = d.skills || {};
+      game.effects = d.effects || {};
       game.achievements = d.achievements || [];
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
@@ -353,20 +334,10 @@ function handleServerMessage(data) {
       // Билеты ивента
       if (data.eventCoins) eventCoins = data.eventCoins;
       
-      // Лог для отладки новой формулы (множитель применяется ко всему клику)
-      const baseValue = 1;
-      const upgradesValue = game.basePerClick;
-      const multiplier = (game.skills['s1'] ? 2 : 1) * (game.skills['s5'] ? 5 : 1);
-      const calcPerClick = (baseValue + upgradesValue) * multiplier;
-      const calcPerSecond = game.basePerSecond * multiplier; // baseValue = 0 для auto
+      // Лог для отладки
+      console.log(`🎮 Данные загружены: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
       
-      console.log(`🎮 Данные загружены:`);
-      console.log(`   basePerClick (апгрейды): ${game.basePerClick}`);
-      console.log(`   Навыки: s1=${!!game.skills['s1']} s5=${!!game.skills['s5']}, multiplier=${multiplier}`);
-      console.log(`   calcPerClick = (${baseValue} + ${upgradesValue}) * ${multiplier} = ${calcPerClick}`);
-      console.log(`   calcPerSecond = ${calcPerSecond}`);
-      
-      // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
+      // Эффекты загружены, они применяются визуально
     }
     
     playerId = data.accountId;
@@ -416,19 +387,13 @@ function handleServerMessage(data) {
         game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 0;
         game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
         game.clicks = data.data.clicks || 0;
-        game.skills = data.data.skills || {};
+        game.effects = data.data.effects || {};
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
         eventCoins = data.eventCoins || 0;
         
-        // Лог для отладки новой формулы (множитель применяется ко всему клику)
-        const baseValue = 1;
-        const upgradesValue = game.basePerClick;
-        const multiplier = (game.skills['s1'] ? 2 : 1) * (game.skills['s5'] ? 5 : 1);
-        const calcPerClick = (baseValue + upgradesValue) * multiplier;
-        const calcPerSecond = game.basePerSecond * multiplier;
-        
-        console.log(`🎮 Гость: basePerClick=${game.basePerClick}, multiplier=${multiplier}, calcPerClick=${calcPerClick}, calcPerSecond=${calcPerSecond}`);
+        // Лог для отладки
+        console.log(`🎮 Гость: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
         
         // Показываем уведомление если монеты изменились (награды ивента)
         if (game.coins > oldCoins + 1000) {
@@ -554,11 +519,11 @@ function handleServerMessage(data) {
     case 'leftClan':
       showNotification('🚪 Вы вышли из клана');
       break;
-    case 'skillBought':
-      // Сервер подтвердил покупку навыка
-      game.skills[data.skillId] = true;
-      showNotification(`✨ Навык «${data.skillName}» куплен!`);
-      renderSkills();
+    case 'effectBought':
+      // Сервер подтвердил покупку эффекта
+      game.effects[data.effectId] = true;
+      showNotification(`✨ Эффект «${data.effectName}» куплен!`);
+      renderShop();
       updateUI();
       saveGame();
       break;
@@ -805,12 +770,7 @@ function handleClick(e) {
   let earned = perClick * game.multiplier;
   let isCrit = false;
   
-  // Проверяем критический удар (s2)
-  if (game.skills['s2'] && Math.random() < critChance) {
-    earned *= critMultiplier;
-    isCrit = true;
-    playSound('critSound');
-  }
+  // Критический удар удалён - теперь это просто рандомный крит без навыков
   
   game.coins += earned;
   game.totalCoins += earned;
@@ -895,11 +855,9 @@ function handleX2BonusClick() {
 }
 
 function handleBonusClick() {
-  // Золотая лихорадка (s4) даёт x3 вместо x2
-  const bonusMultiplier = game.skills['s4'] ? 3 : 2;
+  // Обычный сундук - даёт perClick * 15
   const perClick = getPerClick();
-  // Бонус умножает perClick, но не применяет game.multiplier (x2 бонус не влияет на бонусы)
-  const bonusValue = perClick * 15 * bonusMultiplier;
+  const bonusValue = perClick * 15;
   game.coins += bonusValue;
   game.totalCoins += bonusValue;
   showFloatingText(
@@ -1194,53 +1152,45 @@ function checkQuests() {
   });
 }
 
-// ==================== ДЕРЕВО НАВЫКОВ ====================
-function renderSkills() {
-  const container = document.getElementById('skillTree');
+// ==================== ЭФФЕКТЫ ====================
+function renderEffects() {
+  const container = document.getElementById('effectList');
   container.innerHTML = '';
   
-  const branch = document.createElement('div');
-  branch.className = 'skill-branch';
-  branch.innerHTML = '<h4>🌟 Особые навыки</h4>';
-  
-  const skillsDiv = document.createElement('div');
-  skillsDiv.className = 'skills';
-  
-  skillsData.forEach(skill => {
-    const bought = game.skills[skill.id];
-    const canAfford = game.coins >= skill.cost;
+  effectsData.forEach(effect => {
+    const bought = game.effects && game.effects[effect.id];
+    const canAfford = game.coins >= effect.cost;
     const div = document.createElement('div');
-    div.className = `skill ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
+    div.className = `effect-item ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
     div.innerHTML = `
-      <div>⭐</div>
-      <div>${skill.name}</div>
-      <small>${bought ? '✅ Куплено' : formatNumber(skill.cost)}</small>
-      ${bought ? '' : `<div class="skill-desc">${skill.desc}</div>`}
+      <div class="effect-icon">${effect.icon}</div>
+      <div class="effect-info">
+        <h4>${effect.name}</h4>
+        <p>${effect.desc}</p>
+      </div>
+      <div class="effect-price">${bought ? '✅' : formatNumber(effect.cost)}</div>
     `;
     if (!bought) {
-      div.onclick = () => buySkill(skill);
+      div.onclick = () => buyEffect(effect);
     }
-    skillsDiv.appendChild(div);
+    container.appendChild(div);
   });
-  
-  branch.appendChild(skillsDiv);
-  container.appendChild(branch);
 }
 
-function buySkill(skill) {
-  if (!game.skills[skill.id]) {
-    if (game.coins >= skill.cost) {
+function buyEffect(effect) {
+  if (!game.effects || !game.effects[effect.id]) {
+    if (game.coins >= effect.cost) {
       // Отправляем запрос на сервер
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'buySkill', skillId: skill.id }));
+        ws.send(JSON.stringify({ type: 'buyEffect', effectId: effect.id }));
         // НЕ обновляем локально - ждём подтверждения
       } else {
         // Локальная покупка если нет сервера
-        game.coins -= skill.cost;
-        game.skills[skill.id] = true;
-        // НЕ применяем эффект - навыки работают через getPerClick()/getPerSecond()
-        showNotification(`✨ Навык получен: ${skill.name}`);
-        renderSkills();
+        game.coins -= effect.cost;
+        if (!game.effects) game.effects = {};
+        game.effects[effect.id] = true;
+        showNotification(`✨ Эффект получен: ${effect.name}`);
+        renderEffects();
         updateUI();
         saveGame();
       }
@@ -1923,7 +1873,7 @@ function showModal(id) {
   
   if (id === 'shop') { renderShop(); renderBoxes(); switchShopTab('upgrades', document.querySelector('.shop-tab.active')); }
   if (id === 'quests') renderQuests();
-  if (id === 'skills') renderSkills();
+  if (id === 'effects') { renderEffects(); showModal('shop'); switchShopTab('effects', null); }
   if (id === 'achievements') renderAchievements();
   if (id === 'stats') updateStats();
   if (id === 'leaderboard' && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getLeaderboard' }));
@@ -1965,16 +1915,25 @@ function switchShopTab(tab, btn) {
     document.getElementById('shopUpgrades').style.display = 'flex';
     document.getElementById('shopSkins').style.display = 'none';
     document.getElementById('shopBoxes').style.display = 'none';
+    document.getElementById('shopEffects').style.display = 'none';
   } else if (tab === 'skins') {
     document.getElementById('shopUpgrades').style.display = 'none';
     document.getElementById('shopSkins').style.display = 'grid';
     document.getElementById('shopBoxes').style.display = 'none';
+    document.getElementById('shopEffects').style.display = 'none';
     renderSkins();
   } else if (tab === 'boxes') {
     document.getElementById('shopUpgrades').style.display = 'none';
     document.getElementById('shopSkins').style.display = 'none';
     document.getElementById('shopBoxes').style.display = 'flex';
+    document.getElementById('shopEffects').style.display = 'none';
     renderBoxes();
+  } else if (tab === 'effects') {
+    document.getElementById('shopUpgrades').style.display = 'none';
+    document.getElementById('shopSkins').style.display = 'none';
+    document.getElementById('shopBoxes').style.display = 'none';
+    document.getElementById('shopEffects').style.display = 'grid';
+    renderEffects();
   }
 }
 
@@ -2082,10 +2041,10 @@ function saveGameToServer() {
       coins: game.coins,
       totalCoins: game.totalCoins,
       level: game.level,
-      perClick: game.basePerClick || 1,
+      perClick: game.basePerClick || 0,
       perSecond: game.basePerSecond || 0,
       clicks: game.clicks,
-      skills: game.skills,
+      effects: game.effects,
       skins: game.skins,
       currentSkin: game.currentSkin,
       achievements: game.achievements,
@@ -2106,7 +2065,7 @@ function saveGame() {
     perSecond: game.basePerSecond,
     clicks: game.clicks,
     level: game.level,
-    skills: game.skills,
+    effects: game.effects,
     achievements: game.achievements,
     skins: game.skins,
     currentSkin: game.currentSkin,
@@ -2137,7 +2096,7 @@ window.forceSave = function() {
       perSecond: game.basePerSecond,
       clicks: game.clicks,
       level: game.level,
-      skills: game.skills,
+      effects: game.effects,
       skins: game.skins,
       currentSkin: game.currentSkin,
       achievements: game.achievements,
@@ -2180,10 +2139,10 @@ function loadGame() {
       game.coins = data.coins || 0;
       game.totalCoins = data.totalCoins || 0;
       game.level = data.level || 1;
-      game.basePerClick = data.basePerClick || data.perClick || 1;
+      game.basePerClick = data.basePerClick || data.perClick || 0;
       game.basePerSecond = data.basePerSecond || data.perSecond || 0;
       game.clicks = data.clicks || 0;
-      game.skills = data.skills || {};
+      game.effects = data.effects || {};
       game.achievements = data.achievements || [];
       game.skins = data.skins || {};
       game.currentSkin = data.currentSkin || 'normal';

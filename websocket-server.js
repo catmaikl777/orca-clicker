@@ -594,7 +594,7 @@ function handleMessage(ws, data) {
     case 'getClans': sendClans(ws); break;
     case 'startBattleFromLobby': handleStartBattleFromLobby(ws, data.lobbyId); break;
     case 'getClanMembers': getClanMembers(ws); break;
-    case 'buySkill': handleBuySkill(ws, data.skillId); break;
+    case 'buyEffect': handleBuyEffect(ws, data.effectId); break;
     case 'buyItem': handleBuyItem(ws, data.itemId); break;
     case 'buySkin': handleBuySkin(ws, data.skinId); break;
     case 'equipSkin': handleEquipSkin(ws, data.skinId); break;
@@ -1707,42 +1707,43 @@ function sendClans(ws) {
   ws.send(JSON.stringify({ type: 'clans', data: list }));
 }
 
-function handleBuySkill(ws, skillId) {
+function handleBuyEffect(ws, effectId) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
   const p = db.players[id];
   const mem = players.get(id);
   const coins = mem ? mem.coins : p.coins;
   
-  const skills = {
-    's1': { name: 'Двойной клик', cost: 1000 },
-    's2': { name: 'Критический удар', cost: 5000 },
-    's3': { name: 'Авто-эффективность', cost: 3000 },
-    's4': { name: 'Золотая лихорадка', cost: 2000 },
-    's5': { name: 'Мастер клика', cost: 10000 },
-    's6': { name: 'Бизнес-косатка', cost: 15000 }
+  const effects = {
+    'e1': { name: 'Золотой клик', cost: 500 },
+    'e2': { name: 'Неоновый свет', cost: 1000 },
+    'e3': { name: 'Радужный след', cost: 2000 },
+    'e4': { name: 'Частицы звёзд', cost: 3000 },
+    'e5': { name: 'Эффект волны', cost: 1500 },
+    'e6': { name: 'Огненное сияние', cost: 2500 }
   };
   
-  const skill = skills[skillId];
-  if (!skill || p.skills[skillId]) return;
-  if (coins < skill.cost) {
+  const effect = effects[effectId];
+  if (!effect || (p.effects && p.effects[effectId])) return;
+  if (coins < effect.cost) {
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
     return;
   }
   
-  p.coins = coins - skill.cost;
-  p.skills[skillId] = true;
-  if (mem) { mem.coins = p.coins; mem.skills = p.skills; }
+  p.coins = coins - effect.cost;
+  if (!p.effects) p.effects = {};
+  p.effects[effectId] = true;
+  if (mem) { mem.coins = p.coins; mem.effects = p.effects; }
   
   savePlayerToDB(id);
   
   ws.send(JSON.stringify({ 
-    type: 'skillBought', 
-    skillId, 
-    skillName: skill.name 
+    type: 'effectBought', 
+    effectId, 
+    effectName: effect.name 
   }));
   
-  console.log(`⭐ Игрок ${id} купил навык: ${skill.name}`);
+  console.log(`✨ Игрок ${id} купил эффект: ${effect.name}`);
 }
 
 // Покупка предмета в магазине
