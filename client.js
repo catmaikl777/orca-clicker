@@ -1154,11 +1154,15 @@ function checkQuests() {
 
 // ==================== ЭФФЕКТЫ ====================
 function renderEffects() {
+  // Инициализация если нет
+  if (!game.effects) game.effects = {};
+  
   const container = document.getElementById('effectList');
+  if (!container) return;
   container.innerHTML = '';
   
   effectsData.forEach(effect => {
-    const bought = game.effects && game.effects[effect.id];
+    const bought = !!game.effects[effect.id];
     const canAfford = game.coins >= effect.cost;
     const div = document.createElement('div');
     div.className = `effect-item ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
@@ -1170,36 +1174,41 @@ function renderEffects() {
       </div>
       <div class="effect-price">${bought ? '✅' : formatNumber(effect.cost)}</div>
     `;
-    if (!bought) {
-      div.onclick = () => buyEffect(effect);
-    }
+    // Всегда добавляем onclick, проверяем внутри
+    div.onclick = () => buyEffect(effect);
     container.appendChild(div);
   });
 }
 
 function buyEffect(effect) {
-  if (!game.effects || !game.effects[effect.id]) {
-    if (game.coins >= effect.cost) {
-      // Отправляем запрос на сервер
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'buyEffect', effectId: effect.id }));
-        // НЕ обновляем локально - ждём подтверждения
-      } else {
-        // Локальная покупка если нет сервера
-        game.coins -= effect.cost;
-        if (!game.effects) game.effects = {};
-        game.effects[effect.id] = true;
-        showNotification(`✨ Эффект получен: ${effect.name}`);
-        renderEffects();
-        updateUI();
-        saveGame();
-      }
+  // Инициализация если нет
+  if (!game.effects) game.effects = {};
+  
+  // Если уже куплено - ничего не делаем
+  if (game.effects[effect.id]) {
+    showNotification('✨ Эффект уже куплен!');
+    return;
+  }
+  
+  if (game.coins >= effect.cost) {
+    // Отправляем запрос на сервер
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'buyEffect', effectId: effect.id }));
+      // НЕ обновляем локально - ждём подтверждения
     } else {
-      showNotification('⚠️ Недостаточно монет!');
+      // Локальная покупка если нет сервера
+      game.coins -= effect.cost;
+      game.effects[effect.id] = true;
+      showNotification(`✨ Эффект получен: ${effect.name}`);
+      renderEffects();
+      updateUI();
+      saveGame();
     }
+  } else {
+    showNotification('⚠️ Недостаточно монет!');
   }
 }
-
+  
 // ==================== ДОСТИЖЕНИЯ ====================
 function renderAchievements() {
   const container = document.getElementById('achievementList');
