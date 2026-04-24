@@ -1050,8 +1050,8 @@ function handleBattleClick(ws, battleId, clicks, cps) {
     return;
   }
   
-  // Лимит CPS для батлов (максимум 100 кликов в секунду)
-  if (cps > 100) {
+  // Лимит CPS для батлов (максимум 250 кликов в секунду - достаточно для быстрых кликов)
+  if (cps > 250) {
     console.log(`🚨 Anti-cheat: CPS ${cps} слишком высокий для игрока ${id}`);
     return;
   }
@@ -1069,7 +1069,8 @@ function handleBattleClick(ws, battleId, clicks, cps) {
     addEventCoins(id, eventCoinsDiff);
   }
   
-  const opponentId = battle.players.find(pid => pid !== id);
+  const opponentId = b
+  attle.players.find(pid => pid !== id);
   const opponent = players.get(opponentId);
   
   // Отправляем обновления обоим игрокам СРАЗУ (без буферизации для батла)
