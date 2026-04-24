@@ -231,6 +231,13 @@ function connectWebSocket() {
     
     ws.send(JSON.stringify({ type: 'getLeaderboard' }));
     ws.send(JSON.stringify({ type: 'getClans' }));
+    
+    // Обновляем UI лобби если открыта вкладка
+    setTimeout(() => {
+      if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+      }
+    }, 200);
   };
   
   ws.onmessage = (event) => {
@@ -245,6 +252,13 @@ function connectWebSocket() {
   ws.onclose = () => {
     console.log('⚠️ Отключено от сервера, переподключение...');
     wsConnected = false;
+    
+    // Обновляем UI лобби если открыто
+    const container = document.getElementById('battleLobbyList');
+    if (container && document.getElementById('battleLobbyView')?.classList.contains('active')) {
+      container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
+    }
+    
     setTimeout(connectWebSocket, 3000);
   };
   
@@ -253,7 +267,7 @@ function connectWebSocket() {
     wsConnected = false;
   };
 }
-
+  
 function handleServerMessage(data) {
   // Обработка ответа на аутентификацию с аккаунтом (успех)
   if (data.type === 'authSuccess') {
@@ -321,7 +335,7 @@ function handleServerMessage(data) {
           const saved = d.questProgress.find(p => p.id === q.id);
           return { ...q, completed: saved ? saved.completed : false };
         });
-      } else if (!game.quests.length || isNewAccount) {
+      } else {
         initQuests();
       }
       
@@ -343,9 +357,17 @@ function handleServerMessage(data) {
     }
     
     console.log('🎮 Игровые данные загружены');
+    
+    // Отправляем запрос на получение лобби если открыта модалка батла
+    setTimeout(() => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+      }
+    }, 300);
+    
     return;
   }
-  
+      
   // Обработка ошибок аутентификации
   if (data.type === 'authError') {
     console.error('❌ Ошибка аутентификации:', data.message);
@@ -354,7 +376,7 @@ function handleServerMessage(data) {
     }
     return;
   }
-  
+
   // Остальные типы сообщений обрабатываются как раньше
   switch (data.type) {
     case 'connected':
@@ -1206,10 +1228,17 @@ function switchBattleTab(tab, btn) {
     document.getElementById('battleQuickSearch').classList.remove('active');
     document.getElementById('battleLobbyView').classList.remove('hidden');
     document.getElementById('battleLobbyView').classList.add('active');
-    // Запрашиваем список лобби
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
-    }
+    // Запрашиваем список лобби с небольшой задержкой
+    setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+        console.log('📤 Запрос списка лобби отправлен');
+      } else {
+        console.warn('⚠️ WebSocket не подключён, ждём подключения');
+        document.getElementById('battleLobbyList').innerHTML = 
+          '<p style="text-align:center;padding:20px;color:#ffd700">⏳ Подключение к серверу...</p>';
+      }
+    }, 50);
   }
 }
 
@@ -1217,6 +1246,10 @@ function switchBattleTab(tab, btn) {
 function createBattleLobby() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
+    const container = document.getElementById('battleLobbyList');
+    if (container) {
+      container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Нет подключения к серверу</p>';
+    }
     return;
   }
   
@@ -1225,7 +1258,7 @@ function createBattleLobby() {
 
 // Присоединение к лобби
 function joinBattleLobby(lobbyId) {
-  if (!ws || ws.readyState === WebSocket.OPEN) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
@@ -1235,7 +1268,7 @@ function joinBattleLobby(lobbyId) {
 
 // Выход из моего лобби
 function leaveMyLobby() {
-  if (!ws || ws.readyState === WebSocket.OPEN) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
@@ -1245,8 +1278,13 @@ function leaveMyLobby() {
 
 // Обновление списка лобби
 function refreshBattleLobbies() {
-  if (!ws || ws.readyState === WebSocket.OPEN) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
+    // Показываем статус в UI лобби
+    const container = document.getElementById('battleLobbyList');
+    if (container) {
+      container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Нет подключения к серверу. Попробуйте позже.</p>';
+    }
     return;
   }
   
@@ -1256,7 +1294,7 @@ function refreshBattleLobbies() {
 
 // Запуск батла из лобби
 function startBattleFromLobby() {
-  if (!ws || ws.readyState === WebSocket.OPEN) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
@@ -1265,10 +1303,10 @@ function startBattleFromLobby() {
     showNotification('⚠️ Лобби не найдено');
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'startBattleFromLobby', lobbyId: currentLobbyId }));
 }
-
+  
 // Обновление UI списка лобби
 function updateBattleLobbiesUI(lobbies) {
   const container = document.getElementById('battleLobbyList');
@@ -1318,7 +1356,7 @@ function updateMyLobbyUI(lobby) {
     currentLobbyId = null;
     return;
   }
-  
+
   currentLobbyId = lobby.id;
   myLobbyEl.classList.remove('hidden');
   
@@ -1341,7 +1379,7 @@ function findBattle() {
     document.getElementById('battleStatus').textContent = 'Сервер недоступен';
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'findBattle' }));
   document.getElementById('battleLobby').classList.add('hidden');
   document.getElementById('battleStatus').textContent = 'Поиск соперника...';
@@ -1751,8 +1789,12 @@ function showModal(id) {
     document.getElementById('battleLobbyView').classList.add('hidden');
     document.getElementById('battleLobbyView').classList.remove('active');
     document.getElementById('myBattleLobby').classList.add('hidden');
-    // Запросить список лобби
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+    // Запросить список лобби (без проверки readyState - отправим при подключении)
+    setTimeout(() => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+      }
+    }, 100);
   }
   if (id === 'clans' && ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'getClans' }));
