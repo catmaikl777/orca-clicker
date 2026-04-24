@@ -977,18 +977,28 @@ function handleFindBattle(ws) {
     return;
   }
   
+  // Если уже есть игрок в очереди - начинаем батл
+  if (waitingPlayers.length > 0) {
+    const opponentId = waitingPlayers.shift();
+    // Проверяем что opponentId не равен текущему игроку
+    if (opponentId !== id) {
+      startBattle(id, opponentId);
+      return;
+    } else {
+      // Если вдруг это тот же игрок, добавляем обратно
+      waitingPlayers.push(opponentId);
+    }
+  }
+  
+  // Если никого нет в очереди - добавляем текущего игрока
   // Ограничиваем очередь максимум 1 игроком (чтобы третий не подключился)
   if (waitingPlayers.length >= 1) {
     ws.send(JSON.stringify({ type: 'error', message: 'Лобби заполнено. Подождите...' }));
     return;
   }
   
-  if (waitingPlayers.length > 0 && waitingPlayers[0] !== id) {
-    startBattle(id, waitingPlayers.shift());
-  } else {
-    waitingPlayers.push(id);
-    ws.send(JSON.stringify({ type: 'waitingForBattle' }));
-  }
+  waitingPlayers.push(id);
+  ws.send(JSON.stringify({ type: 'waitingForBattle' }));
 }
 
 function startBattle(player1Id, player2Id) {
