@@ -56,6 +56,7 @@ body {
       z-index: 9999;
       filter: none !important;
     }
+    
 
 /* Полноэкранный режим на мобильных */
 @media (max-width: 600px) {
@@ -971,24 +972,31 @@ body.bg-dark .bg-dark { opacity: 1; }
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* Для мобильных - модалка снизу */
+/* Для мобильных - модалка снизу с удобной прокруткой */
 @media (max-width: 600px) {
   .modal {
     position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    max-width: 100%;
-    max-height: 85vh;
-    border-radius: 24px 24px 0 0;
-    transform: translateY(100%) !important;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    top: 10%;
+    bottom: 10%;
+    left: 5%;
+    right: 5%;
+    width: 90%;
+    max-width: none;
+    max-height: 80vh;
+    border-radius: 20px;
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .modal.active {
+    transform: translateY(0) scale(1);
+    opacity: 1;
   }
 
-  .modal.active {
-    transform: translateY(0) !important;
+  .modal-content { 
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

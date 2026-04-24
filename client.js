@@ -1391,24 +1391,41 @@ function startBattleUI(data) {
   myBattleCPS = 0;
   currentLobbyId = data.lobbyId || null;
   
-  // Скрываем все UI лобби
-  document.getElementById('battleQuickSearch').classList.add('hidden');
-  document.getElementById('battleLobbyView').classList.add('hidden');
-  document.getElementById('myBattleLobby').classList.add('hidden');
-  document.getElementById('battleLobby').classList.add('hidden');
+  // Скрываем все UI лобби (с проверками)
+  const battleQuickSearch = document.getElementById('battleQuickSearch');
+  const battleLobbyView = document.getElementById('battleLobbyView');
+  const myBattleLobby = document.getElementById('myBattleLobby');
+  const battleLobby = document.getElementById('battleLobby');
+  const battleArena = document.getElementById('battleArena');
   
-  document.getElementById('battleArena').classList.remove('hidden');
-  document.getElementById('opponentName').textContent = data.opponent;
-  document.getElementById('myBattleScore').textContent = '0';
-  document.getElementById('opponentScore').textContent = '0';
-  document.getElementById('myCPS').textContent = `${data.yourPerSecond || 0} CPS`;
-  document.getElementById('opponentCPS').textContent = `${data.opponentPerSecond || 0} CPS`;
+  if (battleQuickSearch) battleQuickSearch.classList.add('hidden');
+  if (battleLobbyView) battleLobbyView.classList.add('hidden');
+  if (myBattleLobby) myBattleLobby.classList.add('hidden');
+  if (battleLobby) battleLobby.classList.add('hidden');
+  if (battleArena) battleArena.classList.remove('hidden');
+  
+  // Обновляем UI арены с проверками
+  const opponentNameEl = document.getElementById('opponentName');
+  const myBattleScoreEl = document.getElementById('myBattleScore');
+  const opponentScoreEl = document.getElementById('opponentScore');
+  const myCpsEl = document.getElementById('myCPS');
+  const opponentCpsEl = document.getElementById('opponentCPS');
+  const battleTimerEl = document.getElementById('battleTimer');
+  
+  if (opponentNameEl) opponentNameEl.textContent = data.opponent;
+  if (myBattleScoreEl) myBattleScoreEl.textContent = '0';
+  if (opponentScoreEl) opponentScoreEl.textContent = '0';
+  if (myCpsEl) myCpsEl.textContent = `${data.yourPerSecond || 0} CPS`;
+  if (opponentCpsEl) opponentCpsEl.textContent = `${data.opponentPerSecond || 0} CPS`;
+  if (battleTimerEl) battleTimerEl.textContent = data.duration / 1000;
   
   // Если это владелец лобби - показываем "Вы" а не имя
-  if (data.lobbyId) {
-    // Проверяем являемся ли мы владельцем
-    const isOwner = data.opponent && data.opponent !== currentUser?.username;
-    document.getElementById('myBattleScore').parentNode.querySelector('h3').textContent = isOwner ? 'Вы' : data.opponent;
+  if (data.lobbyId && myBattleScoreEl?.parentNode) {
+    const h3 = myBattleScoreEl.parentNode.querySelector('h3');
+    if (h3) {
+      const isOwner = data.opponent && data.opponent !== currentUser?.username;
+      h3.textContent = isOwner ? 'Вы' : data.opponent;
+    }
   }
   
   // Показываем мой скин (из данных сервера)
@@ -1433,44 +1450,53 @@ function startBattleUI(data) {
     };
   }
   
-  let timer = data.duration / 1000;
-  const timerEl = document.getElementById('battleTimer');
-  timerEl.textContent = timer;
-  
   // Считаем клики в секунду
   let clickCount = 0;
   let lastTime = Date.now();
   
-  battleClickBtn.onclick = () => {
-    clickCount++;
-    myBattleClicks++;
-    document.getElementById('myBattleScore').textContent = myBattleClicks;
-    
-    // Обновляем CPS каждую секунду
-    const now = Date.now();
-    if (now - lastTime >= 1000) {
-      myBattleCPS = clickCount;
-      clickCount = 0;
-      lastTime = now;
-      document.getElementById('myCPS').textContent = `${myBattleCPS} CPS`;
-    }
-    
-    // Отправляем на сервер
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'battleClick',
-        battleId: battleId,
-        clicks: 1,
-        cps: myBattleCPS
-      }));
-    }
-  };
+  const battleClickBtn = document.getElementById('battleClickBtn');
+  if (battleClickBtn) {
+    battleClickBtn.onclick = () => {
+      clickCount++;
+      myBattleClicks++;
+      if (myBattleScoreEl) myBattleScoreEl.textContent = myBattleClicks;
+      
+      // Обновляем CPS каждую секунду
+      const now = Date.now();
+      if (now - lastTime >= 1000) {
+        myBattleCPS = clickCount;
+        clickCount = 0;
+        lastTime = now;
+        if (myCpsEl) myCpsEl.textContent = `${myBattleCPS} CPS`;
+      }
+      
+      // Отправляем на сервер
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'battleClick',
+          battleId: battleId,
+          clicks: 1,
+          cps: myBattleCPS
+        }));
+      }
+    };
+  }
   
-  battleInterval = setInterval(() => {
-    timer--;
-    timerEl.textContent = timer;
-    if (timer <= 0) clearInterval(battleInterval);
+  // Таймер
+  let battleInterval = setInterval(() => {
+    if (battleTimerEl) {
+      const currentText = battleTimerEl.textContent;
+      const timer = parseInt(currentText) - 1;
+      battleTimerEl.textContent = timer;
+      if (timer <= 0) {
+        clearInterval(battleInterval);
+        battleInterval = null;
+      }
+    }
   }, 1000);
+  
+  // Сохраняем интервал в глобальную переменную если есть
+  window.currentBattleInterval = battleInterval;
 }
 
 function updateBattleUI(data) {
