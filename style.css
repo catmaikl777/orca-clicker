@@ -1715,6 +1715,75 @@ body.bg-dark .bg-dark { opacity: 1; }
   gap: 10px;
 }
 
+/* === ВИЗУАЛЬНЫЕ ЭФФЕКТЫ === */
+/* Золотой клик */
+.effect-gold {
+  filter: drop-shadow(0 0 15px rgba(255,215,0,0.8)) hue-rotate(45deg) saturate(2);
+  transition: filter 0.3s ease;
+}
+
+.effect-gold:hover {
+  filter: drop-shadow(0 0 25px rgba(255,215,0,1)) hue-rotate(45deg) saturate(2.2);
+}
+
+/* Неоновый свет */
+.effect-neon {
+  animation: neonPulse 2s ease-in-out infinite;
+}
+
+@keyframes neonPulse {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(0,212,255,0.7)) drop-shadow(0 0 20px rgba(0,150,255,0.5)); }
+  50% { filter: drop-shadow(0 0 20px rgba(0,212,255,1)) drop-shadow(0 0 40px rgba(0,150,255,0.8)); }
+}
+
+/* Радужный след */
+.effect-rainbow {
+  animation: rainbowRotate 3s linear infinite;
+}
+
+@keyframes rainbowRotate {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* Огненное сияние */
+.effect-fire {
+  animation: fireGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes fireGlow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255,100,0,0.8)) drop-shadow(0 0 20px rgba(255,50,0,0.6)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255,150,0,1)) drop-shadow(0 0 40px rgba(255,100,0,0.8)); }
+}
+
+/* Частицы звёзд (добавляется через JS) */
+.star-particle {
+  position: fixed;
+  pointer-events: none;
+  font-size: 20px;
+  animation: starFloat 1s ease-out forwards;
+  z-index: 1000;
+}
+
+@keyframes starFloat {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-100px) scale(0.5); }
+}
+
+/* Волновой эффект (добавляется через JS) */
+.wave-particle {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid rgba(0,212,255,0.6);
+  pointer-events: none;
+  animation: waveExpand 0.8s ease-out forwards;
+}
+
+@keyframes waveExpand {
+  0% { width: 0; height: 0; opacity: 1; }
+  100% { width: 200px; height: 200px; opacity: 0; }
+}
+
 /* === ДОСТИЖЕНИЯ === */
 .achievement-list {
   display: flex;

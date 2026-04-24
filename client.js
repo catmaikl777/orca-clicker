@@ -127,6 +127,36 @@ const effectsData = [
   { id: 'e6', name: 'Огненное сияние', desc: 'Косатка окутана огненным сиянием', cost: 2500, icon: '🔥' }
 ];
 
+// Применение визуальных эффектов
+function applyEffects() {
+  const clicker = document.getElementById('clicker');
+  if (!clicker || !game.effects) return;
+  
+  // Сброс всех эффектов
+  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
+  clicker.style.removeProperty('--rainbow-gradient');
+  
+  // Золотой клик (e1)
+  if (game.effects['e1']) {
+    clicker.classList.add('effect-gold');
+  }
+  
+  // Неоновый свет (e2)
+  if (game.effects['e2']) {
+    clicker.classList.add('effect-neon');
+  }
+  
+  // Радужный след (e3)
+  if (game.effects['e3']) {
+    clicker.style.setProperty('--rainbow-gradient', 'linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000)');
+  }
+  
+  // Огненное сияние (e6)
+  if (game.effects['e6']) {
+    clicker.classList.add('effect-fire');
+  }
+}
+
 // Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
   return (1 + (game.basePerClick || 0));
@@ -258,7 +288,7 @@ function connectWebSocket() {
     wsConnected = false;
   };
 }
-  
+
 function handleServerMessage(data) {
   // Обработка ответа на аутентификацию с аккаунтом (успех)
   if (data.type === 'authSuccess') {
@@ -362,7 +392,7 @@ function handleServerMessage(data) {
     
     return;
   }
-      
+  
   // Обработка ошибок аутентификации
   if (data.type === 'authError') {
     console.error('❌ Ошибка аутентификации:', data.message);
@@ -521,8 +551,10 @@ function handleServerMessage(data) {
       break;
     case 'effectBought':
       // Сервер подтвердил покупку эффекта
+      if (!game.effects) game.effects = {};
       game.effects[data.effectId] = true;
       showNotification(`✨ Эффект «${data.effectName}» куплен!`);
+      applyEffects();  // Применяем визуальный эффект
       renderShop();
       updateUI();
       saveGame();
@@ -792,6 +824,16 @@ function handleClick(e) {
   setTimeout(() => {
     clicker.style.transform = 'scale(1)';
   }, 100);
+  
+  // Частицы звёзд (e4)
+  if (game.effects && game.effects['e4']) {
+    createStarParticles(x, y);
+  }
+  
+  // Волновой эффект (e5)
+  if (game.effects && game.effects['e5']) {
+    createWaveEffect(clicker);
+  }
   
   // Обновление UI
   updateUI();
@@ -1153,31 +1195,59 @@ function checkQuests() {
 }
 
 // ==================== ЭФФЕКТЫ ====================
-function renderEffects() {
-  // Инициализация если нет
-  if (!game.effects) game.effects = {};
+// Применение визуальных эффектов
+function applyEffects() {
+  const clicker = document.getElementById('clicker');
+  if (!clicker || !game.effects) return;
   
-  const container = document.getElementById('effectList');
-  if (!container) return;
-  container.innerHTML = '';
+  // Сброс всех эффектов
+  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
+  clicker.style.removeProperty('--rainbow-gradient');
   
-  effectsData.forEach(effect => {
-    const bought = !!game.effects[effect.id];
-    const canAfford = game.coins >= effect.cost;
-    const div = document.createElement('div');
-    div.className = `effect-item ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
-    div.innerHTML = `
-      <div class="effect-icon">${effect.icon}</div>
-      <div class="effect-info">
-        <h4>${effect.name}</h4>
-        <p>${effect.desc}</p>
-      </div>
-      <div class="effect-price">${bought ? '✅' : formatNumber(effect.cost)}</div>
-    `;
-    // Всегда добавляем onclick, проверяем внутри
-    div.onclick = () => buyEffect(effect);
-    container.appendChild(div);
-  });
+  // Золотой клик (e1)
+  if (game.effects['e1']) {
+    clicker.classList.add('effect-gold');
+  }
+  
+  // Неоновый свет (e2)
+  if (game.effects['e2']) {
+    clicker.classList.add('effect-neon');
+  }
+  
+  // Радужный след (e3)
+  if (game.effects['e3']) {
+    clicker.style.setProperty('--rainbow-gradient', 'linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000)');
+  }
+  
+  // Огненное сияние (e6)
+  if (game.effects['e6']) {
+    clicker.classList.add('effect-fire');
+  }
+}
+
+// Создание частиц звёзд (e4)
+function createStarParticles(x, y) {
+  for (let i = 0; i < 5; i++) {
+    const star = document.createElement('div');
+    star.className = 'star-particle';
+    star.textContent = '⭐';
+    star.style.left = (x + (Math.random() - 0.5) * 50) + 'px';
+    star.style.top = (y + (Math.random() - 0.5) * 50) + 'px';
+    star.style.fontSize = (15 + Math.random() * 15) + 'px';
+    document.body.appendChild(star);
+    setTimeout(() => star.remove(), 1000);
+  }
+}
+
+// Создание волнового эффекта (e5)
+function createWaveEffect(element) {
+  const rect = element.getBoundingClientRect();
+  const wave = document.createElement('div');
+  wave.className = 'wave-particle';
+  wave.style.left = (rect.left + rect.width / 2 - 100) + 'px';
+  wave.style.top = (rect.top + rect.height / 2 - 100) + 'px';
+  document.body.appendChild(wave);
+  setTimeout(() => wave.remove(), 800);
 }
 
 function buyEffect(effect) {
@@ -1200,6 +1270,7 @@ function buyEffect(effect) {
       game.coins -= effect.cost;
       game.effects[effect.id] = true;
       showNotification(`✨ Эффект получен: ${effect.name}`);
+      applyEffects();  // Применяем визуальный эффект
       renderEffects();
       updateUI();
       saveGame();
@@ -2175,6 +2246,9 @@ function loadGame() {
       } else {
         initQuests();
       }
+      
+      // Применяем визуальные эффекты
+      applyEffects();
     } catch (e) {
       console.error('Error loading save:', e);
       initQuests();
