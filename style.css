@@ -16,6 +16,10 @@
   --neon-purple: #20B2AA;
 }
 
+*:not(img):not(picture):not(video) {
+  filter: url(#purpleFilter);
+}
+
 body {
   font-family: 'Segoe UI', 'Roboto', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;

@@ -392,5 +392,19 @@
 
   <script src="auth-client.js"></script>
   <script src="client.js"></script>
+
+
+  <svg style="position: absolute; width: 0; height: 0; visibility: hidden;">
+  <filter id="purpleFilter" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="
+      0.2  0    0    0   0.45
+      0    0.1  0    0   0.11
+      0    0    0.3  0   0.27
+      0    0    0    1   0
+    "/>
+    <!-- Матрица переводит любой цвет в оттенки #731BFF -->
+    <!-- Red: R*0.2 + 0.45 (≈75/255), Green: G*0.1 + 0.11 (≈28/255), Blue: B*0.3 + 0.27 (≈69/255) -->
+  </filter>
+</svg>
 </body>
 </html>
