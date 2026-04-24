@@ -1387,8 +1387,7 @@ function handleBattleClick(ws, battleId, clicks, cps) {
     addEventCoins(id, eventCoinsDiff);
   }
   
-  const opponentId = b
-  attle.players.find(pid => pid !== id);
+  const opponentId = battle.players.find(pid => pid !== id);
   const opponent = players.get(opponentId);
   
   // Отправляем обновления обоим игрокам СРАЗУ (без буферизации для батла)

@@ -81,8 +81,8 @@ class DatabaseAdapter {
         id VARCHAR(50) PRIMARY KEY,
         account_id VARCHAR(50) REFERENCES accounts(id) ON DELETE SET NULL,
         name VARCHAR(100) NOT NULL,
-        coins INTEGER DEFAULT 0,
-        total_coins INTEGER DEFAULT 0,
+        coins BIGINT DEFAULT 0,
+        total_coins BIGINT DEFAULT 0,
         per_click INTEGER DEFAULT 1,
         per_second INTEGER DEFAULT 0,
         clicks INTEGER DEFAULT 0,
@@ -92,12 +92,17 @@ class DatabaseAdapter {
         skins JSONB DEFAULT '{"normal": true}',
         current_skin VARCHAR(50) DEFAULT 'normal',
         clan JSONB DEFAULT NULL,
-        event_rewards INTEGER DEFAULT 0,
+        event_rewards BIGINT DEFAULT 0,
         pending_boxes JSONB DEFAULT '[]',
         created_at BIGINT NOT NULL,
         last_login BIGINT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
+      
+      // Миграция INTEGER -> BIGINT для coins и total_coins
+      `ALTER TABLE players ALTER COLUMN coins TYPE BIGINT USING coins::BIGINT`,
+      `ALTER TABLE players ALTER COLUMN total_coins TYPE BIGINT USING total_coins::BIGINT`,
+      `ALTER TABLE players ALTER COLUMN event_rewards TYPE BIGINT USING event_rewards::BIGINT`,
       
       // Добавить поля бана в players (для совместимости)
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
