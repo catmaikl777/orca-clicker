@@ -1482,8 +1482,8 @@ function startBattleUI(data) {
     };
   }
   
-  // Таймер
-  let battleInterval = setInterval(() => {
+  // Таймер обратного отсчета
+  battleInterval = setInterval(() => {
     if (battleTimerEl) {
       const currentText = battleTimerEl.textContent;
       const timer = parseInt(currentText) - 1;
@@ -1494,22 +1494,26 @@ function startBattleUI(data) {
       }
     }
   }, 1000);
-  
-  // Сохраняем интервал в глобальную переменную если есть
-  window.currentBattleInterval = battleInterval;
 }
 
 function updateBattleUI(data) {
   // data.yourScore = мои клики, data.opponentScore = клики соперника
-  document.getElementById('myBattleScore').textContent = data.yourScore;
-  document.getElementById('opponentScore').textContent = data.opponentScore;
-  document.getElementById('myCPS').textContent = `${data.yourCPS || 0} CPS`;
-  document.getElementById('opponentCPS').textContent = `${data.opponentCPS || 0} CPS`;
+  const myBattleScoreEl = document.getElementById('myBattleScore');
+  const opponentScoreEl = document.getElementById('opponentScore');
+  const myCpsEl = document.getElementById('myCPS');
+  const opponentCpsEl = document.getElementById('opponentCPS');
+  
+  if (myBattleScoreEl) myBattleScoreEl.textContent = data.yourScore;
+  if (opponentScoreEl) opponentScoreEl.textContent = data.opponentScore;
+  if (myCpsEl) myCpsEl.textContent = `${data.yourCPS || 0} CPS`;
+  if (opponentCpsEl) opponentCpsEl.textContent = `${data.opponentCPS || 0} CPS`;
+  
   // Локально тоже обновляем чтобы не было рассинхрона
   myBattleClicks = data.yourScore;
 }
 
 function endBattleUI(data) {
+  // Очищаем интервал если есть
   if (battleInterval) {
     clearInterval(battleInterval);
     battleInterval = null;
@@ -1532,19 +1536,27 @@ function endBattleUI(data) {
   saveGame();
   
   setTimeout(() => {
-    // Скрываем арену и все UI лобби
-    document.getElementById('battleArena').classList.add('hidden');
-    document.getElementById('battleQuickSearch').classList.remove('hidden');
-    document.getElementById('battleLobbyView').classList.add('hidden');
-    document.getElementById('myBattleLobby').classList.add('hidden');
-    document.getElementById('battleLobby').classList.remove('hidden');
+    // Скрываем арену и все UI лобби (с проверками)
+    const battleArena = document.getElementById('battleArena');
+    const battleQuickSearch = document.getElementById('battleQuickSearch');
+    const battleLobbyView = document.getElementById('battleLobbyView');
+    const myBattleLobby = document.getElementById('myBattleLobby');
+    const battleLobby = document.getElementById('battleLobby');
+    const battleStatus = document.getElementById('battleStatus');
+    const btn = document.getElementById('battleClickBtn');
     
-    document.getElementById('battleStatus').textContent = 'Нажмите кнопку для поиска соперника';
+    if (battleArena) battleArena.classList.add('hidden');
+    if (battleQuickSearch) battleQuickSearch.classList.remove('hidden');
+    if (battleLobbyView) battleLobbyView.classList.add('hidden');
+    if (myBattleLobby) myBattleLobby.classList.add('hidden');
+    if (battleLobby) battleLobby.classList.remove('hidden');
+    
+    if (battleStatus) battleStatus.textContent = 'Нажмите кнопку для поиска соперника';
+    if (btn) btn.onclick = null;
+    
     battleId = null;
     currentLobbyId = null;
     myBattleClicks = 0;
-    const btn = document.getElementById('battleClickBtn');
-    if (btn) btn.onclick = null;
   }, 3000);
 }
 

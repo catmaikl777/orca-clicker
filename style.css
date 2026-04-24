@@ -972,31 +972,46 @@ body.bg-dark .bg-dark { opacity: 1; }
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* Для мобильных - модалка снизу с удобной прокруткой */
+/* Для мобильных - модалка удобнее для взаимодействия */
 @media (max-width: 600px) {
   .modal {
     position: fixed;
-    top: 10%;
-    bottom: 10%;
-    left: 5%;
-    right: 5%;
-    width: 90%;
+    top: 50%;
+    left: 50%;
+    width: 95%;
     max-width: none;
-    max-height: 80vh;
-    border-radius: 20px;
-    transform: translateY(20px) scale(0.95);
+    max-height: 70vh;
+    transform: translate(-50%, -50%) scale(0.9);
+    border-radius: 18px;
     opacity: 0;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .modal.active {
-    transform: translateY(0) scale(1);
+    transform: translate(-50%, -50%) scale(1);
     opacity: 1;
   }
 
   .modal-content { 
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: 20px;
+  }
+
+  /* Кнопки на мобильных больше */
+  .modal .action-btn,
+  .modal button {
+    padding: 14px 20px;
+    font-size: 16px;
+  }
+  
+  /* Увеличиваем отступы для удобства нажатия */
+  .modal-header {
+    padding: 20px;
+  }
+  
+  .modal-body {
+    padding: 15px;
   }
 }
 
