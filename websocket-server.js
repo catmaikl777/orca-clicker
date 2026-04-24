@@ -849,6 +849,11 @@ function handleRestoreSession(ws, data) {
     db.players[accountId] = playerData;
   }
   
+  // Инициализируем shopItems если нет
+  if (!playerData.shopItems) {
+    playerData.shopItems = [];
+  }
+  
   playerData.lastLogin = Date.now();
   db.accounts[accountId].lastLogin = Date.now();
   ws.authenticated = true;
@@ -965,6 +970,19 @@ function handleFindBattle(ws) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
   if (!player) return;
+  
+  // Не позволяем одному игроку быть в очереди дважды
+  if (waitingPlayers.includes(id)) {
+    ws.send(JSON.stringify({ type: 'waitingForBattle' }));
+    return;
+  }
+  
+  // Ограничиваем очередь максимум 1 игроком (чтобы третий не подключился)
+  if (waitingPlayers.length >= 1) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби заполнено. Подождите...' }));
+    return;
+  }
+  
   if (waitingPlayers.length > 0 && waitingPlayers[0] !== id) {
     startBattle(id, waitingPlayers.shift());
   } else {
@@ -972,7 +990,7 @@ function handleFindBattle(ws) {
     ws.send(JSON.stringify({ type: 'waitingForBattle' }));
   }
 }
-  
+
 function startBattle(player1Id, player2Id) {
   const player1 = players.get(player1Id);
   const player2 = players.get(player2Id);
@@ -1016,9 +1034,9 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   
   const id = ws.accountId || ws.playerId;
   
-  // Проверка на автокликер для батлов
-  if (!checkAntiCheat(id)) {
-    console.log(`🚨 Anti-cheat: Батл клик отклонен для игрока ${id}`);
+  // Проверка на бан
+  if (isPlayerBanned(id)) {
+    console.log(`🚨 Anti-cheat: Забаненный игрок ${id}`);
     return;
   }
   
@@ -1044,29 +1062,31 @@ function handleBattleClick(ws, battleId, clicks, cps) {
   const opponentId = battle.players.find(pid => pid !== id);
   const opponent = players.get(opponentId);
   
-  // Создаем данные обновления
-  const updateData = {
-    type: 'battleUpdate',
-    yourScore: battle.scores[id],
-    opponentScore: battle.scores[opponentId],
-    yourCPS: battle.cps[id] || 0,
-    opponentCPS: battle.cps[opponentId] || 0,
-    eventCoinsEarned: eventCoinsDiff
-  };
+  // Отправляем обновления обоим игрокам СРАЗУ (без буферизации для батла)
+  const player = players.get(id);
   
-  const opponentUpdateData = {
-    type: 'battleUpdate',
-    yourScore: battle.scores[opponentId],
-    opponentScore: battle.scores[id],
-    yourCPS: battle.cps[opponentId] || 0,
-    opponentCPS: battle.cps[id] || 0,
-    eventCoinsEarned: 0
-  };
-  
-  // Добавляем в буфер для отправки
-  bufferBattleUpdate(id, updateData);
-  if (opponent) {
-    bufferBattleUpdate(opponentId, opponentUpdateData);
+  // Данные для текущего игрока
+  if (player && player.ws && player.ws.readyState === WebSocket.OPEN) {
+    player.ws.send(JSON.stringify({
+      type: 'battleUpdate',
+      yourScore: battle.scores[id],
+      opponentScore: battle.scores[opponentId],
+      yourCPS: battle.cps[id] || 0,
+      opponentCPS: battle.cps[opponentId] || 0,
+      eventCoinsEarned: eventCoinsDiff
+    }));
+  }
+    
+  // Данные для соперника (показываем ЕГО счёт как yourScore, а счёт игрока как opponentScore)
+  if (opponent && opponent.ws && opponent.ws.readyState === WebSocket.OPEN) {
+    opponent.ws.send(JSON.stringify({
+      type: 'battleUpdate',
+      yourScore: battle.scores[opponentId],
+      opponentScore: battle.scores[id],
+      yourCPS: battle.cps[opponentId] || 0,
+      opponentCPS: battle.cps[id] || 0,
+      eventCoinsEarned: 0
+    }));
   }
 }
 

@@ -75,6 +75,19 @@ const shopItems = [
   { id: 'auto5', name: 'Царство косаток', desc: '+500/сек', cost: 100000, type: 'auto', value: 500, icon: 'auto_booster.png' }
 ];
 
+// Каталог предметов с базовыми ценами (для сброса при смене аккаунта)
+const SHOP_CATALOG = [
+  { id: 'click1', baseCost: 50 },
+  { id: 'click2', baseCost: 250 },
+  { id: 'click3', baseCost: 1000 },
+  { id: 'click4', baseCost: 50000 },
+  { id: 'auto1', baseCost: 100 },
+  { id: 'auto2', baseCost: 500 },
+  { id: 'auto3', baseCost: 2500 },
+  { id: 'auto4', baseCost: 10000 },
+  { id: 'auto5', baseCost: 100000 }
+];
+
 // Скины с изображениями
 const skinsData = [
   { id: 'normal', name: 'Обычная', cost: 0, image: 'normal.png' },
@@ -246,7 +259,20 @@ function handleServerMessage(data) {
   if (data.type === 'authSuccess') {
     console.log(`✅ Аутентификация успешна: ${data.username}`);
     
+    // СБРОС цен магазина к дефолтным перед загрузкой (чтобы не было цен от предыдущего аккаунта)
+    shopItems.forEach(item => {
+      const catalogItem = SHOP_CATALOG?.find(i => i.id === item.id);
+      if (catalogItem) {
+        item.cost = catalogItem.baseCost;
+      } else {
+        // Дефолтные цены если каталог недоступен
+        const defaultCosts = { click1: 50, click2: 250, click3: 1000, click4: 50000, auto1: 100, auto2: 500, auto3: 2500, auto4: 10000, auto5: 100000 };
+        item.cost = defaultCosts[item.id] || item.cost;
+      }
+    });
+    
     // Сохраняем информацию об аккаунте
+    const isNewAccount = !currentUser || currentUser.id !== data.accountId;
     if (typeof currentUser === 'undefined' || !currentUser) {
       currentUser = {
         id: data.accountId,
@@ -278,12 +304,15 @@ function handleServerMessage(data) {
       // Боксы
       if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
       
-      // Цены улучшений
-      if (d.shopItems) {
+      // Цены улучшений - загружаем ТОЛЬКО если есть shopItems от сервера
+      if (d.shopItems && Array.isArray(d.shopItems)) {
         d.shopItems.forEach(saved => {
           const item = shopItems.find(i => i.id === saved.id);
           if (item) item.cost = saved.cost;
         });
+        console.log('🛒 Цены загружены с сервера:', d.shopItems);
+      } else {
+        console.log('🛒 Новый аккаунт - используются дефолтные цены');
       }
       
       // Прогресс квестов
@@ -292,7 +321,7 @@ function handleServerMessage(data) {
           const saved = d.questProgress.find(p => p.id === q.id);
           return { ...q, completed: saved ? saved.completed : false };
         });
-      } else if (!game.quests.length) {
+      } else if (!game.quests.length || isNewAccount) {
         initQuests();
       }
       
@@ -369,6 +398,15 @@ function handleServerMessage(data) {
       break;
     case 'waitingForBattle':
       document.getElementById('battleStatus').textContent = 'Поиск соперника...';
+      break;
+    case 'error':
+      // Специальная обработка для ошибок батла
+      if (data.message && data.message.includes('Лобби')) {
+        document.getElementById('battleLobby').classList.remove('hidden');
+        document.getElementById('battleStatus').textContent = data.message;
+      } else {
+        showNotification(`⚠️ ${data.message}`);
+      }
       break;
     case 'battleStart':
       startBattleUI(data);
@@ -458,9 +496,6 @@ function handleServerMessage(data) {
       renderSkins();
       updateUI();
       saveGame();
-      break;
-    case 'error':
-      showNotification(`⚠️ ${data.message}`);
       break;
     case 'autoclickerBlocked':
       showNotification(`🚫 ${data.message || 'Доступ заблокирован'}`);
@@ -564,7 +599,7 @@ function deactivateX2Multiplier() {
   updateUI();
   saveGame();
 }
-
+  
 // Автокликер - используем getPerSecond() для расчета с учётом навыков
 setInterval(() => {
   const perSecond = getPerSecond();
@@ -759,10 +794,13 @@ function updateUI() {
 function updateSkin() {
   const skin = skinsData.find(s => s.id === game.currentSkin);
   if (skin && orcaImg) {
+    console.log(`🎨 updateSkin: currentSkin=${game.currentSkin}, skin.image=${skin.image}`);
     orcaImg.src = skin.image;
     orcaImg.style.display = 'block';
-    orcaEmoji.style.display = 'none';
+    if (orcaEmoji) orcaEmoji.style.display = 'none';
     clicker.className = `clicker skin-${skin.id}`;
+  } else {
+    console.log(`⚠️ updateSkin: skin=${!!skin}, orcaImg=${!!orcaImg}, currentSkin=${game.currentSkin}`);
   }
 }
 
@@ -843,7 +881,7 @@ function renderBoxes() {
   `;
   container.appendChild(boxDiv);
 }
-
+  
 function openBoxUI() {
   if (pendingBoxes.length > 0) {
     openBox(pendingBoxes[0]);

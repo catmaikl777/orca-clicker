@@ -141,6 +141,8 @@ function createDefaultPlayer(accountId, username) {
     clan: null,
     eventRewards: 0,
     pendingBoxes: [],
+    shopItems: [], // Цены предметов (пусто = дефолтные цены)
+    questProgress: [],
     createdAt: Date.now(),
     lastLogin: Date.now()
   };
