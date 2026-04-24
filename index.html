@@ -250,9 +250,43 @@
       <button class="close-btn" onclick="closeAllModals()">×</button>
     </div>
     <div class="modal-content">
-      <div id="battleLobby">
+      <!-- Вкладки -->
+      <div class="battle-tabs">
+        <button class="battle-tab active" onclick="switchBattleTab('quick', this)">⚡ Быстрый</button>
+        <button class="battle-tab" onclick="switchBattleTab('lobby', this)">🏠 Лобби</button>
+      </div>
+      
+      <!-- Быстрый поиск -->
+      <div id="battleQuickSearch" class="battle-search active">
         <button class="action-btn" onclick="findBattle()">🔍 Найти соперника</button>
         <p id="battleStatus">Нажмите кнопку для поиска соперника</p>
+      </div>
+      
+      <!-- Лобби -->
+      <div id="battleLobbyView" class="battle-lobby-view hidden">
+        <!-- Кнопки управления лобби -->
+        <div class="lobby-controls">
+          <button class="action-btn" onclick="createBattleLobby()">🏠 Создать лобби</button>
+          <button class="action-btn" onclick="refreshBattleLobbies()">🔄 Обновить</button>
+        </div>
+        
+        <!-- Список лобби -->
+        <div id="battleLobbyList" class="battle-lobby-list">
+          <p style="text-align:center;padding:20px;color:#888">Загрузка лобби...</p>
+        </div>
+        
+        <!-- Моё лобби -->
+        <div id="myBattleLobby" class="my-lobby hidden">
+          <h3>🏠 Ваше лобби</h3>
+          <div class="lobby-info">
+            <p><strong>Владелец:</strong> <span id="myLobbyOwner">Вы</span></p>
+            <p><strong>Соперник:</strong> <span id="myLobbyOpponent">Ожидание...</span></p>
+          </div>
+          <div class="lobby-actions">
+            <button id="startBattleBtn" class="action-btn" onclick="startBattleFromLobby()" disabled>⚔️ Начать батл</button>
+            <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="leaveMyLobby()">🚪 Выйти</button>
+          </div>
+        </div>
       </div>
       <div id="battleArena" class="hidden">
         <div class="battle-timer">⏱️ <span id="battleTimer">30</span></div>

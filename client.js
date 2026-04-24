@@ -404,8 +404,13 @@ function handleServerMessage(data) {
       if (data.message && data.message.includes('Лобби')) {
         document.getElementById('battleLobby').classList.remove('hidden');
         document.getElementById('battleStatus').textContent = data.message;
-      } else {
+      } else if (data.message) {
         showNotification(`⚠️ ${data.message}`);
+        // Возвращаемся к UI лобби если была ошибка
+        if (currentLobbyId) {
+          document.getElementById('battleQuickSearch').classList.remove('hidden');
+          document.getElementById('battleLobbyView').classList.remove('hidden');
+        }
       }
       break;
     case 'battleStart':
@@ -426,6 +431,62 @@ function handleServerMessage(data) {
       break;
     case 'clanMembers':
       if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      break;
+    case 'battleLobbies':
+      updateBattleLobbiesUI(data.lobbies);
+      break;
+    case 'lobbyCreated':
+      showNotification('🏠 Лобби создано! Ожидание соперника...');
+      // Обновляем UI моего лобби
+      updateMyLobbyUI({
+        id: data.lobbyId,
+        ownerName: data.ownerName,
+        hasOpponent: false,
+        opponentName: null
+      });
+      break;
+    case 'joinedLobby':
+      showNotification('👥 Вы вступили в лобби!');
+      // Обновляем UI моего лобби
+      updateMyLobbyUI({
+        id: data.lobbyId,
+        ownerName: data.ownerName,
+        hasOpponent: false,
+        opponentName: null
+      });
+      break;
+    case 'opponentJoined':
+      showNotification(`🎉 ${data.opponentName} вступил в ваше лобби!`);
+      // Обновляем UI моего лобби
+      updateMyLobbyUI({
+        id: data.lobbyId,
+        ownerName: data.ownerName,
+        hasOpponent: true,
+        opponentName: data.opponentName
+      });
+      break;
+    case 'opponentLeft':
+      showNotification('😢 Соперник покинул лобби');
+      // Обновляем UI моего лобби
+      updateMyLobbyUI({
+        id: data.lobbyId,
+        ownerName: data.ownerName,
+        hasOpponent: false,
+        opponentName: null
+      });
+      break;
+    case 'opponentDisconnected':
+      showNotification('⚠️ Соперник отключился');
+      updateMyLobbyUI({
+        id: data.lobbyId,
+        ownerName: data.ownerName,
+        hasOpponent: false,
+        opponentName: null
+      });
+      break;
+    case 'leftLobby':
+      showNotification('🚪 Вы покинули лобби');
+      updateMyLobbyUI(null);
       break;
     case 'clanCreated':
       showNotification(`🏰 Клан "${data.name}" создан!`);
@@ -1128,6 +1189,151 @@ function updateLeaderboardUI(data) {
 let myBattleClicks = 0;
 let myBattleCPS = 0;
 let battleClickTimer = null;
+let currentLobbyId = null;
+
+// Переключение вкладок батла
+function switchBattleTab(tab, btn) {
+  document.querySelectorAll('.battle-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  if (tab === 'quick') {
+    document.getElementById('battleQuickSearch').classList.remove('hidden');
+    document.getElementById('battleQuickSearch').classList.add('active');
+    document.getElementById('battleLobbyView').classList.add('hidden');
+    document.getElementById('battleLobbyView').classList.remove('active');
+  } else if (tab === 'lobby') {
+    document.getElementById('battleQuickSearch').classList.add('hidden');
+    document.getElementById('battleQuickSearch').classList.remove('active');
+    document.getElementById('battleLobbyView').classList.remove('hidden');
+    document.getElementById('battleLobbyView').classList.add('active');
+    // Запрашиваем список лобби
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+    }
+  }
+}
+
+// Создание лобби
+function createBattleLobby() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  ws.send(JSON.stringify({ type: 'createBattleLobby' }));
+}
+
+// Присоединение к лобби
+function joinBattleLobby(lobbyId) {
+  if (!ws || ws.readyState === WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId }));
+}
+
+// Выход из моего лобби
+function leaveMyLobby() {
+  if (!ws || ws.readyState === WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  ws.send(JSON.stringify({ type: 'leaveBattleLobby' }));
+}
+
+// Обновление списка лобби
+function refreshBattleLobbies() {
+  if (!ws || ws.readyState === WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+  showNotification('🔄 Обновление...');
+}
+
+// Запуск батла из лобби
+function startBattleFromLobby() {
+  if (!ws || ws.readyState === WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  if (!currentLobbyId) {
+    showNotification('⚠️ Лобби не найдено');
+    return;
+  }
+  
+  ws.send(JSON.stringify({ type: 'startBattleFromLobby', lobbyId: currentLobbyId }));
+}
+
+// Обновление UI списка лобби
+function updateBattleLobbiesUI(lobbies) {
+  const container = document.getElementById('battleLobbyList');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (!lobbies || lobbies.length === 0) {
+    container.innerHTML = '<p style="text-align:center;padding:20px;color:#888">🏠 Нет активных лобби. Создайте первое!</p>';
+    return;
+  }
+  
+  lobbies.forEach(lobby => {
+    const div = document.createElement('div');
+    div.className = 'lobby-item';
+    
+    if (lobby.hasOpponent) {
+      div.classList.add('full');
+      div.innerHTML = `
+        <div class="lobby-info">
+          <p><strong>${escapeHtml(lobby.ownerName)}</strong> и <strong>${escapeHtml(lobby.opponentName)}</strong></p>
+          <small>Лобби заполнено</small>
+        </div>
+        <span style="color:#ff6b6b;font-weight:600">🔒</span>
+      `;
+    } else {
+      div.innerHTML = `
+        <div class="lobby-info">
+          <p><strong>${escapeHtml(lobby.ownerName)}</strong> ищет соперника</p>
+          <small>Создано ${new Date(lobby.createdAt).toLocaleTimeString()}</small>
+        </div>
+        <button class="action-btn" onclick="joinBattleLobby('${lobby.id}')" style="margin-bottom:0">Вступить</button>
+      `;
+    }
+    
+    container.appendChild(div);
+  });
+}
+
+// Обновление UI моего лобби
+function updateMyLobbyUI(lobby) {
+  const myLobbyEl = document.getElementById('myBattleLobby');
+  if (!myLobbyEl) return;
+  
+  if (!lobby) {
+    myLobbyEl.classList.add('hidden');
+    currentLobbyId = null;
+    return;
+  }
+  
+  currentLobbyId = lobby.id;
+  myLobbyEl.classList.remove('hidden');
+  
+  document.getElementById('myLobbyOwner').textContent = lobby.ownerName;
+  document.getElementById('myLobbyOpponent').textContent = lobby.hasOpponent 
+    ? escapeHtml(lobby.opponentName) 
+    : 'Ожидание соперника...';
+  
+  // Блокируем кнопку запуска если нет соперника
+  const startBtn = document.getElementById('startBattleBtn');
+  if (startBtn) {
+    startBtn.disabled = !lobby.hasOpponent;
+    startBtn.textContent = lobby.hasOpponent ? '⚔️ Начать батл' : 'Ожидание соперника...';
+  }
+}
 
 function findBattle() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -1145,14 +1351,27 @@ function startBattleUI(data) {
   battleId = data.battleId;
   myBattleClicks = 0;
   myBattleCPS = 0;
+  currentLobbyId = data.lobbyId || null;
   
+  // Скрываем все UI лобби
+  document.getElementById('battleQuickSearch').classList.add('hidden');
+  document.getElementById('battleLobbyView').classList.add('hidden');
+  document.getElementById('myBattleLobby').classList.add('hidden');
   document.getElementById('battleLobby').classList.add('hidden');
+  
   document.getElementById('battleArena').classList.remove('hidden');
   document.getElementById('opponentName').textContent = data.opponent;
   document.getElementById('myBattleScore').textContent = '0';
   document.getElementById('opponentScore').textContent = '0';
   document.getElementById('myCPS').textContent = `${data.yourPerSecond || 0} CPS`;
   document.getElementById('opponentCPS').textContent = `${data.opponentPerSecond || 0} CPS`;
+  
+  // Если это владелец лобби - показываем "Вы" а не имя
+  if (data.lobbyId) {
+    // Проверяем являемся ли мы владельцем
+    const isOwner = data.opponent && data.opponent !== currentUser?.username;
+    document.getElementById('myBattleScore').parentNode.querySelector('h3').textContent = isOwner ? 'Вы' : data.opponent;
+  }
   
   // Показываем мой скин (из данных сервера)
   const mySkin = skinsData.find(s => s.id === (data.yourSkin || game.currentSkin));
@@ -1249,10 +1468,16 @@ function endBattleUI(data) {
   saveGame();
   
   setTimeout(() => {
-    document.getElementById('battleLobby').classList.remove('hidden');
+    // Скрываем арену и все UI лобби
     document.getElementById('battleArena').classList.add('hidden');
+    document.getElementById('battleQuickSearch').classList.remove('hidden');
+    document.getElementById('battleLobbyView').classList.add('hidden');
+    document.getElementById('myBattleLobby').classList.add('hidden');
+    document.getElementById('battleLobby').classList.remove('hidden');
+    
     document.getElementById('battleStatus').textContent = 'Нажмите кнопку для поиска соперника';
     battleId = null;
+    currentLobbyId = null;
     myBattleClicks = 0;
     const btn = document.getElementById('battleClickBtn');
     if (btn) btn.onclick = null;
@@ -1519,6 +1744,16 @@ function showModal(id) {
   if (id === 'achievements') renderAchievements();
   if (id === 'stats') updateStats();
   if (id === 'leaderboard' && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getLeaderboard' }));
+  if (id === 'battle') {
+    // Сброс UI лобби при открытии
+    document.getElementById('battleQuickSearch').classList.remove('hidden');
+    document.getElementById('battleQuickSearch').classList.add('active');
+    document.getElementById('battleLobbyView').classList.add('hidden');
+    document.getElementById('battleLobbyView').classList.remove('active');
+    document.getElementById('myBattleLobby').classList.add('hidden');
+    // Запросить список лобби
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+  }
   if (id === 'clans' && ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'getClans' }));
     ws.send(JSON.stringify({ type: 'getClanMembers' }));

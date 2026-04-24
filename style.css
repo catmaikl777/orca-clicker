@@ -2039,6 +2039,155 @@ body.bg-dark .bg-dark { opacity: 1; }
   margin-top: 10px;
 }
 
+/* Вкладки батла */
+.battle-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.battle-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid rgba(32,178,170,0.3);
+  border-radius: 14px;
+  background: rgba(32,178,170,0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.battle-tab.active,
+.battle-tab:hover {
+  background: linear-gradient(145deg, rgba(32,178,170,0.35), rgba(72,209,204,0.25));
+  border-color: rgba(32,178,170,0.7);
+  box-shadow: 0 4px 15px rgba(32,178,170,0.3);
+}
+
+/* Лобби батлов */
+.battle-lobby-view {
+  padding: 10px 0;
+}
+
+.lobby-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.lobby-controls .action-btn {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.battle-lobby-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.lobby-item {
+  background: linear-gradient(145deg, rgba(32,178,170,0.15), rgba(72,209,204,0.1));
+  border: 1px solid rgba(32,178,170,0.3);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s;
+}
+
+.lobby-item:hover {
+  border-color: rgba(32,178,170,0.6);
+  background: linear-gradient(145deg, rgba(32,178,170,0.25), rgba(72,209,204,0.15));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(32,178,170,0.3);
+}
+
+.lobby-info {
+  flex: 1;
+}
+
+.lobby-info p {
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: rgba(255,255,255,0.9);
+}
+
+.lobby-info p strong {
+  color: var(--primary);
+}
+
+.lobby-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lobby-actions .action-btn {
+  padding: 10px 16px;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+/* Моё лобби */
+.my-lobby {
+  background: linear-gradient(145deg, rgba(32,178,170,0.2), rgba(72,209,204,0.12));
+  border: 2px solid rgba(32,178,170,0.5);
+  border-radius: 18px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.my-lobby h3 {
+  font-size: 16px;
+  color: var(--primary);
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.my-lobby .lobby-info {
+  margin-bottom: 20px;
+}
+
+.my-lobby .lobby-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-lobby .lobby-actions .action-btn {
+  width: 100%;
+}
+
+/* Статусы лобби */
+.lobby-item.full {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.lobby-item.full::after {
+  content: '🔒 Заполнено';
+  color: #ff6b6b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Пустое состояние */
+.battle-lobby-list:empty::after,
+.battle-lobby-list[pending]::after {
+  content: '🏠 Нет активных лобби';
+  display: block;
+  text-align: center;
+  padding: 30px;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+
 /* === НАСТРОЙКИ === */
 .settings-section {
   background: rgba(255,255,255,0.04);
@@ -2117,6 +2266,11 @@ body.bg-dark .bg-dark { opacity: 1; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Скрытие элементов */
+.hidden {
+  display: none !important;
 }
 
 .box-cutscene-bg {
@@ -2350,7 +2504,7 @@ body.bg-dark .bg-dark { opacity: 1; }
       max-height: -webkit-fill-available;
       height: -webkit-fill-available;
     }
-    
+
     .modal-content {
       height: calc(100% - 70px);
     }
@@ -2523,6 +2677,54 @@ body.bg-dark .bg-dark { opacity: 1; }
   }
   .clan-actions .action-btn {
     width: 100%;
+  }
+
+  /* Адаптация лобби батлов */
+  .battle-tabs {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .battle-tab {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .lobby-controls {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .lobby-controls .action-btn {
+    width: 100%;
+  }
+  .lobby-item {
+    padding: 14px;
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  .lobby-info {
+    width: 100%;
+  }
+  .lobby-info p {
+    font-size: 13px;
+  }
+  .lobby-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .lobby-actions .action-btn {
+    width: 100%;
+  }
+  .my-lobby {
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .my-lobby h3 {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .battle-lobby-list {
+    max-height: 250px;
   }
 
   .box-item {

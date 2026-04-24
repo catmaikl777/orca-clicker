@@ -180,6 +180,10 @@ let db = {
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
 const battleUpdateBuffer = new Map(); // playerId -> { updates: [], lastSend: timestamp }
 
+// Лобби для батлов
+const battleLobbies = new Map(); // lobbyId -> { id, owner, ownerName, opponent, opponentName, status, createdAt }
+const lobbyWaitingPlayers = new Map(); // playerId -> lobbyId (игрок в очереди на вступление)
+
 // Функция добавления обновления в буфер
 function bufferBattleUpdate(playerId, updateData) {
   let buffer = battleUpdateBuffer.get(playerId);
@@ -530,11 +534,33 @@ ws.on('message', (message) => {
     wsRateLimiter.cleanup(ip);
     clearBattleBuffer(playerId); // Очищаем буфер при отключении
     players.delete(playerId);
+    
+    // Удаляем из лобби при отключении
+    for (const [lobbyId, lobby] of battleLobbies) {
+      if (lobby.owner === playerId || lobby.opponent === playerId) {
+        // Уведомляем другого игрока если есть
+        const otherId = lobby.owner === playerId ? lobby.opponent : lobby.owner;
+        if (otherId) {
+          const otherWs = players.get(otherId)?.ws;
+          if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+            otherWs.send(JSON.stringify({
+              type: 'opponentDisconnected',
+              lobbyId
+            }));
+          }
+        }
+        battleLobbies.delete(lobbyId);
+      }
+    }
+    
     for (const [battleId, battle] of battles) {
       if (battle.players.includes(playerId)) endBattle(battleId, playerId);
     }
     const idx = waitingPlayers.indexOf(playerId);
     if (idx > -1) waitingPlayers.splice(idx, 1);
+    
+    // Обновляем список лобби
+    broadcastBattleLobbies();
   });
 });
 
@@ -556,12 +582,17 @@ function handleMessage(ws, data) {
     case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
     case 'findBattle': handleFindBattle(ws); break;
+    case 'createBattleLobby': handleCreateBattleLobby(ws); break;
+    case 'joinBattleLobby': handleJoinBattleLobby(ws, data.lobbyId); break;
+    case 'leaveBattleLobby': handleLeaveBattleLobby(ws); break;
+    case 'getBattleLobbies': handleGetBattleLobbies(ws); break;
     case 'battleClick': handleBattleClick(ws, data.battleId, data.clicks, data.cps); break;
     case 'getLeaderboard': sendLeaderboard(ws); break;
     case 'createClan': handleCreateClan(ws, data.name); break;
     case 'joinClan': handleJoinClan(ws, data.clanId); break;
     case 'leaveClan': handleLeaveClan(ws); break;
     case 'getClans': sendClans(ws); break;
+    case 'startBattleFromLobby': handleStartBattleFromLobby(ws, data.lobbyId); break;
     case 'getClanMembers': getClanMembers(ws); break;
     case 'buySkill': handleBuySkill(ws, data.skillId); break;
     case 'buyItem': handleBuyItem(ws, data.itemId); break;
@@ -760,7 +791,7 @@ function handleSaveGame(ws, data) {
   savePlayerToDB(id);
   console.log('💾 Автосохранение:', id);
 }
-
+  
 // Принудительное сохранение ВСЕх данных игрока и клана
 function handleForceSaveAll(ws) {
   const id = ws.accountId || ws.playerId;
@@ -791,7 +822,7 @@ function handleForceSaveAll(ws) {
     clanId: p.clan || null
   }));
 }
-  
+
 function sendEventInfo(ws) {
   const id = ws.accountId || ws.playerId;
   const playerName = db.players[id]?.name || 'Player';
@@ -1064,7 +1095,211 @@ function handleFindBattle(ws) {
   ws.send(JSON.stringify({ type: 'waitingForBattle' }));
 }
 
-function startBattle(player1Id, player2Id) {
+// Создание лобби для батла
+function handleCreateBattleLobby(ws) {
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player) return;
+  
+  // Проверка: игрок уже в лобби?
+  for (const [lobbyId, lobby] of battleLobbies) {
+    if (lobby.owner === id || lobby.opponent === id) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в лобби' }));
+      return;
+    }
+  }
+  
+  // Проверка: игрок в очереди на вступление?
+  if (lobbyWaitingPlayers.has(id)) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы ожидаете вступления в лобби' }));
+    return;
+  }
+  
+  const lobbyId = generateId();
+  battleLobbies.set(lobbyId, {
+    id: lobbyId,
+    owner: id,
+    ownerName: player.name,
+    opponent: null,
+    opponentName: null,
+    status: 'waiting', // waiting, ready, started
+    createdAt: Date.now()
+  });
+  
+  ws.send(JSON.stringify({ 
+    type: 'lobbyCreated', 
+    lobbyId,
+    ownerName: player.name
+  }));
+  
+  // Отправляем обновление списка лобби всем
+  broadcastBattleLobbies();
+}
+
+// Присоединение к лобби
+function handleJoinBattleLobby(ws, lobbyId) {
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player) return;
+  
+  const lobby = battleLobbies.get(lobbyId);
+  if (!lobby) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  // Проверка: лобби уже заполнено?
+  if (lobby.opponent) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби уже заполнено' }));
+    return;
+  }
+  
+  // Проверка: игрок не может вступить в своё лобби
+  if (lobby.owner === id) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы создали это лобби' }));
+    return;
+  }
+  
+  // Проверка: игрок уже в другом лобби?
+  for (const [lid, l] of battleLobbies) {
+    if (l.owner === id || l.opponent === id) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в другом лобби' }));
+      return;
+    }
+  }
+  
+  // Добавляем игрока в лобби
+  lobby.opponent = id;
+  lobby.opponentName = player.name;
+  lobbyWaitingPlayers.delete(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'joinedLobby', 
+    lobbyId,
+    ownerName: lobby.ownerName,
+    opponentName: lobby.ownerName
+  }));
+  
+  // Отправляем владельцу лобби уведомление
+  const ownerWs = players.get(lobby.owner)?.ws;
+  if (ownerWs && ownerWs.readyState === WebSocket.OPEN) {
+    ownerWs.send(JSON.stringify({
+      type: 'opponentJoined',
+      lobbyId,
+      opponentName: player.name
+    }));
+  }
+  
+  // Обновляем список лобби
+  broadcastBattleLobbies();
+}
+
+// Выход из лобби
+function handleLeaveBattleLobby(ws) {
+  const id = ws.accountId || ws.playerId;
+  
+  // Ищем лобби игрока
+  let lobbyId = null;
+  for (const [lid, lobby] of battleLobbies) {
+    if (lobby.owner === id || lobby.opponent === id) {
+      lobbyId = lid;
+      break;
+    }
+  }
+  
+  if (!lobbyId) return;
+  
+  const lobby = battleLobbies.get(lobbyId);
+  if (!lobby) return;
+  
+  // Если игрок был владельцем, удаляем лобби
+  if (lobby.owner === id) {
+    battleLobbies.delete(lobbyId);
+    broadcastBattleLobbies();
+  } else {
+    // Если игрок был соперником, просто удаляем его из лобби
+    lobby.opponent = null;
+    lobby.opponentName = null;
+    broadcastBattleLobbies();
+    
+    // Уведомляем владельца
+    const ownerWs = players.get(lobby.owner)?.ws;
+    if (ownerWs && ownerWs.readyState === WebSocket.OPEN) {
+      ownerWs.send(JSON.stringify({
+        type: 'opponentLeft',
+        lobbyId
+      }));
+    }
+  }
+  
+  ws.send(JSON.stringify({ type: 'leftLobby', lobbyId }));
+}
+
+// Получение списка лобби
+function handleGetBattleLobbies(ws) {
+  const lobbies = Array.from(battleLobbies.values())
+    .filter(lobby => lobby.status === 'waiting')
+    .map(lobby => ({
+      id: lobby.id,
+      ownerName: lobby.ownerName,
+      opponentName: lobby.opponentName,
+      hasOpponent: !!lobby.opponent,
+      createdAt: lobby.createdAt
+    }));
+  
+  ws.send(JSON.stringify({ 
+    type: 'battleLobbies', 
+    lobbies 
+  }));
+}
+
+// Запуск батла из лобби (владельцем)
+function handleStartBattleFromLobby(ws, lobbyId) {
+  const id = ws.accountId || ws.playerId;
+  
+  const lobby = battleLobbies.get(lobbyId);
+  if (!lobby) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  // Только владелец может запустить батл
+  if (lobby.owner !== id) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Только владелец может запустить батл' }));
+    return;
+  }
+  
+  // Проверка что есть соперник
+  if (!lobby.opponent) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Ожидание соперника...' }));
+    return;
+  }
+  
+  // Запускаем батл
+  startBattle(lobby.owner, lobby.opponent, lobbyId);
+}
+
+// Рассылка списка лобби всем игрокам
+function broadcastBattleLobbies() {
+  const lobbies = Array.from(battleLobbies.values())
+    .filter(lobby => lobby.status === 'waiting')
+    .map(lobby => ({
+      id: lobby.id,
+      ownerName: lobby.ownerName,
+      opponentName: lobby.opponentName,
+      hasOpponent: !!lobby.opponent,
+      createdAt: lobby.createdAt
+    }));
+    
+  const data = JSON.stringify({ type: 'battleLobbies', lobbies });
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}
+
+function startBattle(player1Id, player2Id, lobbyId = null) {
   const player1 = players.get(player1Id);
   const player2 = players.get(player2Id);
   if (!player1 || !player2) return;
@@ -1076,12 +1311,20 @@ function startBattle(player1Id, player2Id) {
     scores: { [player1Id]: 0, [player2Id]: 0 },
     cps: { [player1Id]: player1.perSecond || 0, [player2Id]: player2.perSecond || 0 },
     startTime: Date.now(),
-    duration: 30000
+    duration: 30000,
+    lobbyId: lobbyId
   });
+  
+  // Обновляем статус лобби если есть
+  if (lobbyId && battleLobbies.has(lobbyId)) {
+    const lobby = battleLobbies.get(lobbyId);
+    lobby.status = 'started';
+  }
   
   const battleData = {
     type: 'battleStart', 
     battleId,
+    lobbyId,
     opponent: player2.name,
     yourPerSecond: player1.perSecond || 0,
     opponentPerSecond: player2.perSecond || 0,
@@ -1097,6 +1340,18 @@ function startBattle(player1Id, player2Id) {
   battleData.yourSkin = player2.currentSkin || 'normal';
   battleData.opponentSkin = player1.currentSkin || 'normal';
   player2.ws.send(JSON.stringify(battleData));
+  
+  // Удаляем из лобби
+  if (lobbyId) {
+    battleLobbies.delete(lobbyId);
+    broadcastBattleLobbies();
+  }
+  
+  // Удаляем из очереди если были
+  const idx1 = waitingPlayers.indexOf(player1Id);
+  if (idx1 > -1) waitingPlayers.splice(idx1, 1);
+  const idx2 = waitingPlayers.indexOf(player2Id);
+  if (idx2 > -1) waitingPlayers.splice(idx2, 1);
   
   setTimeout(() => endBattle(battleId), 30000);
 }
