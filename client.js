@@ -163,6 +163,11 @@ let battleInterval = null;
 let wsConnected = false;
 let autoClickInterval = null; // Храним интервал автодохода
 
+// Буфер для кликов (отправляем пачками)
+let clickBuffer = [];
+let lastServerSync = Date.now();
+const MAX_CLICKS_PER_SEC = 50; // Максимум 50 кликов в секунду для защиты от спама
+
 // ==================== АНТИ-ОВЕРЛЕЙ / ФОКУС ====================
 let windowFocused = document.hasFocus();
 let pageVisible = document.visibilityState === 'visible';
@@ -739,6 +744,13 @@ setInterval(() => {
 // Запускаем спавн бонусов
 setInterval(spawnBonus, 12000);
 
+// Периодическая отправка буфера кликов (каждую секунду)
+setInterval(() => {
+  if (clickBuffer.length > 0) {
+    flushClickBuffer();
+  }
+}, 1000);
+  
 // Защита от дублирования интервалов при переподключении
 function cleanupIntervals() {
   if (autoClickInterval) {
@@ -749,7 +761,22 @@ function cleanupIntervals() {
 }
 
 // Обработчик клика по косатке
+let lastClickTime = 0;
+let clicksThisSecond = 0;
 function handleClick(e) {
+  // Проверка на спам кликами (защита от автокликеров и багов)
+  const now = Date.now();
+  if (now - lastClickTime >= 1000) {
+    clicksThisSecond = 0;
+    lastClickTime = now;
+  }
+  clicksThisSecond++;
+
+  if (clicksThisSecond > MAX_CLICKS_PER_SEC) {
+    console.warn(`⚠️ Превышен лимит кликов: ${clicksThisSecond}/сек (макс. ${MAX_CLICKS_PER_SEC})`);
+    return; // Игнорируем клик если превышен лимит
+  }
+  
   const perClick = getPerClick();
   const critChance = 0.1; // 10% шанс крита
   const critMultiplier = 10;
@@ -792,22 +819,44 @@ function handleClick(e) {
   checkAchievements();
   checkQuests();
   
-  // Отправка на сервер
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const clickData = {
-      type: 'click',
-      coins: game.coins,
-      perClick: game.basePerClick,
-      perSecond: game.basePerSecond,
-      clicks: game.clicks,
-      totalCoins: game.totalCoins
-    };
-    console.log(`📤 Отправка клика: clicks=${game.clicks}`);
-    ws.send(JSON.stringify(clickData));
+  // Добавляем клик в буфер для отправки на сервер
+  clickBuffer.push({
+    t: now,
+    clicks: game.clicks,
+    coins: game.coins,
+    totalCoins: game.totalCoins
+  });
+  
+  // Отправляем буфер если накопилось 5+ кликов или прошло 2 секунды
+  if (clickBuffer.length >= 5 || Date.now() - lastServerSync > 2000) {
+    flushClickBuffer();
   }
   
   // Сохранение
   scheduleServerSave();
+}
+
+// Отправка буфера кликов на сервер
+function flushClickBuffer() {
+  if (clickBuffer.length === 0 || !ws || ws.readyState !== WebSocket.OPEN) return;
+  
+  // Отправляем последний клик из буфера (актуальные данные)
+  const lastClick = clickBuffer[clickBuffer.length - 1];
+  const clickData = {
+    type: 'click',
+    clicks: lastClick.clicks,
+    coins: lastClick.coins,
+    perClick: game.basePerClick,
+    perSecond: game.basePerSecond,
+    totalCoins: lastClick.totalCoins
+  };
+  
+  console.log(`📤 Отправка клика: clicks=${lastClick.clicks}, buffer=${clickBuffer.length}`);
+  ws.send(JSON.stringify(clickData));
+  
+  // Очищаем буфер
+  clickBuffer = [];
+  lastServerSync = Date.now();
 }
 
 // Обработчики бонусов

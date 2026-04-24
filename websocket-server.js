@@ -713,6 +713,137 @@ function handleClick(ws, payload) {
     console.log(`📋 Инициализировано _pendingEventClicks=0 для ${id}`);
   }
   
+  // Проверка что clicks не уменьшается (защита от читеров)
+  const newClicks = typeof payload.clicks === 'number' ? payload.clicks : (player.clicks || 0);
+  const lastProcessedClicks = player._lastProcessedClicks || 0;
+  
+  // Если clicks меньше чем было раньше - игнорируем (возможно читерство)
+  if (newClicks < lastProcessedClicks) {
+    console.warn(`⚠️ Подозрение: clicks уменьшились для ${id}: ${lastProcessedClicks} → ${newClicks}`);
+    return;
+  }
+  
+  const clicksSinceLastCheck = Math.max(0, newClicks - lastProcessedClicks);
+  
+  console.log(`🔍 Click check: id=${id}, lastProcessed=${lastProcessedClicks}, newClicks=${newClicks}, clicksSinceLast=${clicksSinceLastCheck}, pending=${player._pendingEventClicks}`);
+  
+  // Добавляем новые клики к pending
+  player._pendingEventClicks += clicksSinceLastCheck;
+  
+  if (player._pendingEventClicks >= 100) {
+    const ticketsEarned = Math.floor(player._pendingEventClicks / 100);
+    const usedClicks = ticketsEarned * 100;
+    console.log(`🎫 Начисление билетов: ${ticketsEarned} за ${usedClicks} кликов (pending было ${player._pendingEventClicks})`);
+    addEventCoins(id, ticketsEarned);
+    // Вычитаем использованные клики из pending
+    player._pendingEventClicks -= usedClicks;
+    console.log(`🎫 Игрок ${id} получил ${ticketsEarned} билетов. Всего: ${db.event.eventCoins[id]}, pending осталось: ${player._pendingEventClicks}`);
+    console.log(`📢 Вызов broadcastEventInfo()`);
+    // Отправляем обновлённые данные ивента всем игрокам
+    broadcastEventInfo();
+  }
+  
+  // Сохраняем последний обработанный клик
+  player._lastProcessedClicks = newClicks;
+}
+  
+  const now = Date.now();
+  const clickTime = typeof payload?.t === 'number' ? payload.t : now;
+
+  // Адаптированные проверки для мобильных устройств
+  const trusted = payload?.trusted !== undefined ? !!payload.trusted : true;
+  const focus = payload?.focus !== undefined ? !!payload.focus : true;
+  const vis = typeof payload?.vis === 'string' ? payload.vis : 'visible';
+  
+  // На мобильных устройствах ослабляем trusted/focus/vis проверки
+  const isMobile = payload?.isMobile === true || (payload?.userAgent || '').includes('Mobi');
+  
+  if (!isMobile) {
+    // Для десктопа - строгие проверки trusted/focus/vis
+    if (!trusted || !focus || vis !== 'visible') {
+      banPlayer(id, `overlay_trusted:${trusted}_focus:${focus}_vis:${vis}`);
+      ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Запрещены клики в фоне/через автокликер. Доступ заблокирован.' }));
+      ws.close(1008, 'Overlay/autoclicker detected');
+      return;
+    }
+  }
+  // Для мобильных - пропускаем trusted/focus/vis, но проверяем CPS и паттерны
+  
+  // 0) Интервалы между кликами
+  let it = clickIntervals.get(id);
+  if (!it) {
+    it = { lastAt: now, intervals: [] };
+    clickIntervals.set(id, it);
+  } else {
+    const dt = now - it.lastAt;
+    it.lastAt = now;
+    if (dt >= 0 && dt < 60000) { // защита от мусора/паузы
+      it.intervals.push(dt);
+      if (it.intervals.length > INTERVAL_WINDOW) it.intervals.shift();
+
+      // серия слишком быстрых интервалов
+      let fastStreak = 0;
+      for (let i = it.intervals.length - 1; i >= 0; i--) {
+        if (it.intervals[i] < MIN_HUMAN_INTERVAL_MS) fastStreak++;
+        else break;
+      }
+      if (fastStreak >= MIN_INTERVAL_STREAK) {
+        banPlayer(id, `interval_fast_${dt}ms_streak_${fastStreak}`);
+        ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком маленькие интервалы между кликами).' }));
+        ws.close(1008, 'Autoclicker interval detected');
+        return;
+      }
+
+      // слишком ровные интервалы (низкая дисперсия) + достаточно быстрые
+      if (it.intervals.length >= 12) {
+        const avg = it.intervals.reduce((a, b) => a + b, 0) / it.intervals.length;
+        const variance = it.intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / it.intervals.length;
+        const stdDev = Math.sqrt(variance);
+        if (avg < 60 && stdDev < LOW_VARIANCE_THRESHOLD_MS) {
+          banPlayer(id, `interval_uniform_avg_${avg.toFixed(1)}_std_${stdDev.toFixed(1)}`);
+          ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком ровные интервалы кликов).' }));
+          ws.close(1008, 'Autoclicker uniform interval detected');
+          return;
+        }
+      }
+    }
+  }
+  
+  // 1) CPS по реальным кликам (скользящее окно)
+  let t = clickTrack.get(id);
+  if (!t) {
+    t = { times: [] };
+    clickTrack.set(id, t);
+  }
+  t.times.push(now);
+  // чистим окно
+  while (t.times.length && now - t.times[0] > CLICK_TRACK_WINDOW_MS) t.times.shift();
+  const cps = (t.times.length * 1000) / CLICK_TRACK_WINDOW_MS;
+  // Порог ниже, чтобы автокликер ловился быстро
+  const cpsLimit = 18;
+  if (cps > cpsLimit) {
+    banPlayer(id, `cps_click_${cps.toFixed(1)}`);
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен (слишком высокий CPS). Доступ заблокирован.' }));
+    ws.close(1008, 'Autoclicker detected');
+    return;
+  }
+  
+  // 2) Паттерны (равномерность/слишком быстрые интервалы)
+  if (!analyzeClickPattern(id, clickTime)) {
+    banPlayer(id, 'click_pattern');
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Автокликер обнаружен. Доступ заблокирован.' }));
+    ws.close(1008, 'Autoclicker detected');
+  }
+  
+  // 3) Начисляем eventCoins за клики (1 билет за 100 кликов)
+  const player = db.players[id];
+  
+  // Инициализируем _pendingEventClicks если нет (для старых игроков)
+  if (typeof player._pendingEventClicks !== 'number') {
+    player._pendingEventClicks = 0;
+    console.log(`📋 Инициализировано _pendingEventClicks=0 для ${id}`);
+  }
+  
   const newClicks = typeof payload.clicks === 'number' ? payload.clicks : (player.clicks || 0);
   const lastProcessedClicks = player._lastProcessedClicks || 0;
   const clicksSinceLastCheck = Math.max(0, newClicks - lastProcessedClicks);
@@ -737,8 +868,7 @@ function handleClick(ws, payload) {
   
   // Сохраняем последний обработанный клик
   player._lastProcessedClicks = newClicks;
-}
-  
+
 function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
