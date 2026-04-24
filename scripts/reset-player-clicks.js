@@ -13,7 +13,7 @@ const { Pool } = require('pg');
 
 async function resetPlayerClicks(playerId) {
   // Получаем подключение к БД из окружения
-  const connectionString = process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL;
   
   if (!connectionString) {
     console.error('❌ Ошибка: Переменная окружения DATABASE_URL не установлена');
@@ -21,7 +21,17 @@ async function resetPlayerClicks(playerId) {
     process.exit(1);
   }
   
-  const pool = new Pool({ connectionString });
+  // Добавляем SSL параметры для Render PostgreSQL
+  if (!connectionString.includes('sslmode')) {
+    connectionString += '?sslmode=require';
+  }
+  
+  const pool = new Pool({ 
+    connectionString,
+    ssl: {
+      rejectUnauthorized: false // Разрешить самоподписанные сертификаты
+    }
+  });
   
   try {
     console.log(`🔍 Поиск игрока: ${playerId}`);
