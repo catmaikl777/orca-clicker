@@ -912,32 +912,22 @@ function handleClick(e) {
 
   if (clicksThisSecond > MAX_CLICKS_PER_SEC) {
     console.warn(`⚠️ Превышен лимит кликов: ${clicksThisSecond}/сек (макс. ${MAX_CLICKS_PER_SEC})`);
-    return; // Игнорируем клик если превышен лимит
+    return;
   }
-  
-  // КРИТИЧЕСКИ: сбрасываем multiplier если он стал некорректным
-  if (!Number.isFinite(game.multiplier) || game.multiplier <= 0) {
-    console.warn(`WARNING: Resetting invalid multiplier: ${game.multiplier}`);
-    game.multiplier = 1;
-  }
-  // Ограничение максимального множителя (макс x10)
-  game.multiplier = Math.min(game.multiplier, 10);
   
   const perClick = getPerClick();
-  const critChance = 0.1; // 10% шанс крита
+  const critChance = 0.1;
   const critMultiplier = 10;
   
-  let earned = perClick * game.multiplier;
+  // earned = perClick (множители эффектов уже внутри getPerClick)
+  let earned = perClick;
   let isCrit = false;
   
   // Проверка что earned не стал NaN или Infinity
   if (!Number.isFinite(earned)) {
-    console.error('ERROR: earned from click is invalid!', { perClick, multiplier: game.multiplier, earned });
-    game.multiplier = 1;  // Сброс множителя
+    console.error('ERROR: earned from click is invalid!', { perClick, earned });
     return;
   }
-  
-  // Критический удар удалён - теперь это просто рандомный крит без навыков
   
   game.coins += earned;
   game.totalCoins += earned;
@@ -951,33 +941,25 @@ function handleClick(e) {
   const color = isCrit ? '#ff6b6b' : '#4fc3f7';
   showFloatingText(x, y, text, color);
   
-  // Звук клика
   playSound('clickSound');
   
-  // Анимация клика
   clicker.style.transform = 'scale(0.95)';
   setTimeout(() => {
     clicker.style.transform = 'scale(1)';
   }, 100);
   
-  // Частицы звёзд (e4)
   if (game.effects && game.effects['e4'] && isEffectEnabled('e4')) {
     createStarParticles(x, y);
   }
   
-  // Волновой эффект (e5)
   if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) {
     createWaveEffect(e);
   }
   
-  // Обновление UI
   updateUI();
-  
-  // Проверка достижений и квестов
   checkAchievements();
   checkQuests();
   
-  // Добавляем клик в буфер для отправки на сервер
   clickBuffer.push({
     t: now,
     clicks: game.clicks,
@@ -985,12 +967,10 @@ function handleClick(e) {
     totalCoins: game.totalCoins
   });
   
-  // Отправляем буфер если накопилось 5+ кликов или прошло 2 секунды
   if (clickBuffer.length >= 5 || Date.now() - lastServerSync > 2000) {
     flushClickBuffer();
   }
   
-  // Сохранение
   scheduleServerSave();
 }
 
