@@ -351,6 +351,9 @@ function handleServerMessage(data) {
       showGameScreen();
     }
     
+    // Применяем визуальные эффекты после загрузки данных
+    applyEffects();
+    
     console.log('🎮 Игровые данные загружены');
     
     // Отправляем запрос на получение лобби если открыта модалка батла
@@ -404,6 +407,7 @@ function handleServerMessage(data) {
         updateUI();
         renderShop();
         renderBoxes();
+        applyEffects();  // Применяем эффекты для гостя
       }
       break;
     case 'eventInfo':
@@ -1123,6 +1127,8 @@ function buyOrEquipSkin(skin) {
 // ==================== КВЕСТЫ ====================
 function initQuests() {
   game.quests = questsData.map(q => ({ ...q, completed: false }));
+  // Применяем визуальные эффекты после инициализации квестов
+  applyEffects();
 }
 
 function renderQuests() {
@@ -2246,9 +2252,6 @@ function loadGame() {
       } else {
         initQuests();
       }
-      
-      // Применяем визуальные эффекты
-      applyEffects();
     } catch (e) {
       console.error('Error loading save:', e);
       initQuests();
@@ -2353,13 +2356,21 @@ function loadSettings() {
 }
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+let effectsApplied = false;  // Флаг чтобы не применять эффекты дважды
+
 document.addEventListener('DOMContentLoaded', () => {
   initDOM();
   initAudio();
   loadGame();
   loadSettings();
   updateUI();
-  applyEffects();  // Применяем визуальные эффекты после загрузки
+  
+  // Применяем эффекты только если ещё не применяли
+  if (!effectsApplied) {
+    applyEffects();
+    effectsApplied = true;
+  }
+  
   connectWebSocket();
   
   // Обновление при изменении имени
