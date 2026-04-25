@@ -2646,13 +2646,6 @@ function loadSettings() {
   }
 }
 
-  const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
-  setBg(bgClass, bgBtn);
-
-  // Визуальные эффекты (чекбоксы + общий тумблер)
-  syncEffectsTogglesUI();
-
-
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 let effectsApplied = false;  // Флаг чтобы не применять эффекты дважды
 
