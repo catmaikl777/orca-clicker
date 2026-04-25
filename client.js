@@ -1195,20 +1195,37 @@ function checkQuests() {
 }
 
 // ==================== ЭФФЕКТЫ ====================
-// Применение визуальных эффектов
-function applyEffects() {
-  const clicker = document.getElementById('clicker');
-  if (!clicker || !game.effects) return;
+function renderEffects() {
+  // Инициализация если нет
+  if (!game.effects) game.effects = {};
   
-  // Сброс всех эффектов
-  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
-  clicker.style.removeProperty('--rainbow-gradient');
-  
-  // Золотой клик (e1)
-  if (game.effects['e1']) {
-    clicker.classList.add('effect-gold');
+  // Используем контейнер магазина
+  const container = document.getElementById('shopEffects');
+  if (!container) {
+    console.error('Контейнер #shopEffects не найден!');
+    return;
   }
+  container.innerHTML = '';
   
+  effectsData.forEach(effect => {
+    const bought = !!game.effects[effect.id];
+    const canAfford = game.coins >= effect.cost;
+    const div = document.createElement('div');
+    div.className = `effect-item ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
+    div.innerHTML = `
+      <div class="effect-icon">${effect.icon}</div>
+      <div class="effect-info">
+        <h4>${effect.name}</h4>
+        <p>${effect.desc}</p>
+      </div>
+      <div class="effect-price">${bought ? '✅' : formatNumber(effect.cost)}</div>
+    `;
+    // Всегда добавляем onclick, проверяем внутри
+    div.onclick = () => buyEffect(effect);
+    container.appendChild(div);
+  });
+}
+
   // Неоновый свет (e2)
   if (game.effects['e2']) {
     clicker.classList.add('effect-neon');
@@ -1223,7 +1240,7 @@ function applyEffects() {
   if (game.effects['e6']) {
     clicker.classList.add('effect-fire');
   }
-}
+
 
 // Создание частиц звёзд (e4)
 function createStarParticles(x, y) {
@@ -1953,7 +1970,6 @@ function showModal(id) {
   
   if (id === 'shop') { renderShop(); renderBoxes(); switchShopTab('upgrades', document.querySelector('.shop-tab.active')); }
   if (id === 'quests') renderQuests();
-  if (id === 'effects') { renderEffects(); showModal('shop'); switchShopTab('effects', null); }
   if (id === 'achievements') renderAchievements();
   if (id === 'stats') updateStats();
   if (id === 'leaderboard' && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getLeaderboard' }));
