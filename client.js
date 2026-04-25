@@ -212,6 +212,10 @@ const MAX_CLICKS_PER_SEC = 50; // Максимум 50 кликов в секун
 let lastClickTime = 0;
 let clicksThisSecond = 0;
 
+// КРИТИЧНО: флаг чтобы не перезаписывать прогресс от сервера после локальной загрузки
+let dataLoadedFromStorage = false;
+let serverDataTimestamp = 0;
+
 // ==================== АНТИ-ОВЕРЛЕЙ / ФОКУС ====================
 let windowFocused = document.hasFocus();
 let pageVisible = document.visibilityState === 'visible';
@@ -357,59 +361,56 @@ function handleServerMessage(data) {
     
     // Загружаем сохраненные данные игрока если есть
     if (data.data) {
-      const d = data.data;
-      game.coins = d.coins || 0;
-      game.totalCoins = d.totalCoins || 0;
-      game.level = d.level || 1;
-      // Загружаем БАЗОВЫЕ значения апгрейдов (множители навыков применяются отдельно)
-      // basePerClick/basePerSecond = сумма апгрейдов из магазина (без базового 1/0)
-      game.basePerClick = d.basePerClick ?? d.perClick ?? 0; // 0 если апгрейдов нет
-      game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
-      // Валидация basePerSecond
-      if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
-        console.warn(`WARNING: Invalid basePerSecond from server: ${game.basePerSecond}, using 0`);
-        game.basePerSecond = 0;
-      }
-      game.clicks = d.clicks || 0;
-      game.effects = d.effects || {};
-      game.achievements = d.achievements || [];
-      game.skins = d.skins || { normal: true };
-      game.currentSkin = d.currentSkin || 'normal';
-      game.playTime = d.playTime || 0;
-      // Сброс и валидация множителя
-      game.multiplier = (Number.isFinite(d.multiplier) && d.multiplier > 0) ? Math.min(d.multiplier, 10) : 1;
-      
-      // Боксы
-      if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
-      
-      // Цены улучшений - загружаем ТОЛЬКО если есть shopItems от сервера
-      if (d.shopItems && Array.isArray(d.shopItems)) {
-        d.shopItems.forEach(saved => {
-          const item = shopItems.find(i => i.id === saved.id);
-          if (item) item.cost = saved.cost;
-        });
-        console.log('🛒 Цены загружены с сервера:', d.shopItems);
+      // КРИТИЧНО: если данные уже загружены из localStorage, не перезаписываем их старыми данными с сервера
+      if (dataLoadedFromStorage) {
+        console.log(`🛡️ Данные уже загружены из localStorage, игнорируем старые данные с сервера`);
+        console.log(`   Сервер: coins=${data.data.coins}, localStorage: coins=${game.coins}`);
+        console.log(`   Сервер: basePerClick=${data.data.basePerClick}, localStorage: basePerClick=${game.basePerClick}`);
+        console.log(`   Сервер: basePerSecond=${data.data.basePerSecond}, localStorage: basePerSecond=${game.basePerSecond}`);
+        
+        // НЕ перезаписываем данные - оставляем локальные
       } else {
-        console.log('🛒 Новый аккаунт - используются дефолтные цены');
+        const d = data.data;
+        game.coins = d.coins || 0;
+        game.totalCoins = d.totalCoins || 0;
+        game.level = d.level || 1;
+        game.basePerClick = d.basePerClick ?? d.perClick ?? 0;
+        game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
+        if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
+          console.warn(`WARNING: Invalid basePerSecond from server: ${game.basePerSecond}, using 0`);
+          game.basePerSecond = 0;
+        }
+        game.clicks = d.clicks || 0;
+        game.effects = d.effects || {};
+        game.achievements = d.achievements || [];
+        game.skins = d.skins || { normal: true };
+        game.currentSkin = d.currentSkin || 'normal';
+        game.playTime = d.playTime || 0;
+        game.multiplier = (Number.isFinite(d.multiplier) && d.multiplier > 0) ? Math.min(d.multiplier, 10) : 1;
+        
+        if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
+        
+        if (d.shopItems && Array.isArray(d.shopItems)) {
+          d.shopItems.forEach(saved => {
+            const item = shopItems.find(i => i.id === saved.id);
+            if (item) item.cost = saved.cost;
+          });
+          console.log('🛒 Цены загружены с сервера:', d.shopItems);
+        }
+        
+        if (d.questProgress) {
+          game.quests = questsData.map(q => {
+            const saved = d.questProgress.find(p => p.id === q.id);
+            return { ...q, completed: saved ? saved.completed : false };
+          });
+        } else {
+          initQuests();
+        }
+        
+        if (data.eventCoins) eventCoins = data.eventCoins;
+        
+        console.log(`🎮 Данные загружены с сервера: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
       }
-      
-      // Прогресс квестов
-      if (d.questProgress) {
-        game.quests = questsData.map(q => {
-          const saved = d.questProgress.find(p => p.id === q.id);
-          return { ...q, completed: saved ? saved.completed : false };
-        });
-      } else {
-        initQuests();
-      }
-      
-      // Билеты ивента
-      if (data.eventCoins) eventCoins = data.eventCoins;
-      
-      // Лог для отладки
-      console.log(`🎮 Данные загружены: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
-      
-      // Эффекты загружены, они применяются визуально
     }
     
     playerId = data.accountId;
@@ -458,28 +459,29 @@ function handleServerMessage(data) {
     case 'registered':
       playerId = data.playerId;
       console.log('Зарегистрирован:', playerId);
-      if (data.data) {
+      
+      // КРИТИЧНО: если данные уже загружены из localStorage, не перезаписываем их
+      if (dataLoadedFromStorage) {
+        console.log(`🛡️ Гость: данные уже загружены из localStorage, игнорируем сервер`);
+      } else if (data.data) {
         const oldCoins = game.coins;
         game.coins = data.data.coins || 0;
         game.totalCoins = data.data.totalCoins || 0;
         game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 0;
         game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
-        // Валидация basePerSecond
         if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
           console.warn(`WARNING: Invalid basePerSecond (guest): ${game.basePerSecond}, using 0`);
           game.basePerSecond = 0;
         }
         game.clicks = data.data.clicks || 0;
         game.effects = data.data.effects || {};
-        game.skills = data.data.skills || {}; // Загружаем навыки
+        game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
         eventCoins = data.eventCoins || 0;
         
-        // Лог для отладки
         console.log(`🎮 Гость: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
         
-        // Показываем уведомление если монеты изменились (награды ивента)
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
           playSound('bonusSound');
@@ -488,7 +490,7 @@ function handleServerMessage(data) {
         updateUI();
         renderShop();
         renderBoxes();
-        applyEffects();  // Применяем эффекты для гостя
+        applyEffects();
       }
       break;
     case 'eventInfo':
@@ -2535,6 +2537,11 @@ function loadGame() {
         console.warn(`WARNING: Invalid multiplier from localStorage: ${data.multiplier}, using 1`);
         game.multiplier = 1;
       }
+      
+      // КРИТИЧНО: помечаем что данные загружены из localStorage
+      dataLoadedFromStorage = true;
+      serverDataTimestamp = Date.now();
+      console.log(`💾 Данные загружены из localStorage: coins=${game.coins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
       
       // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
       
