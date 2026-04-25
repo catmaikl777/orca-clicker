@@ -310,6 +310,11 @@ function handleServerMessage(data) {
       // basePerClick/basePerSecond = сумма апгрейдов из магазина (без базового 1/0)
       game.basePerClick = d.basePerClick ?? d.perClick ?? 0; // 0 если апгрейдов нет
       game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
+      // Валидация basePerSecond
+      if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
+        console.warn(`WARNING: Invalid basePerSecond from server: ${game.basePerSecond}, using 0`);
+        game.basePerSecond = 0;
+      }
       game.clicks = d.clicks || 0;
       game.effects = d.effects || {};
       game.achievements = d.achievements || [];
@@ -403,6 +408,11 @@ function handleServerMessage(data) {
         game.totalCoins = data.data.totalCoins || 0;
         game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 0;
         game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
+        // Валидация basePerSecond
+        if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
+          console.warn(`WARNING: Invalid basePerSecond (guest): ${game.basePerSecond}, using 0`);
+          game.basePerSecond = 0;
+        }
         game.clicks = data.data.clicks || 0;
         game.effects = data.data.effects || {};
         game.skills = data.data.skills || {}; // Загружаем навыки
@@ -565,9 +575,11 @@ function handleServerMessage(data) {
       showBoxReward(data.reward);
       if (data.reward.type === 'skin') {
         game.skins[data.reward.skinId] = true;
-      } else {
+      } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
         game.coins += data.reward.amount;
         game.totalCoins += data.reward.amount;
+      } else {
+        console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
       if (data.pendingBoxes !== undefined) {
         pendingBoxes = new Array(data.pendingBoxes).fill(null).map((_, i) => `box_${i}`);
@@ -578,9 +590,27 @@ function handleServerMessage(data) {
       break;
     case 'itemBought':
       // Сервер подтвердил покупку предмета
-      if (data.coins !== undefined) game.coins = data.coins;
-      if (data.perClick !== undefined) game.basePerClick = data.perClick;
-      if (data.perSecond !== undefined) game.basePerSecond = data.perSecond;
+      if (data.coins !== undefined) {
+        if (Number.isFinite(data.coins) && data.coins >= 0) {
+          game.coins = data.coins;
+        } else {
+          console.warn(`WARNING: Invalid coins from server: ${data.coins}`);
+        }
+      }
+      if (data.perClick !== undefined) {
+        if (Number.isFinite(data.perClick) && data.perClick >= 0) {
+          game.basePerClick = data.perClick;
+        } else {
+          console.warn(`WARNING: Invalid perClick from server: ${data.perClick}`);
+        }
+      }
+      if (data.perSecond !== undefined) {
+        if (Number.isFinite(data.perSecond) && data.perSecond >= 0) {
+          game.basePerSecond = data.perSecond;
+        } else {
+          console.warn(`WARNING: Invalid perSecond from server: ${data.perSecond}`);
+        }
+      }
       if (data.itemCost !== undefined) {
         const item = shopItems.find(i => i.id === data.itemId);
         if (item) item.cost = data.itemCost;
@@ -726,15 +756,35 @@ function setupAutoClickInterval() {
     
     const perSecond = getPerSecond();
     if (perSecond > 0) {
+      // Валидация перед расчетом
+      if (!Number.isFinite(perSecond) || !Number.isFinite(game.multiplier)) {
+        console.error('ERROR: perSecond or multiplier are invalid!', { perSecond, multiplier: game.multiplier });
+        return;
+      }
+      
       const oldCoins = game.coins;
       // multiplier применяется только к монетам, не к basePerSecond
       const earned = perSecond * game.multiplier;
+      
+      // Проверка что результат не NaN и не Infinity
+      if (!Number.isFinite(earned)) {
+        console.error('CRITICAL ERROR: earned is NaN or Infinity!', { perSecond, multiplier: game.multiplier, earned });
+        return;
+      }
+      
       game.coins += earned;
       game.totalCoins += earned;
       
+      // КРИТИЧЕСКАЯ проверка: если монеты начали расти в научной нотации - сбрасываем
+      if (game.coins > 1e30 || !Number.isFinite(game.coins)) {
+        console.error('CRITICAL ERROR: coins exceeded limits!', game.coins);
+        game.coins = oldCoins;  // Откатываем последние изменения
+        return;
+      }
+      
       // Лог для отладки если монеты растут слишком быстро
       if (perSecond > 10000) {
-        console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${earned.toFixed(0)}, intervals: ${autoClickIntervalCount}`);
+        console.warn(`WARNING: High perSecond: ${perSecond}, multiplier: ${game.multiplier}, earned: ${earned.toFixed(0)}, intervals: ${autoClickIntervalCount}`);
       }
       
       updateUI();
@@ -806,6 +856,12 @@ function handleClick(e) {
   
   let earned = perClick * game.multiplier;
   let isCrit = false;
+  
+  // Проверка что earned не стал NaN или Infinity
+  if (!Number.isFinite(earned)) {
+    console.error('ERROR: earned from click is invalid!', { perClick, multiplier: game.multiplier, earned });
+    return;
+  }
   
   // Критический удар удалён - теперь это просто рандомный крит без навыков
   
@@ -905,6 +961,13 @@ function handleBonusClick() {
   // Обычный сундук - даёт perClick * 15
   const perClick = getPerClick();
   const bonusValue = perClick * 15;
+  
+  // Валидация
+  if (!Number.isFinite(bonusValue)) {
+    console.warn(`WARNING: Invalid bonus value: ${bonusValue}`);
+    return;
+  }
+  
   game.coins += bonusValue;
   game.totalCoins += bonusValue;
   showFloatingText(
@@ -924,6 +987,13 @@ function handleFishBonusClick() {
   const perClick = getPerClick();
   // Рыбка умножает perSecond/perClick, но не применяет game.multiplier
   const fishValue = Math.max(perSecond * 30, perClick * 10);
+  
+  // Валидация
+  if (!Number.isFinite(fishValue)) {
+    console.warn(`WARNING: Invalid fish value: ${fishValue}`);
+    return;
+  }
+  
   game.coins += fishValue;
   game.totalCoins += fishValue;
   showFloatingText(
@@ -1013,6 +1083,12 @@ function updateSkin() {
 }
 
 function formatNumber(num) {
+  // Защита от NaN и Infinity
+  if (!Number.isFinite(num)) {
+    console.warn(`WARNING: formatNumber received invalid value: ${num}`);
+    return '0';
+  }
+  
   if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -1202,8 +1278,16 @@ function checkQuests() {
   game.quests.forEach(quest => {
     if (!quest.completed && getQuestProgress(quest) >= quest.target) {
       quest.completed = true;
-      game.coins += quest.reward;
-      showNotification(`🎉 Квест выполнен: ${quest.name}! +${formatNumber(quest.reward)}`);
+      
+      // Валидация награды
+      if (Number.isFinite(quest.reward) && quest.reward >= 0) {
+        game.coins += quest.reward;
+        showNotification(`🎉 Квест выполнен: ${quest.name}! +${formatNumber(quest.reward)}`);
+      } else {
+        console.warn(`WARNING: Invalid quest reward: ${quest.reward}`);
+        showNotification(`🎉 Квест выполнен: ${quest.name}!`);
+      }
+      
       playSound('bonusSound');
       renderQuests();
     }
@@ -1789,8 +1873,13 @@ function endBattleUI(data) {
     showNotification(`😅 Поражение! +${data.prize} косаток`);
   }
   
-  game.coins += data.prize;
-  game.totalCoins += data.prize;
+  // Валидация призов
+  if (Number.isFinite(data.prize) && data.prize >= 0) {
+    game.coins += data.prize;
+    game.totalCoins += data.prize;
+  } else {
+    console.warn(`WARNING: Invalid prize from server: ${data.prize}`);
+  }
   updateUI();
   saveGame();
   
@@ -2342,13 +2431,24 @@ function loadGame() {
       game.level = data.level || 1;
       game.basePerClick = data.basePerClick || data.perClick || 0;
       game.basePerSecond = data.basePerSecond || data.perSecond || 0;
+      // Валидация basePerSecond
+      if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
+        console.warn(`WARNING: Invalid basePerSecond from localStorage: ${game.basePerSecond}, using 0`);
+        game.basePerSecond = 0;
+      }
       game.clicks = data.clicks || 0;
       game.effects = data.effects || {};
       game.achievements = data.achievements || [];
       game.skins = data.skins || {};
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
-      game.multiplier = data.multiplier || 1;
+      // Валидация multiplier
+      if (Number.isFinite(data.multiplier) && data.multiplier > 0 && data.multiplier < 1000) {
+        game.multiplier = data.multiplier;
+      } else {
+        console.warn(`WARNING: Invalid multiplier from localStorage: ${data.multiplier}, using 1`);
+        game.multiplier = 1;
+      }
       
       // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
       
