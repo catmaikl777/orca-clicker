@@ -117,45 +117,15 @@ const achievementsData = [
   { id: 'a6', name: 'Пассивный доход', desc: 'Достигните 1000/сек', icon: '📈' }
 ];
 
-// Эффекты (визуальные изменения) - сохраняются как в магазине
+// Эффекты (визуальные изменения + бонусы) - сохраняются как в магазине
 const effectsData = [
-  { id: 'e1', name: 'Золотой клик', desc: 'Кликеры становятся золотыми', cost: 500, icon: '✨' },
-  { id: 'e2', name: 'Неоновый свет', desc: 'Косатка светится неоновым светом', cost: 1000, icon: '💡' },
-  { id: 'e3', name: 'Радужный след', desc: 'За косаткой остаётся радужный след', cost: 2000, icon: '🌈' },
-  { id: 'e4', name: 'Частицы звёзд', desc: 'При клике вылетают звёздные частицы', cost: 3000, icon: '⭐' },
-  { id: 'e5', name: 'Эффект волны', desc: 'При клике идёт волновая анимация', cost: 1500, icon: '🌊' },
-  { id: 'e6', name: 'Огненное сияние', desc: 'Косатка окутана огненным сиянием', cost: 2500, icon: '🔥' }
+  { id: 'e1', name: 'Золотой клик', desc: '+2x к клику, золотое свечение', cost: 500, icon: '✨', bonus: { type: 'click', mult: 2 } },
+  { id: 'e2', name: 'Неоновый свет', desc: '+50% к авто-доходу, неоновое свечение', cost: 1000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
+  { id: 'e3', name: 'Радужный след', desc: '+3x к клику, радужный эффект', cost: 2000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
+  { id: 'e4', name: 'Частицы звёзд', desc: '+100% к авто-доходу, звёздные частицы', cost: 3000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
+  { id: 'e5', name: 'Эффект волны', desc: '+5x к клику, волновая анимация', cost: 1500, icon: '🌊', bonus: { type: 'click', mult: 5 } },
+  { id: 'e6', name: 'Огненное сияние', desc: '+10x к клику, огненное свечение', cost: 2500, icon: '🔥', bonus: { type: 'click', mult: 10 } }
 ];
-
-// Применение визуальных эффектов
-function applyEffects() {
-  const clicker = document.getElementById('clicker');
-  if (!clicker || !game.effects) return;
-  
-  // Сброс всех эффектов
-  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
-  clicker.style.removeProperty('--rainbow-gradient');
-  
-  // Золотой клик (e1)
-  if (game.effects['e1']) {
-    clicker.classList.add('effect-gold');
-  }
-  
-  // Неоновый свет (e2)
-  if (game.effects['e2']) {
-    clicker.classList.add('effect-neon');
-  }
-  
-  // Радужный след (e3)
-  if (game.effects['e3']) {
-    clicker.style.setProperty('--rainbow-gradient', 'linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000)');
-  }
-  
-  // Огненное сияние (e6)
-  if (game.effects['e6']) {
-    clicker.classList.add('effect-fire');
-  }
-}
 
 // Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
@@ -2389,6 +2359,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadGame();
   loadSettings();
   updateUI();
+  applyEffects();  // Применяем визуальные эффекты после загрузки
   connectWebSocket();
   
   // Обновление при изменении имени
