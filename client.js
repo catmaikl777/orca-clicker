@@ -966,7 +966,16 @@ function updateSkin() {
     orcaImg.src = skin.image;
     orcaImg.style.display = 'block';
     if (orcaEmoji) orcaEmoji.style.display = 'none';
+    
+    // Сохраняем классы эффектов перед обновлением
+    const existingClasses = Array.from(clicker.classList).filter(cls => 
+      cls.startsWith('effect-')
+    );
+    
+    // Сбрасываем и добавляем скин + сохранённые эффекты
     clicker.className = `clicker skin-${skin.id}`;
+    existingClasses.forEach(cls => clicker.classList.add(cls));
+    
   } else {
     console.log(`⚠️ updateSkin: skin=${!!skin}, orcaImg=${!!orcaImg}, currentSkin=${game.currentSkin}`);
   }
