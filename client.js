@@ -132,9 +132,13 @@ function getPerClick() {
   return (1 + (game.basePerClick || 0));
 }
 
-// Расчет perSecond (без навыков - только апгрейды из магазина)
+// Расчет perSecond (применяем множители навыков s3 и s6)
 function getPerSecond() {
-  return (game.basePerSecond || 0);
+  let base = (game.basePerSecond || 0);
+  // Применяем множители навыков
+  if (game.skills?.['s3']) base *= 2;  // s3 - Авто-эффективность: 2x
+  if (game.skills?.['s6']) base *= 5;  // s6 - Бизнес-косатка: 5x
+  return base;
 }
 
 // ==================== WEBSOCKET ====================
@@ -193,6 +197,9 @@ const WS_SERVER_URL = (() => {
 })();
 
 function connectWebSocket() {
+  // Очищаем старые интервалы перед подключением (защита от дублирования)
+  cleanupIntervals();
+  
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
   ws = new WebSocket(WS_SERVER_URL);
   window.ws = ws;
@@ -243,6 +250,9 @@ function connectWebSocket() {
   ws.onclose = () => {
     console.log('⚠️ Отключено от сервера, переподключение...');
     wsConnected = false;
+    
+    // КРИТИЧНО: очищаем интервалы перед переподключением чтобы избежать дублирования
+    cleanupIntervals();
     
     // Обновляем UI лобби если открыто
     const container = document.getElementById('battleLobbyList');
@@ -303,6 +313,7 @@ function handleServerMessage(data) {
       game.clicks = d.clicks || 0;
       game.effects = d.effects || {};
       game.achievements = d.achievements || [];
+      game.skills = d.skills || {}; // ВАЖНО: загружаем навыки для расчета множителей
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
@@ -354,12 +365,8 @@ function handleServerMessage(data) {
     // Применяем визуальные эффекты после загрузки данных
     applyEffects();
     
-    // ВРЕМЕННЫЙ КОД ДЛЯ ТЕСТИРОВАНИЯ: автоматически включаем радужный эффект
-    if (!game.effects) game.effects = {};
-    game.effects['e3'] = true;
-    localStorage.setItem('effect_e3_enabled', 'true');
-    applyEffects();
-    syncEffectsTogglesUI();
+    // КРИТИЧНО: пересоздаем интервал автодохода при каждом логине
+    setupAutoClickInterval();
     
     console.log('🎮 Игровые данные загружены');
     
@@ -398,6 +405,7 @@ function handleServerMessage(data) {
         game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
         game.clicks = data.data.clicks || 0;
         game.effects = data.data.effects || {};
+        game.skills = data.data.skills || {}; // Загружаем навыки
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
         eventCoins = data.eventCoins || 0;
@@ -699,33 +707,48 @@ function deactivateX2Multiplier() {
   saveGame();
 }
   
-// Автокликер - используем getPerSecond() для расчета с учётом навыков
-let lastAutoClickTime = 0;
-autoClickInterval = setInterval(() => {
-  const now = Date.now();
-  // Защита от дублирования интервалов
-  if (now - lastAutoClickTime < 900) return; // минимум 900мс между вызовами
-  lastAutoClickTime = now;
-  
-  const perSecond = getPerSecond();
-  if (perSecond > 0) {
-    const oldCoins = game.coins;
-    // multiplier применяется только к монетам, не к basePerSecond
-    const earned = perSecond * game.multiplier;
-    game.coins += earned;
-    game.totalCoins += earned;
-    
-    // Лог для отладки если монеты растут слишком быстро
-    if (perSecond > 10000) {
-      console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${earned.toFixed(0)}`);
-    }
-    
-    updateUI();
-    checkQuests();
-    // фиксируем автодоход "в реальном времени" (сервер), локалку не спамим
-    scheduleServerSave();
+// Функция для установки автокликера (может быть вызвана несколько раз)
+function setupAutoClickInterval() {
+  // Сначала очищаем старый интервал если есть
+  if (autoClickInterval) {
+    clearInterval(autoClickInterval);
   }
-}, 1000);
+  
+  lastAutoClickTime = 0;
+  autoClickIntervalCount = 0;
+  
+  autoClickInterval = setInterval(() => {
+    autoClickIntervalCount++;
+    const now = Date.now();
+    // Защита от дублирования интервалов
+    if (now - lastAutoClickTime < 900) return; // минимум 900мс между вызовами
+    lastAutoClickTime = now;
+    
+    const perSecond = getPerSecond();
+    if (perSecond > 0) {
+      const oldCoins = game.coins;
+      // multiplier применяется только к монетам, не к basePerSecond
+      const earned = perSecond * game.multiplier;
+      game.coins += earned;
+      game.totalCoins += earned;
+      
+      // Лог для отладки если монеты растут слишком быстро
+      if (perSecond > 10000) {
+        console.warn(`⚠️ Высокий perSecond: ${perSecond}, multiplier: ${game.multiplier}, добавлено: ${earned.toFixed(0)}, intervals: ${autoClickIntervalCount}`);
+      }
+      
+      updateUI();
+      checkQuests();
+      // фиксируем автодоход "в реальном времени" (сервер), локалку не спамим
+      scheduleServerSave();
+    }
+  }, 1000);
+  
+  console.log('✅ Интервал автодохода установлен');
+}
+
+// Инициализируем интервал на старте
+setupAutoClickInterval();
 
 // Счётчик времени в игре
 setInterval(() => {
@@ -755,8 +778,9 @@ function cleanupIntervals() {
   if (autoClickInterval) {
     clearInterval(autoClickInterval);
     autoClickInterval = null;
+    console.log(`🧹 Интервал автодохода очищен (было вызвано ${autoClickIntervalCount} раз)`);
+    autoClickIntervalCount = 0;
   }
-  console.log('🧹 Интервалы очищены');
 }
 
 // Обработчик клика по косатке
