@@ -800,13 +800,13 @@ function handleClick(e) {
   }, 100);
   
   // Частицы звёзд (e4)
-  if (game.effects && game.effects['e4']) {
+  if (game.effects && game.effects['e4'] && isEffectEnabled('e4')) {
     createStarParticles(x, y);
   }
   
   // Волновой эффект (e5)
-  if (game.effects && game.effects['e5']) {
-    createWaveEffect(clicker);
+  if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) {
+    createWaveEffect(e);
   }
   
   // Обновление UI
@@ -1189,24 +1189,96 @@ function applyEffects() {
   clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
   clicker.style.removeProperty('--rainbow-gradient');
   
+  // Проверяем включены ли отдельные эффекты
+  const e1Enabled = isEffectEnabled('e1');
+  const e2Enabled = isEffectEnabled('e2');
+  const e3Enabled = isEffectEnabled('e3');
+  const e6Enabled = isEffectEnabled('e6');
+  
   // Золотой клик (e1)
-  if (game.effects['e1']) {
+  if (game.effects['e1'] && e1Enabled) {
     clicker.classList.add('effect-gold');
   }
   
   // Неоновый свет (e2)
-  if (game.effects['e2']) {
+  if (game.effects['e2'] && e2Enabled) {
     clicker.classList.add('effect-neon');
   }
   
   // Радужный след (e3)
-  if (game.effects['e3']) {
-    clicker.style.setProperty('--rainbow-gradient', 'linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000)');
+  if (game.effects['e3'] && e3Enabled) {
+    clicker.classList.add('effect-rainbow');
   }
   
   // Огненное сияние (e6)
-  if (game.effects['e6']) {
+  if (game.effects['e6'] && e6Enabled) {
     clicker.classList.add('effect-fire');
+  }
+}
+
+function getEffectName(effectId) {
+  const effectNames = {
+    e1: 'Золотой клик',
+    e2: 'Неоновый свет',
+    e3: 'Радужный след',
+    e4: 'Частицы звёзд',
+    e5: 'Волновой эффект',
+    e6: 'Огненное сияние'
+  };
+  return effectNames[effectId] || effectId;
+}
+
+function isEffectEnabled(effectId) {
+  return localStorage.getItem(`effect_${effectId}_enabled`) !== 'false';
+}
+
+function syncEffectsTogglesUI() {
+  const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+
+  ids.forEach(id => {
+    const enabled = isEffectEnabled(id);
+    const onBtn = document.querySelector(`.effect-toggle-btn[data-effect-id="${id}"][data-effect-enabled="true"]`);
+    const offBtn = document.querySelector(`.effect-toggle-btn[data-effect-id="${id}"][data-effect-enabled="false"]`);
+    if (onBtn) onBtn.classList.toggle('is-active', enabled);
+    if (offBtn) offBtn.classList.toggle('is-active', !enabled);
+  });
+
+  const master = document.getElementById('effectsToggle');
+  if (master) {
+    const states = ids.map(id => isEffectEnabled(id));
+    const allOn = states.every(Boolean);
+    const allOff = states.every(v => !v);
+    master.indeterminate = !allOn && !allOff;
+    master.checked = allOn;
+  }
+}
+
+// Включение/выключение отдельного эффекта (по состоянию чекбокса)
+function setEffectEnabled(effectId, enabled) {
+  localStorage.setItem(`effect_${effectId}_enabled`, enabled ? 'true' : 'false');
+  syncEffectsTogglesUI();
+  applyEffects();
+  if (enabled) showNotification(`✨ ${getEffectName(effectId)} включен`);
+  else showNotification(`🔇 ${getEffectName(effectId)} отключен`);
+}
+
+function toggleEffectsSettings() {
+  const toggle = document.getElementById('effectsToggle');
+  if (!toggle) return;
+  
+  // Включаем/выключаем все эффекты сразу
+  const enabled = toggle.checked;
+  ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].forEach(id => {
+    localStorage.setItem(`effect_${id}_enabled`, enabled ? 'true' : 'false');
+  });
+  
+  syncEffectsTogglesUI();
+  applyEffects();
+  
+  if (enabled) {
+    showNotification('✨ Все визуальные эффекты включены');
+  } else {
+    showNotification('🔇 Все визуальные эффекты отключены');
   }
 }
 
@@ -1225,12 +1297,15 @@ function createStarParticles(x, y) {
 }
 
 // Создание волнового эффекта (e5)
-function createWaveEffect(element) {
-  const rect = element.getBoundingClientRect();
+function createWaveEffect(e) {
+  // Используем координаты клика
+  const x = e.clientX || window.innerWidth / 2;
+  const y = e.clientY || window.innerHeight / 2;
+  
   const wave = document.createElement('div');
   wave.className = 'wave-particle';
-  wave.style.left = (rect.left + rect.width / 2 - 100) + 'px';
-  wave.style.top = (rect.top + rect.height / 2 - 100) + 'px';
+  wave.style.left = x + 'px';
+  wave.style.top = y + 'px';
   document.body.appendChild(wave);
   setTimeout(() => wave.remove(), 800);
 }
@@ -1295,7 +1370,7 @@ function buyEffect(effect) {
     showNotification('⚠️ Недостаточно монет!');
   }
 }
-  
+
 // ==================== ДОСТИЖЕНИЯ ====================
 function renderAchievements() {
   const container = document.getElementById('achievementList');
@@ -2362,6 +2437,9 @@ function loadSettings() {
   
   const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
   setBg(bgClass, bgBtn);
+
+  // Визуальные эффекты (чекбоксы + общий тумблер)
+  syncEffectsTogglesUI();
 }
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================

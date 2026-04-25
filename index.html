@@ -384,6 +384,60 @@
         </label>
       </div>
       <div class="settings-section">
+        <h3>✨ Визуальные эффекты</h3>
+        <label class="toggle">
+          <input type="checkbox" id="effectsToggle" checked onchange="toggleEffectsSettings()">
+          <span>🎨 Включить все эффекты</span>
+        </label>
+        <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:10px;">
+          <p style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:8px;">Индивидуальные настройки:</p>
+          <div class="effect-toggle-list">
+            <div class="effect-toggle-row" data-effect-id="e1">
+              <span class="effect-toggle-label">✨ Золотой клик</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Золотой клик">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e1" data-effect-enabled="true" onclick="setEffectEnabled('e1', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e1" data-effect-enabled="false" onclick="setEffectEnabled('e1', false)">Выкл</button>
+              </div>
+            </div>
+            <div class="effect-toggle-row" data-effect-id="e2">
+              <span class="effect-toggle-label">💡 Неоновый свет</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Неоновый свет">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e2" data-effect-enabled="true" onclick="setEffectEnabled('e2', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e2" data-effect-enabled="false" onclick="setEffectEnabled('e2', false)">Выкл</button>
+              </div>
+            </div>
+            <div class="effect-toggle-row" data-effect-id="e3">
+              <span class="effect-toggle-label">🌈 Радужный след</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Радужный след">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e3" data-effect-enabled="true" onclick="setEffectEnabled('e3', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e3" data-effect-enabled="false" onclick="setEffectEnabled('e3', false)">Выкл</button>
+              </div>
+            </div>
+            <div class="effect-toggle-row" data-effect-id="e4">
+              <span class="effect-toggle-label">⭐ Частицы звёзд</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Частицы звёзд">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e4" data-effect-enabled="true" onclick="setEffectEnabled('e4', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e4" data-effect-enabled="false" onclick="setEffectEnabled('e4', false)">Выкл</button>
+              </div>
+            </div>
+            <div class="effect-toggle-row" data-effect-id="e5">
+              <span class="effect-toggle-label">🌊 Волновой эффект</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Волновой эффект">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e5" data-effect-enabled="true" onclick="setEffectEnabled('e5', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e5" data-effect-enabled="false" onclick="setEffectEnabled('e5', false)">Выкл</button>
+              </div>
+            </div>
+            <div class="effect-toggle-row" data-effect-id="e6">
+              <span class="effect-toggle-label">🔥 Огненное сияние</span>
+              <div class="effect-toggle-buttons" role="group" aria-label="Огненное сияние">
+                <button type="button" class="effect-toggle-btn" data-effect-id="e6" data-effect-enabled="true" onclick="setEffectEnabled('e6', true)">Вкл</button>
+                <button type="button" class="effect-toggle-btn" data-effect-id="e6" data-effect-enabled="false" onclick="setEffectEnabled('e6', false)">Выкл</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
         <h3>🖼️ Фон</h3>
         <div class="bg-options">
           <button class="bg-btn active" onclick="setBg('bg-ocean', this)">🌊 Океан</button>
