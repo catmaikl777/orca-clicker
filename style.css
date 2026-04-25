@@ -1739,14 +1739,35 @@ body.bg-dark .bg-dark { opacity: 1; }
 /* Радужный след - применяем к самому элементу с высоким приоритетом */
 .clicker.effect-rainbow {
   animation: rainbowRotate 3s linear infinite !important;
+  position: relative;
+}
+
+.clicker.effect-rainbow::before {
+  content: '';
+  position: absolute;
+  inset: -15px;
+  background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
+  background-size: 400%;
+  border-radius: 50%;
+  z-index: -1;
+  opacity: 0.7;
+  animation: rainbowGlow 3s linear infinite;
+  filter: blur(25px);
+  pointer-events: none;
 }
 
 @keyframes rainbowRotate {
-  0% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(0deg) saturate(1.2) brightness(1.1) !important; }
-  25% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(90deg) saturate(1.2) brightness(1.1) !important; }
-  50% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(180deg) saturate(1.2) brightness(1.1) !important; }
-  75% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(270deg) saturate(1.2) brightness(1.1) !important; }
-  100% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(360deg) saturate(1.2) brightness(1.1) !important; }
+  0% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(0deg) saturate(1.3) brightness(1.2) !important; }
+  25% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(90deg) saturate(1.3) brightness(1.2) !important; }
+  50% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(180deg) saturate(1.3) brightness(1.2) !important; }
+  75% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(270deg) saturate(1.3) brightness(1.2) !important; }
+  100% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(360deg) saturate(1.3) brightness(1.2) !important; }
+}
+
+@keyframes rainbowGlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* Огненное сияние */
@@ -2485,7 +2506,7 @@ body.bg-dark .bg-dark { opacity: 1; }
     padding: 9px 12px;
   }
 }
-
+  
 .bg-options {
   display: flex;
   gap: 8px;

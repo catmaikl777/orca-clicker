@@ -129,16 +129,65 @@ const effectsData = [
 
 // Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
-  return (1 + (game.basePerClick || 0));
+  const base = 1 + (game.basePerClick || 0);
+  // Применяем множители эффектов только если они куплены И включены
+  let mult = 1;
+  if (game.effects && game.effects['e1'] && isEffectEnabled('e1')) mult *= 2;   // e1 - Золотой клик 2x
+  if (game.effects && game.effects['e3'] && isEffectEnabled('e3')) mult *= 3;   // e3 - Радужный след 3x
+  if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) mult *= 5;   // e5 - Волновой эффект 5x
+  if (game.effects && game.effects['e6'] && isEffectEnabled('e6')) mult *= 10;  // e6 - Огненное сияние 10x
+  
+  // Ограничение максимального множителя (макс 100x)
+  mult = Math.min(mult, 100);
+  
+  // Защита от переполнения
+  if (!Number.isFinite(base) || !Number.isFinite(mult)) {
+    console.error('ERROR: Invalid base or mult in getPerClick!', { base, mult });
+    return 1;
+  }
+  
+  const result = base * mult;
+  
+  // Дополнительная защита
+  if (!Number.isFinite(result) || result > 1e15) {
+    console.error('CRITICAL: getPerClick result too large!', { base, mult, result });
+    return Math.min(result, 1e15);
+  }
+  
+  return result;
 }
 
-// Расчет perSecond (применяем множители навыков s3 и s6)
+// Расчет perSecond (без навыков - только апгрейды из магазина)
 function getPerSecond() {
   let base = (game.basePerSecond || 0);
-  // Применяем множители навыков
-  if (game.skills?.['s3']) base *= 2;  // s3 - Авто-эффективность: 2x
-  if (game.skills?.['s6']) base *= 5;  // s6 - Бизнес-косатка: 5x
-  return base;
+  // Применяем множители эффектов только если они куплены И включены
+  let mult = 1;
+  if (game.effects && game.effects['e2'] && isEffectEnabled('e2')) mult *= 1.5;  // e2 - Неоновый свет 1.5x
+  if (game.effects && game.effects['e4'] && isEffectEnabled('e4')) mult *= 2;    // e4 - Частицы звёзд 2x
+  
+  // Ограничение максимального множителя (макс 10x)
+  mult = Math.min(mult, 10);
+  
+  // Защита от переполнения
+  if (!Number.isFinite(base) || !Number.isFinite(mult)) {
+    console.error('ERROR: Invalid base or mult in getPerSecond!', { base, mult });
+    return 0;
+  }
+  
+  const result = base * mult;
+  
+  // Дополнительная защита
+  if (!Number.isFinite(result) || result > 1e15) {
+    console.error('CRITICAL: getPerSecond result too large!', { base, mult, result });
+    return Math.min(result, 1e15);
+  }
+  
+  return result;
+}
+
+// Проверка включен ли эффект
+function isEffectEnabled(effectId) {
+  return localStorage.getItem(`effect_${effectId}_enabled`) !== 'false';
 }
 
 // ==================== WEBSOCKET ====================
@@ -318,10 +367,11 @@ function handleServerMessage(data) {
       game.clicks = d.clicks || 0;
       game.effects = d.effects || {};
       game.achievements = d.achievements || [];
-      game.skills = d.skills || {}; // ВАЖНО: загружаем навыки для расчета множителей
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
+      // Сброс и валидация множителя
+      game.multiplier = (Number.isFinite(d.multiplier) && d.multiplier > 0) ? Math.min(d.multiplier, 10) : 1;
       
       // Боксы
       if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
@@ -756,9 +806,17 @@ function setupAutoClickInterval() {
     
     const perSecond = getPerSecond();
     if (perSecond > 0) {
+      // КРИТИЧЕСКИ: сбрасываем multiplier если он стал некорректным
+      if (!Number.isFinite(game.multiplier) || game.multiplier <= 0) {
+        console.warn(`WARNING: Resetting invalid multiplier in autoclick: ${game.multiplier}`);
+        game.multiplier = 1;
+      }
+      // Ограничение максимального множителя (макс x10)
+      game.multiplier = Math.min(game.multiplier, 10);
+      
       // Валидация перед расчетом
-      if (!Number.isFinite(perSecond) || !Number.isFinite(game.multiplier)) {
-        console.error('ERROR: perSecond or multiplier are invalid!', { perSecond, multiplier: game.multiplier });
+      if (!Number.isFinite(perSecond)) {
+        console.error('ERROR: perSecond is invalid!', { perSecond });
         return;
       }
       
@@ -769,6 +827,7 @@ function setupAutoClickInterval() {
       // Проверка что результат не NaN и не Infinity
       if (!Number.isFinite(earned)) {
         console.error('CRITICAL ERROR: earned is NaN or Infinity!', { perSecond, multiplier: game.multiplier, earned });
+        game.multiplier = 1;  // Сброс множителя
         return;
       }
       
@@ -779,6 +838,7 @@ function setupAutoClickInterval() {
       if (game.coins > 1e30 || !Number.isFinite(game.coins)) {
         console.error('CRITICAL ERROR: coins exceeded limits!', game.coins);
         game.coins = oldCoins;  // Откатываем последние изменения
+        game.multiplier = 1;  // Сброс множителя
         return;
       }
       
@@ -833,9 +893,6 @@ function cleanupIntervals() {
   }
 }
 
-// Обработчик клика по косатке
-let lastClickTime = 0;
-let clicksThisSecond = 0;
 function handleClick(e) {
   // Проверка на спам кликами (защита от автокликеров и багов)
   const now = Date.now();
@@ -850,6 +907,14 @@ function handleClick(e) {
     return; // Игнорируем клик если превышен лимит
   }
   
+  // КРИТИЧЕСКИ: сбрасываем multiplier если он стал некорректным
+  if (!Number.isFinite(game.multiplier) || game.multiplier <= 0) {
+    console.warn(`WARNING: Resetting invalid multiplier: ${game.multiplier}`);
+    game.multiplier = 1;
+  }
+  // Ограничение максимального множителя (макс x10)
+  game.multiplier = Math.min(game.multiplier, 10);
+  
   const perClick = getPerClick();
   const critChance = 0.1; // 10% шанс крита
   const critMultiplier = 10;
@@ -860,6 +925,7 @@ function handleClick(e) {
   // Проверка что earned не стал NaN или Infinity
   if (!Number.isFinite(earned)) {
     console.error('ERROR: earned from click is invalid!', { perClick, multiplier: game.multiplier, earned });
+    game.multiplier = 1;  // Сброс множителя
     return;
   }
   
@@ -1083,17 +1149,29 @@ function updateSkin() {
 }
 
 function formatNumber(num) {
-  // Защита от NaN и Infinity
-  if (!Number.isFinite(num)) {
+  if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) {
     console.warn(`WARNING: formatNumber received invalid value: ${num}`);
     return '0';
   }
   
+  // Защита от переполнения
+  if (num > Number.MAX_SAFE_INTEGER) {
+    console.error(`CRITICAL: Number exceeds MAX_SAFE_INTEGER: ${num}`);
+    return '∞';
+  }
+  
+  if (num >= 1000000000000000) return (num / 1000000000000000).toFixed(2) + 'Qa';
+  if (num >= 1000000000000) return (num / 1000000000000).toFixed(2) + 'T';
+  if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
+  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return Math.floor(num).toString();
+}
+
   if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return Math.floor(num).toString();
-}
 
 function showNotification(text) {
   const notif = document.createElement('div');
@@ -1301,20 +1379,30 @@ function applyEffects() {
   if (!clicker || !game.effects) return;
   
   // Сброс всех эффектов
-  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-rainbow', 'effect-fire');
+  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
   clicker.style.removeProperty('--rainbow-gradient');
   
-  // Проверяем включены ли отдельные эффекты
-  const e1Enabled = isEffectEnabled('e1');
-  const e2Enabled = isEffectEnabled('e2');
-  const e3Enabled = isEffectEnabled('e3');
-  const e6Enabled = isEffectEnabled('e6');
-  
   // Золотой клик (e1)
-  if (game.effects['e1'] && e1Enabled) {
+  if (game.effects['e1'] && isEffectEnabled('e1')) {
     clicker.classList.add('effect-gold');
   }
   
+  // Неоновый свет (e2)
+  if (game.effects['e2'] && isEffectEnabled('e2')) {
+    clicker.classList.add('effect-neon');
+  }
+  
+  // Радужный след (e3)
+  if (game.effects['e3'] && isEffectEnabled('e3')) {
+    clicker.classList.add('effect-rainbow');
+  }
+  
+  // Огненное сияние (e6)
+  if (game.effects['e6'] && isEffectEnabled('e6')) {
+    clicker.classList.add('effect-fire');
+  }
+}
+
   // Неоновый свет (e2)
   if (game.effects['e2'] && e2Enabled) {
     clicker.classList.add('effect-neon');
@@ -1329,7 +1417,7 @@ function applyEffects() {
   if (game.effects['e6'] && e6Enabled) {
     clicker.classList.add('effect-fire');
   }
-}
+
 
 function getEffectName(effectId) {
   const effectNames = {
@@ -2442,8 +2530,8 @@ function loadGame() {
       game.skins = data.skins || {};
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
-      // Валидация multiplier
-      if (Number.isFinite(data.multiplier) && data.multiplier > 0 && data.multiplier < 1000) {
+      // Валидация multiplier (максимум x10)
+      if (Number.isFinite(data.multiplier) && data.multiplier > 0 && data.multiplier <= 10) {
         game.multiplier = data.multiplier;
       } else {
         console.warn(`WARNING: Invalid multiplier from localStorage: ${data.multiplier}, using 1`);
@@ -2569,9 +2657,22 @@ function loadSettings() {
   const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
   setBg(bgClass, bgBtn);
 
+  // Загрузка настроек эффектов
+  for (let i = 1; i <= 6; i++) {
+    const effectId = `e${i}`;
+    const toggle = document.getElementById(`effect_${effectId}_toggle`);
+    if (toggle) {
+      toggle.checked = localStorage.getItem(`effect_${effectId}_enabled`) !== 'false';
+    }
+  }
+}
+
+  const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
+  setBg(bgClass, bgBtn);
+
   // Визуальные эффекты (чекбоксы + общий тумблер)
   syncEffectsTogglesUI();
-}
+
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 let effectsApplied = false;  // Флаг чтобы не применять эффекты дважды
