@@ -130,6 +130,7 @@ const effectsData = [
 // Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
   const base = 1 + (game.basePerClick || 0);
+  
   // Применяем множители эффектов только если они куплены И включены
   let mult = 1;
   if (game.effects && game.effects['e1'] && isEffectEnabled('e1')) mult *= 2;   // e1 - Золотой клик 2x
@@ -150,12 +151,33 @@ function getPerClick() {
   
   // Дополнительная защита
   if (!Number.isFinite(result) || result > 1e15) {
-    console.error('CRITICAL: getPerClick result too large!', { base, mult, result });
+    console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick, effects: game.effects });
     return Math.min(result, 1e15);
+  }
+  
+  // Лог для отладки если basePerClick > 0
+  if (game.basePerClick > 0 || result > 100) {
+    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}, effects=${JSON.stringify(game.effects)}`);
   }
   
   return result;
 }
+
+  const result = base * mult;
+  
+  // Дополнительная защита
+  if (!Number.isFinite(result) || result > 1e15) {
+    console.error('CRITICAL: getPerClick result too large!', { base, mult, result });
+    return Math.min(result, 1e15);
+  }
+  
+  // Лог для отладки
+  if (result > 1000) {
+    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}`);
+  }
+  
+  return result;
+
 
 // Расчет perSecond (без навыков - только апгрейды из магазина)
 function getPerSecond() {
@@ -179,7 +201,13 @@ function getPerSecond() {
   // Дополнительная защита
   if (!Number.isFinite(result) || result > 1e15) {
     console.error('CRITICAL: getPerSecond result too large!', { base, mult, result });
+    console.error('CRITICAL: getPerSecond result too large!', { base, mult, result, basePerSecond: game.basePerSecond, effects: game.effects });
     return Math.min(result, 1e15);
+  }
+  
+  // Лог для отладки
+  if (game.basePerSecond > 0 || result > 100) {
+    console.log(`🔍 getPerSecond: base=${base}, mult=${mult}, result=${result}, effects=${JSON.stringify(game.effects)}`);
   }
   
   return result;
@@ -814,14 +842,6 @@ function setupAutoClickInterval() {
     
     const perSecond = getPerSecond();
     if (perSecond > 0) {
-      // КРИТИЧЕСКИ: сбрасываем multiplier если он стал некорректным
-      if (!Number.isFinite(game.multiplier) || game.multiplier <= 0) {
-        console.warn(`WARNING: Resetting invalid multiplier in autoclick: ${game.multiplier}`);
-        game.multiplier = 1;
-      }
-      // Ограничение максимального множителя (макс x10)
-      game.multiplier = Math.min(game.multiplier, 10);
-      
       // Валидация перед расчетом
       if (!Number.isFinite(perSecond)) {
         console.error('ERROR: perSecond is invalid!', { perSecond });
@@ -829,13 +849,12 @@ function setupAutoClickInterval() {
       }
       
       const oldCoins = game.coins;
-      // multiplier применяется только к монетам, не к basePerSecond
-      const earned = perSecond * game.multiplier;
+      // multiplier НЕ применяется - множители эффектов уже внутри getPerSecond()
+      const earned = perSecond;
       
       // Проверка что результат не NaN и не Infinity
       if (!Number.isFinite(earned)) {
-        console.error('CRITICAL ERROR: earned is NaN or Infinity!', { perSecond, multiplier: game.multiplier, earned });
-        game.multiplier = 1;  // Сброс множителя
+        console.error('CRITICAL ERROR: earned is NaN or Infinity!', { perSecond, earned });
         return;
       }
       
@@ -846,13 +865,12 @@ function setupAutoClickInterval() {
       if (game.coins > 1e30 || !Number.isFinite(game.coins)) {
         console.error('CRITICAL ERROR: coins exceeded limits!', game.coins);
         game.coins = oldCoins;  // Откатываем последние изменения
-        game.multiplier = 1;  // Сброс множителя
         return;
       }
       
       // Лог для отладки если монеты растут слишком быстро
-      if (perSecond > 10000) {
-        console.warn(`WARNING: High perSecond: ${perSecond}, multiplier: ${game.multiplier}, earned: ${earned.toFixed(0)}, intervals: ${autoClickIntervalCount}`);
+      if (earned > 10000) {
+        console.warn(`WARNING: High earned: ${earned}, perSecond: ${perSecond}, intervals: ${autoClickIntervalCount}`);
       }
       
       updateUI();
@@ -923,15 +941,32 @@ function handleClick(e) {
   let earned = perClick;
   let isCrit = false;
   
-  // Проверка что earned не стал NaN или Infinity
+  // КРИТИЧЕСКИ: проверка earned
   if (!Number.isFinite(earned)) {
-    console.error('ERROR: earned from click is invalid!', { perClick, earned });
+    console.error('❌ ERROR: earned is NaN or Infinity!', { perClick, earned, basePerClick: game.basePerClick });
     return;
+  }
+  
+  // КРИТИЧЕСКИ: проверка что earned не слишком большой
+  if (earned > 1e15) {
+    console.error(`❌ CRITICAL: earned too large! earned=${earned}, perClick=${perClick}, basePerClick=${game.basePerClick}`);
+    earned = Math.min(earned, 1e15);
+  }
+  
+  // Лог для отладки если earned > 1000
+  if (earned > 1000) {
+    console.log(`🖱️ CLICK: earned=${earned}, perClick=${perClick}, coins before=${game.coins}`);
   }
   
   game.coins += earned;
   game.totalCoins += earned;
   game.clicks++;
+  
+  // Проверка после добавления
+  if (!Number.isFinite(game.coins)) {
+    console.error('❌ CRITICAL: game.coins became invalid!', { earned, coins: game.coins });
+    game.coins = 0;
+  }
   
   // Плавающий текст
   const rect = clicker.getBoundingClientRect();
