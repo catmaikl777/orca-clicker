@@ -163,21 +163,41 @@ function getPerClick() {
   return result;
 }
 
+// Расчет perClick (без навыков - только апгрейды из магазина)
+function getPerClick() {
+  const base = 1 + (game.basePerClick || 0);
+  
+  // Применяем множители эффектов только если они куплены И включены
+  let mult = 1;
+  if (game.effects && game.effects['e1'] && isEffectEnabled('e1')) mult *= 2;   // e1 - Золотой клик 2x
+  if (game.effects && game.effects['e3'] && isEffectEnabled('e3')) mult *= 3;   // e3 - Радужный след 3x
+  if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) mult *= 5;   // e5 - Волновой эффект 5x
+  if (game.effects && game.effects['e6'] && isEffectEnabled('e6')) mult *= 10;  // e6 - Огненное сияние 10x
+  
+  // Ограничение максимального множителя (макс 100x)
+  mult = Math.min(mult, 100);
+  
+  // Защита от переполнения
+  if (!Number.isFinite(base) || !Number.isFinite(mult)) {
+    console.error('ERROR: Invalid base or mult in getPerClick!', { base, mult });
+    return 1;
+  }
+  
   const result = base * mult;
   
   // Дополнительная защита
   if (!Number.isFinite(result) || result > 1e15) {
-    console.error('CRITICAL: getPerClick result too large!', { base, mult, result });
+    console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick, effects: game.effects });
     return Math.min(result, 1e15);
   }
   
-  // Лог для отладки
-  if (result > 1000) {
-    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}`);
+  // Лог для отладки если basePerClick > 0
+  if (game.basePerClick > 0 || result > 100) {
+    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}, effects=${JSON.stringify(game.effects)}`);
   }
   
   return result;
-
+}
 
 // Расчет perSecond (без навыков - только апгрейды из магазина)
 function getPerSecond() {
@@ -200,7 +220,6 @@ function getPerSecond() {
   
   // Дополнительная защита
   if (!Number.isFinite(result) || result > 1e15) {
-    console.error('CRITICAL: getPerSecond result too large!', { base, mult, result });
     console.error('CRITICAL: getPerSecond result too large!', { base, mult, result, basePerSecond: game.basePerSecond, effects: game.effects });
     return Math.min(result, 1e15);
   }
