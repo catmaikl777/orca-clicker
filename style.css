@@ -1736,14 +1736,17 @@ body.bg-dark .bg-dark { opacity: 1; }
   50% { filter: drop-shadow(0 0 25px rgba(0,212,255,1)) drop-shadow(0 0 50px rgba(0,150,255,0.9)); }
 }
 
-/* Радужный след - применяем к самому элементу */
-.effect-rainbow {
+/* Радужный след - применяем к самому элементу с высоким приоритетом */
+.clicker.effect-rainbow {
   animation: rainbowRotate 3s linear infinite !important;
 }
 
 @keyframes rainbowRotate {
-  0% { filter: hue-rotate(0deg) !important; }
-  100% { filter: hue-rotate(360deg) !important; }
+  0% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(0deg) saturate(1.2) brightness(1.1) !important; }
+  25% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(90deg) saturate(1.2) brightness(1.1) !important; }
+  50% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(180deg) saturate(1.2) brightness(1.1) !important; }
+  75% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(270deg) saturate(1.2) brightness(1.1) !important; }
+  100% { filter: drop-shadow(0 20px 60px rgba(32,178,170,0.6)) hue-rotate(360deg) saturate(1.2) brightness(1.1) !important; }
 }
 
 /* Огненное сияние */

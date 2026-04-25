@@ -354,6 +354,13 @@ function handleServerMessage(data) {
     // Применяем визуальные эффекты после загрузки данных
     applyEffects();
     
+    // ВРЕМЕННЫЙ КОД ДЛЯ ТЕСТИРОВАНИЯ: автоматически включаем радужный эффект
+    if (!game.effects) game.effects = {};
+    game.effects['e3'] = true;
+    localStorage.setItem('effect_e3_enabled', 'true');
+    applyEffects();
+    syncEffectsTogglesUI();
+    
     console.log('🎮 Игровые данные загружены');
     
     // Отправляем запрос на получение лобби если открыта модалка батла
@@ -1186,7 +1193,7 @@ function applyEffects() {
   if (!clicker || !game.effects) return;
   
   // Сброс всех эффектов
-  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
+  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-rainbow', 'effect-fire');
   clicker.style.removeProperty('--rainbow-gradient');
   
   // Проверяем включены ли отдельные эффекты
