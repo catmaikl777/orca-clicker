@@ -200,11 +200,17 @@ let lastBattleUpdate = 0;
 let battleInterval = null;
 let wsConnected = false;
 let autoClickInterval = null; // Храним интервал автодохода
+let lastAutoClickTime = 0;
+let autoClickIntervalCount = 0;
 
 // Буфер для кликов (отправляем пачками)
 let clickBuffer = [];
 let lastServerSync = Date.now();
 const MAX_CLICKS_PER_SEC = 50; // Максимум 50 кликов в секунду для защиты от спама
+
+// Глобальные переменные для обработчика клика
+let lastClickTime = 0;
+let clicksThisSecond = 0;
 
 // ==================== АНТИ-ОВЕРЛЕЙ / ФОКУС ====================
 let windowFocused = document.hasFocus();
@@ -1162,7 +1168,7 @@ function formatNumber(num) {
   
   if (num >= 1000000000000000) return (num / 1000000000000000).toFixed(2) + 'Qa';
   if (num >= 1000000000000) return (num / 1000000000000).toFixed(2) + 'T';
-  if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
+  if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B'
   if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return Math.floor(num).toString();
@@ -1599,6 +1605,8 @@ function checkAchievements() {
 // ==================== ЛИДЕРБОРД ====================
 function updateLeaderboardUI(data) {
   const tbody = document.querySelector('#leaderboardTable tbody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   
   if (!data || data.length === 0) {
@@ -1608,10 +1616,21 @@ function updateLeaderboardUI(data) {
   
   data.slice(0, 100).forEach((player, i) => {
     const row = document.createElement('tr');
+    // Валидация coins - защита от переполнения
+    let coins = player.coins;
+    if (!Number.isFinite(coins) || coins < 0) {
+      coins = 0;
+      console.warn(`WARNING: Invalid coins for player ${player.name}: ${player.coins}`);
+    }
+    if (coins > Number.MAX_SAFE_INTEGER) {
+      coins = Number.MAX_SAFE_INTEGER;
+      console.warn(`WARNING: Coins exceed MAX_SAFE_INTEGER for ${player.name}: ${player.coins}`);
+    }
+    
     row.innerHTML = `
       <td>${i + 1}</td>
       <td>${escapeHtml(player.name)}</td>
-      <td>${formatNumber(player.coins)}</td>
+      <td>${formatNumber(Math.floor(coins))}</td>
     `;
     tbody.appendChild(row);
   });
