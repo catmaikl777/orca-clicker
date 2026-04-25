@@ -433,7 +433,8 @@ function handleServerMessage(data) {
         game.skins = d.skins || { normal: true };
         game.currentSkin = d.currentSkin || 'normal';
         game.playTime = d.playTime || 0;
-        game.multiplier = (Number.isFinite(d.multiplier) && d.multiplier > 0) ? Math.min(d.multiplier, 10) : 1;
+        // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке с сервера
+        game.multiplier = 1;
         
         if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
         
@@ -972,11 +973,12 @@ function handleClick(e) {
     earned = Math.min(earned, 1e15);
   }
   
-  // Лог для отладки если earned > 1000
-  if (earned > 1000) {
-    console.log(`🖱️ CLICK: earned=${earned}, perClick=${perClick}, coins before=${game.coins}`);
+  // Лог для отладки если earned > 100 или это первый клик после загрузки
+  if (earned > 100 || game.clicks === 1) {
+    console.log(`🖱️ CLICK: coins before=${game.coins}, earned=${earned}, perClick=${perClick}, clicks=${game.clicks}`);
   }
   
+  const coinsBefore = game.coins;
   game.coins += earned;
   game.totalCoins += earned;
   game.clicks++;
@@ -985,6 +987,11 @@ function handleClick(e) {
   if (!Number.isFinite(game.coins)) {
     console.error('❌ CRITICAL: game.coins became invalid!', { earned, coins: game.coins });
     game.coins = 0;
+  }
+  
+  // Дополнительный лог если монеты скакнули странно
+  if (game.clicks === 1 || Math.abs(game.coins - coinsBefore) > 1000) {
+    console.log(`💰 Coins: ${coinsBefore} → ${game.coins} (earned=${earned})`);
   }
   
   // Плавающий текст
@@ -1076,6 +1083,9 @@ function handleBonusClick() {
     return;
   }
   
+  // Лог для отладки
+  console.log(`🎁 Бонус: perClick=${perClick}, bonusValue=${bonusValue}, coins before=${game.coins}`);
+  
   game.coins += bonusValue;
   game.totalCoins += bonusValue;
   showFloatingText(
@@ -1150,18 +1160,33 @@ function updateUI() {
   const perClick = getPerClick();
   const perSecond = getPerSecond();
   
+  // Валидация coins перед отображением
+  if (!Number.isFinite(game.coins)) {
+    console.error('❌ CRITICAL: game.coins is invalid in updateUI!', game.coins);
+    game.coins = 0;
+  }
+  if (!Number.isFinite(game.totalCoins)) {
+    console.error('❌ CRITICAL: game.totalCoins is invalid in updateUI!', game.totalCoins);
+    game.totalCoins = 0;
+  }
+  
   coinsEl.textContent = formatNumber(Math.floor(game.coins));
   levelEl.textContent = game.level;
   // Показываем базовые значения (множитель x2 применяется только к монетам, не к статам)
   perClickEl.textContent = formatNumber(perClick);
   perSecondEl.textContent = formatNumber(perSecond);
   
-  // Расчет уровня
-  const newLevel = Math.floor(Math.log10(game.totalCoins + 1)) + 1;
-  if (newLevel > game.level) {
+  // Расчет уровня с защитой
+  const newLevel = Math.floor(Math.log10(Math.max(1, game.totalCoins) + 1)) + 1;
+  if (newLevel > game.level && newLevel < 1000) {  // Защита от аномального уровня
+    const oldLevel = game.level;
     game.level = newLevel;
+    console.log(`🎉 Level up: ${oldLevel} → ${newLevel} (totalCoins=${game.totalCoins})`);
     showNotification(`🎉 Новый уровень: ${game.level}!`);
     playSound('levelSound');
+  } else if (newLevel >= 1000) {
+    console.error(`🚨 CRITICAL: Level too high! newLevel=${newLevel}, totalCoins=${game.totalCoins}`);
+    game.level = Math.min(game.level, 100);
   }
   
   // Обновление скина
@@ -2469,10 +2494,20 @@ function saveGameToServer() {
 }
 
 function saveGame() {
+  // КРИТИЧЕСКАЯ проверка перед сохранением
+  if (!Number.isFinite(game.coins) || game.coins > 1e30) {
+    console.error(`🚨 CRITICAL: Attempting to save invalid coins: ${game.coins}`);
+    game.coins = Math.min(game.coins, 1e30);
+  }
+  if (!Number.isFinite(game.totalCoins) || game.totalCoins > 1e30) {
+    console.error(`🚨 CRITICAL: Attempting to save invalid totalCoins: ${game.totalCoins}`);
+    game.totalCoins = Math.min(game.totalCoins, 1e30);
+  }
+  
   // Сохраняем в localStorage (резервное)
   const saveData = {
-    coins: game.coins,
-    totalCoins: game.totalCoins,
+    coins: Math.floor(game.coins),
+    totalCoins: Math.floor(game.totalCoins),
     perClick: game.basePerClick,
     perSecond: game.basePerSecond,
     clicks: game.clicks,
@@ -2482,12 +2517,15 @@ function saveGame() {
     skins: game.skins,
     currentSkin: game.currentSkin,
     playTime: game.playTime,
-    multiplier: game.multiplier
+    multiplier: 1  // Всегда сохраняем 1
   };
   localStorage.setItem('cosatkaClicker', JSON.stringify(saveData));
   
   // Также отправляем на сервер
   scheduleServerSave();
+  
+  // Лог для отладки
+  console.log(`💾 Сохранено: coins=${saveData.coins}, totalCoins=${saveData.totalCoins}, level=${saveData.level}`);
 }
 
 // Принудительное сохранение всех данных на сервер
@@ -2548,6 +2586,23 @@ function loadGame() {
   if (saved) {
     try {
       const data = JSON.parse(saved);
+      
+      // КРИТИЧЕСКАЯ проверка: если coins > 1e15 - это мусор, сбрасываем
+      if (data.coins && data.coins > 1e15) {
+        console.error(`🚨 CRITICAL: Corrupted save detected! coins=${data.coins}, resetting...`);
+        localStorage.removeItem('cosatkaClicker');
+        initQuests();
+        return;
+      }
+      
+      // Проверка totalCoins
+      if (data.totalCoins && data.totalCoins > 1e15) {
+        console.error(`🚨 CRITICAL: Corrupted save detected! totalCoins=${data.totalCoins}, resetting...`);
+        localStorage.removeItem('cosatkaClicker');
+        initQuests();
+        return;
+      }
+      
       game.coins = data.coins || 0;
       game.totalCoins = data.totalCoins || 0;
       game.level = data.level || 1;
@@ -2564,18 +2619,13 @@ function loadGame() {
       game.skins = data.skins || {};
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
-      // Валидация multiplier (максимум x10)
-      if (Number.isFinite(data.multiplier) && data.multiplier > 0 && data.multiplier <= 10) {
-        game.multiplier = data.multiplier;
-      } else {
-        console.warn(`WARNING: Invalid multiplier from localStorage: ${data.multiplier}, using 1`);
-        game.multiplier = 1;
-      }
+      // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке (он применяется только для x2 бонуса)
+      game.multiplier = 1;
       
       // КРИТИЧНО: помечаем что данные загружены из localStorage
       dataLoadedFromStorage = true;
       serverDataTimestamp = Date.now();
-      console.log(`💾 Данные загружены из localStorage: coins=${game.coins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
+      console.log(`💾 Данные загружены из localStorage: coins=${game.coins}, totalCoins=${game.totalCoins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}, multiplier=${game.multiplier}`);
       
       // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
       
@@ -2622,7 +2672,23 @@ function importSave() {
 
 function resetGame() {
   if (confirm('Вы уверены? Весь прогресс будет потерян!')) {
+    console.log('🗑️ Сброс игры...');
     localStorage.removeItem('cosatkaClicker');
+    
+    // Также очищаем все игровые настройки
+    for (let i = 1; i <= 6; i++) {
+      localStorage.removeItem(`effect_e${i}_enabled`);
+    }
+    
+    location.reload();
+  }
+}
+
+// Ручная функция для отладки - сброс если обнаружены аномалии
+window.debugResetGame = function() {
+  if (confirm('⚠️ DEBUG: Сброс всех данных из-за аномалий?')) {
+    console.log('🗑️ DEBUG: Полный сброс игры...');
+    localStorage.clear();
     location.reload();
   }
 }
