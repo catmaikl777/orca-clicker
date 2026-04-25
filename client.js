@@ -1398,22 +1398,6 @@ function applyEffects() {
   }
 }
 
-  // Неоновый свет (e2)
-  if (game.effects['e2'] && e2Enabled) {
-    clicker.classList.add('effect-neon');
-  }
-  
-  // Радужный след (e3)
-  if (game.effects['e3'] && e3Enabled) {
-    clicker.classList.add('effect-rainbow');
-  }
-  
-  // Огненное сияние (e6)
-  if (game.effects['e6'] && e6Enabled) {
-    clicker.classList.add('effect-fire');
-  }
-
-
 function getEffectName(effectId) {
   const effectNames = {
     e1: 'Золотой клик',
