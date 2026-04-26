@@ -2963,6 +2963,8 @@ function loadSettings() {
   // Устанавливаем дефолтный фон (bg-ocean)
   document.body.classList.add('bg-ocean');
   
+  console.log('🎨 Фон установлен:', document.body.className);
+  
   const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
   setBg(bgClass, bgBtn);
 

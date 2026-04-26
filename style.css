@@ -22,7 +22,10 @@ body {
   color: #fff;
   transition: background 0.5s;
   /* Fallback фон - тёмный градиент */
-  background: linear-gradient(135deg, #e88300 0%, #d4491f 50%, #ffff00 100%);
+  background: linear-gradient(135deg, #0a1628 0%, #1a3a52 50%, #0f2844 100%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
   position: relative;
   margin: 0;
   padding: 0;
@@ -385,6 +388,50 @@ body::before {
   z-index: 0;
   transition: opacity 0.5s;
   opacity: 0;
+}
+
+.bg-sunny { 
+  background-image: url('bg_orange.jpg');
+  background-color: #0a1628;
+}
+.bg-white { 
+  background-image: url('bg_white.jpg');
+  background-color: #0a1628;
+}
+.bg-dark { 
+  background-image: url('bg_dark.jpg');
+  background-color: #0a1628;
+}
+
+/* === МОБИЛЬНЫЕ СТИЛИ === */
+@media (max-width: 600px) {
+  /* Фоновые слои на мобильных */
+  .bg-layer {
+    background-attachment: scroll; /* На мобильных fixed не работает */
+    z-index: -1;
+    width: 100vw;
+    height: 100vh;
+  }
+  
+  /* Убираем overflow чтобы не было прокрутки */
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* game-screen на весь экран */
+  .game-screen {
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+  }
+  
+  /* Контейнер игры на мобильных */
+  .game-container {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px;
+  }
 }
 
 .bg-sunny { 
