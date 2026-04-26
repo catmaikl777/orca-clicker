@@ -143,6 +143,8 @@ function createDefaultPlayer(accountId, username) {
     pendingBoxes: [],
     shopItems: [], // Цены предметов (пусто = дефолтные цены)
     questProgress: [],
+    dailyQuestDate: null,
+    dailyQuestIds: [],
     createdAt: Date.now(),
     lastLogin: Date.now()
   };

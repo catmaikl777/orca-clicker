@@ -792,6 +792,8 @@ function handleSaveGame(ws, data) {
   p.playTime = data.playTime ?? p.playTime;
   p.shopItems = data.shopItems || p.shopItems;
   p.questProgress = data.questProgress || p.questProgress;
+  if (data.dailyQuestDate) p.dailyQuestDate = data.dailyQuestDate;
+  if (Array.isArray(data.dailyQuestIds) && data.dailyQuestIds.length > 0) p.dailyQuestIds = data.dailyQuestIds;
   p.lastLogin = Date.now();
   if (mem) Object.assign(mem, p);
   

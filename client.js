@@ -14,7 +14,9 @@ const game = {
   skins: {},
   currentSkin: 'normal',
   playTime: 0,
-  multiplier: 1
+  multiplier: 1,
+  dailyQuestDate: null,
+  dailyQuestIds: []
 };
 
 // ==================== DOM ЭЛЕМЕНТЫ ====================
@@ -184,12 +186,12 @@ const achievementsData = [
 
 // Эффекты (визуальные изменения + бонусы) - сохраняются как в магазине
 const effectsData = [
-  { id: 'e1', name: 'Золотой клик', desc: '+2x к клику, золотое свечение', cost: 500, icon: '✨', bonus: { type: 'click', mult: 2 } },
-  { id: 'e2', name: 'Неоновый свет', desc: '+50% к авто-доходу, неоновое свечение', cost: 1000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
-  { id: 'e3', name: 'Радужный след', desc: '+3x к клику, радужный эффект', cost: 2000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
-  { id: 'e4', name: 'Частицы звёзд', desc: '+100% к авто-доходу, звёздные частицы', cost: 3000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
-  { id: 'e5', name: 'Эффект волны', desc: '+5x к клику, волновая анимация', cost: 1500, icon: '🌊', bonus: { type: 'click', mult: 5 } },
-  { id: 'e6', name: 'Огненное сияние', desc: '+10x к клику, огненное свечение', cost: 2500, icon: '🔥', bonus: { type: 'click', mult: 10 } }
+  { id: 'e1', name: 'Золотой клик', desc: '+2x к клику, золотое свечение', cost: 1000, icon: '✨', bonus: { type: 'click', mult: 2 } },
+  { id: 'e2', name: 'Неоновый свет', desc: '+50% к авто-доходу, неоновое свечение', cost: 2000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
+  { id: 'e3', name: 'Радужный след', desc: '+3x к клику, радужный эффект', cost: 4000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
+  { id: 'e4', name: 'Частицы звёзд', desc: '+100% к авто-доходу, звёздные частицы', cost: 6000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
+  { id: 'e5', name: 'Эффект волны', desc: '+5x к клику, волновая анимация', cost: 3000, icon: '🌊', bonus: { type: 'click', mult: 5 } },
+  { id: 'e6', name: 'Огненное сияние', desc: '+10x к клику, огненное свечение', cost: 5000, icon: '🔥', bonus: { type: 'click', mult: 10 } }
 ];
 
 // Расчет perClick (без навыков - только апгрейды из магазина)
@@ -517,8 +519,12 @@ function handleServerMessage(data) {
           console.log('🛒 Цены загружены с сервера:', d.shopItems);
         }
         
-        if (Array.isArray(d.questProgress) && d.questProgress.length > 0) {
-          initQuests(d.questProgress);
+        if (d.questProgress || d.dailyQuestIds) {
+          initQuests({
+            progress: d.questProgress,
+            dailyQuestDate: d.dailyQuestDate,
+            dailyQuestIds: d.dailyQuestIds
+          });
         } else {
           initQuests();
         }
@@ -601,8 +607,12 @@ function handleServerMessage(data) {
         game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
-        if (Array.isArray(data.data.questProgress) && data.data.questProgress.length > 0) {
-          initQuests(data.data.questProgress);
+        if (data.data?.questProgress || data.data?.dailyQuestIds) {
+          initQuests({
+            progress: data.data.questProgress,
+            dailyQuestDate: data.data.dailyQuestDate,
+            dailyQuestIds: data.data.dailyQuestIds
+          });
         } else {
           initQuests();
         }
@@ -1463,15 +1473,60 @@ function buyOrEquipSkin(skin) {
 }
 
 // ==================== КВЕСТЫ ====================
-function initQuests(savedQuestProgress) {
-  if (Array.isArray(savedQuestProgress) && savedQuestProgress.length > 0) {
-    game.quests = questsData.map(q => {
-      const saved = savedQuestProgress.find(p => p.id === q.id);
-      return { ...q, completed: saved ? !!saved.completed : false };
-    });
-  } else {
-    game.quests = questsData.map(q => ({ ...q, completed: getQuestProgress(q) >= q.target }));
+function getCurrentDateString() {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+function pickRandomDailyQuestIds(savedDate, savedIds) {
+  const today = getCurrentDateString();
+  if (savedDate === today && Array.isArray(savedIds) && savedIds.length === 3 && new Set(savedIds).size === 3) {
+    return savedIds.slice();
   }
+
+  const availableIds = questsData.map(q => q.id);
+  const selected = [];
+  const pool = [...availableIds];
+  while (selected.length < 3 && pool.length > 0) {
+    const index = Math.floor(Math.random() * pool.length);
+    selected.push(pool.splice(index, 1)[0]);
+  }
+  return selected;
+}
+
+function initQuests(savedQuestState) {
+  const today = getCurrentDateString();
+  let savedProgress = [];
+  let savedDate = null;
+  let savedIds = null;
+
+  if (Array.isArray(savedQuestState)) {
+    savedProgress = savedQuestState;
+  } else if (savedQuestState && typeof savedQuestState === 'object') {
+    savedProgress = Array.isArray(savedQuestState.progress) ? savedQuestState.progress : [];
+    savedDate = savedQuestState.dailyQuestDate || null;
+    savedIds = Array.isArray(savedQuestState.dailyQuestIds) ? savedQuestState.dailyQuestIds : null;
+  }
+
+  const dailyQuestIds = pickRandomDailyQuestIds(savedDate, savedIds);
+  game.dailyQuestDate = today;
+  game.dailyQuestIds = dailyQuestIds;
+
+  game.quests = dailyQuestIds.map(id => {
+    const questTemplate = questsData.find(q => q.id === id) || { id, name: 'Неизвестный квест', desc: '', target: 0, type: 'clicks', reward: 0 };
+    const saved = savedProgress.find(p => p.id === id);
+    return {
+      ...questTemplate,
+      completed: saved ? !!saved.completed : getQuestProgress(questTemplate) >= questTemplate.target
+    };
+  });
+
+  if (!savedIds || savedDate !== today) {
+    saveGame();
+  }
+
   // Применяем визуальные эффекты после инициализации квестов
   applyEffects();
 }
@@ -2623,7 +2678,9 @@ function saveGameToServer() {
       playTime: game.playTime,
       pendingBoxes: pendingBoxes,
       shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed }))
+      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
+      dailyQuestDate: game.dailyQuestDate,
+      dailyQuestIds: game.dailyQuestIds
     }
   }));
 }
@@ -2652,7 +2709,11 @@ function saveGame() {
     skins: game.skins,
     currentSkin: game.currentSkin,
     playTime: game.playTime,
-    multiplier: 1  // Всегда сохраняем 1
+    multiplier: 1, // Всегда сохраняем 1
+    shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
+    questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
+    dailyQuestDate: game.dailyQuestDate,
+    dailyQuestIds: game.dailyQuestIds
   };
   localStorage.setItem('cosatkaClicker', JSON.stringify(saveData));
   
@@ -2688,7 +2749,9 @@ window.forceSave = function() {
       pendingBoxes: pendingBoxes,
       playTime: game.playTime,
       shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed }))
+      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
+      dailyQuestDate: game.dailyQuestDate,
+      dailyQuestIds: game.dailyQuestIds
     }
   }));
 
@@ -2776,10 +2839,11 @@ function loadGame() {
         });
       }
       
-      if (data.questProgress) {
-        game.quests = questsData.map(q => {
-          const saved = data.questProgress.find(p => p.id === q.id);
-          return { ...q, completed: saved ? saved.completed : false };
+      if (data.questProgress || data.dailyQuestIds) {
+        initQuests({
+          progress: data.questProgress,
+          dailyQuestDate: data.dailyQuestDate,
+          dailyQuestIds: data.dailyQuestIds
         });
       } else {
         initQuests();
