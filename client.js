@@ -591,10 +591,12 @@ function handleServerMessage(data) {
           game.basePerClick = 0;
         }
         game.clicks = Number.isFinite(data.data.clicks) && data.data.clicks >= 0 ? data.data.clicks : 0;
+        game.level = Number.isFinite(data.data.level) && data.data.level > 0 ? data.data.level : 1;
         game.effects = data.data.effects || {};
-        game.skills = data.data.skills || {};
-        game.skins = data.data.skins || {};
+        game.achievements = data.data.achievements || [];
+        game.skins = data.data.skins || { normal: true };
         game.currentSkin = data.data.currentSkin || 'normal';
+        game.playTime = data.data.playTime || 0;
         if (data.data?.questProgress || data.data?.dailyQuestIds) {
           initQuests({
             progress: data.data.questProgress,
@@ -604,9 +606,10 @@ function handleServerMessage(data) {
         } else {
           initQuests();
         }
+        if (data.data?.pendingBoxes) pendingBoxes = data.data.pendingBoxes;
         eventCoins = data.eventCoins || 0;
         
-        console.log(`🎮 Гость: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
+        console.log(`🎮 Гость: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}, effects=${Object.keys(game.effects).length}, achievements=${game.achievements.length}`);
         
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
@@ -2659,16 +2662,16 @@ function saveGameToServer() {
       perClick: game.basePerClick || 0,
       perSecond: game.basePerSecond || 0,
       clicks: game.clicks,
-      effects: game.effects,
-      skins: game.skins,
-      currentSkin: game.currentSkin,
-      achievements: game.achievements,
-      playTime: game.playTime,
-      pendingBoxes: pendingBoxes,
+      effects: game.effects || {},
+      skins: game.skins || {},
+      currentSkin: game.currentSkin || 'normal',
+      achievements: game.achievements || [],
+      playTime: game.playTime || 0,
+      pendingBoxes: pendingBoxes || [],
       shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
       questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
       dailyQuestDate: game.dailyQuestDate,
-      dailyQuestIds: game.dailyQuestIds
+      dailyQuestIds: game.dailyQuestIds || []
     }
   }));
 }
