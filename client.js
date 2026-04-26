@@ -101,20 +101,85 @@ const skinsData = [
 
 // Квесты
 const questsData = [
+  // Базовые квесты
   { id: 'q1', name: 'Первые шаги', desc: 'Сделайте 100 кликов', target: 100, type: 'clicks', reward: 100 },
-  { id: 'q2', name: 'Богач', desc: 'Накопите 1000 косаток', target: 1000, type: 'coins', reward: 200 },
-  { id: 'q3', name: 'Кликер мастер', desc: 'Сделайте 1000 кликов', target: 1000, type: 'clicks', reward: 500 },
-  { id: 'q4', name: 'Миллионер', desc: 'Накопите 1000000 косаток', target: 1000000, type: 'totalCoins', reward: 10000 }
+  { id: 'q2', name: 'Богач', desc: 'Накопите 1,000 косаток', target: 1000, type: 'coins', reward: 200 },
+  { id: 'q3', name: 'Кликер мастер', desc: 'Сделайте 1,000 кликов', target: 1000, type: 'clicks', reward: 500 },
+  { id: 'q4', name: 'Миллионер', desc: 'Накопите 1,000,000 косаток', target: 1000000, type: 'totalCoins', reward: 10000 },
+  
+  // Новые квесты - клики
+  { id: 'q5', name: 'Трудоголик', desc: 'Сделайте 5,000 кликов', target: 5000, type: 'clicks', reward: 2000 },
+  { id: 'q6', name: 'Клик-машина', desc: 'Сделайте 10,000 кликов', target: 10000, type: 'clicks', reward: 5000 },
+  { id: 'q7', name: 'Легенда клика', desc: 'Сделайте 50,000 кликов', target: 50000, type: 'clicks', reward: 25000 },
+  { id: 'q8', name: 'Бог клика', desc: 'Сделайте 100,000 кликов', target: 100000, type: 'clicks', reward: 50000 },
+  
+  // Новые квесты - монеты
+  { id: 'q9', name: 'Первый миллион', desc: 'Накопите 100,000 косаток', target: 100000, type: 'coins', reward: 5000 },
+  { id: 'q10', name: 'Миллиардер', desc: 'Накопите 1,000,000,000 косаток', target: 1000000000, type: 'coins', reward: 50000 },
+  { id: 'q11', name: 'Триллионер', desc: 'Накопите 1 триллион косаток', target: 1000000000000, type: 'coins', reward: 100000 },
+  
+  // Новые квесты - автодоход
+  { id: 'q12', name: 'Пассивный доход', desc: 'Достигните 100/сек', target: 100, type: 'perSecond', reward: 1000 },
+  { id: 'q13', name: 'Бизнесмен', desc: 'Достигните 1,000/сек', target: 1000, type: 'perSecond', reward: 5000 },
+  { id: 'q14', name: 'Корпорация', desc: 'Достигните 10,000/сек', target: 10000, type: 'perSecond', reward: 25000 },
+  { id: 'q15', name: 'Империя', desc: 'Достигните 100,000/сек', target: 100000, type: 'perSecond', reward: 100000 },
+  
+  // Новые квесты - за клик
+  { id: 'q16', name: 'Мощный клик', desc: 'Достигните 100 за клик', target: 100, type: 'perClick', reward: 1000 },
+  { id: 'q17', name: 'Силач', desc: 'Достигните 1,000 за клик', target: 1000, type: 'perClick', reward: 5000 },
+  { id: 'q18', name: 'Титан', desc: 'Достигните 10,000 за клик', target: 10000, type: 'perClick', reward: 25000 },
+  
+  // Новые квесты - время
+  { id: 'q19', name: 'Новичок', desc: 'Проведите в игре 10 минут', target: 600, type: 'playTime', reward: 500 },
+  { id: 'q20', name: 'Ветеран', desc: 'Проведите в игре 1 час', target: 3600, type: 'playTime', reward: 2000 },
+  { id: 'q21', name: 'Постоянный клиент', desc: 'Проведите в игре 5 часов', target: 18000, type: 'playTime', reward: 10000 }
 ];
 
 // Достижения
 const achievementsData = [
+  // Базовые достижения
   { id: 'a1', name: 'Дебютант', desc: 'Сделайте первый клик', icon: '👆' },
   { id: 'a2', name: 'Усердный', desc: 'Сделайте 100 кликов', icon: '💪' },
   { id: 'a3', name: 'Миллионер', desc: 'Накопите 1,000,000', icon: '💰' },
   { id: 'a4', name: 'Коллекционер', desc: 'Купите все улучшения', icon: '🏆' },
   { id: 'a5', name: 'Мастер клика', desc: 'Достигните 1000 за клик', icon: '⚡' },
-  { id: 'a6', name: 'Пассивный доход', desc: 'Достигните 1000/сек', icon: '📈' }
+  { id: 'a6', name: 'Пассивный доход', desc: 'Достигните 1000/сек', icon: '📈' },
+  
+  // Новые достижения - клики
+  { id: 'a7', name: 'Разминка', desc: 'Сделайте 1,000 кликов', icon: '👐' },
+  { id: 'a8', name: 'Трудяга', desc: 'Сделайте 10,000 кликов', icon: '🔨' },
+  { id: 'a9', name: 'Клик-маньяк', desc: 'Сделайте 100,000 кликов', icon: '🤯' },
+  { id: 'a10', name: 'Легенда', desc: 'Сделайте 1,000,000 кликов', icon: '👑' },
+  
+  // Новые достижения - монеты
+  { id: 'a11', name: 'Богач', desc: 'Накопите 10,000 косаток', icon: '💵' },
+  { id: 'a12', name: 'Олигарх', desc: 'Накопите 100,000,000 косаток', icon: '💎' },
+  { id: 'a13', name: 'Властелин денег', desc: 'Накопите 1 триллион', icon: '🌟' },
+  
+  // Новые достижения - улучшения
+  { id: 'a14', name: 'Шопоголик', desc: 'Купите 5 улучшений', icon: '🛒' },
+  { id: 'a15', name: 'Инвестор', desc: 'Купите 10 улучшений', icon: '📊' },
+  { id: 'a16', name: 'Меценат', desc: 'Купите все улучшения', icon: '💰' },
+  
+  // Новые достижения - эффекты
+  { id: 'a17', name: 'Эстет', desc: 'Купите первый эффект', icon: '✨' },
+  { id: 'a18', name: 'Художник', desc: 'Купите все эффекты', icon: '🎨' },
+  
+  // Новые достижения - время
+  { id: 'a19', name: 'Постоянный игрок', desc: 'Проведите в игре 30 минут', icon: '⏰' },
+  { id: 'a20', name: 'Ночной дожор', desc: 'Проведите в игре 3 часа', icon: '🌙' },
+  
+  // Новые достижения - бонусы
+  { id: 'a21', name: 'Удача', desc: 'Найдите 10 бонусов', icon: '🍀' },
+  { id: 'a22', name: 'Счастливчик', desc: 'Найдите 50 бонусов', icon: '🌈' },
+  
+  // Новые достижения - батлы
+  { id: 'a23', name: 'Воин', desc: 'Выиграйте 5 батлов', icon: '⚔️' },
+  { id: 'a24', name: 'Чемпион', desc: 'Выиграйте 20 батлов', icon: '🏆' },
+  
+  // Новые достижения - квесты
+  { id: 'a25', name: 'Исполнитель', desc: 'Выполните 5 квестов', icon: '✅' },
+  { id: 'a26', name: 'Мастер квестов', desc: 'Выполните все квесты', icon: '🎯' }
 ];
 
 // Эффекты (визуальные изменения + бонусы) - сохраняются как в магазине
@@ -1411,11 +1476,15 @@ function getQuestProgress(quest) {
   if (quest.type === 'clicks') return game.clicks;
   if (quest.type === 'coins') return game.coins;
   if (quest.type === 'totalCoins') return game.totalCoins;
+  if (quest.type === 'perClick') return getPerClick();
+  if (quest.type === 'perSecond') return getPerSecond();
+  if (quest.type === 'playTime') return game.playTime;
   return 0;
 }
 
 function checkQuests() {
   game.quests.forEach(quest => {
+    // КРИТИЧНО: проверяем что квест ещё не завершён И ещё не был награждён
     if (!quest.completed && getQuestProgress(quest) >= quest.target) {
       quest.completed = true;
       
@@ -1430,6 +1499,9 @@ function checkQuests() {
       
       playSound('bonusSound');
       renderQuests();
+      
+      // Сохраняем сразу после выполнения
+      saveGame();
     }
   });
 }
@@ -1476,7 +1548,7 @@ function getEffectName(effectId) {
   };
   return effectNames[effectId] || effectId;
 }
-
+  
 function isEffectEnabled(effectId) {
   return localStorage.getItem(`effect_${effectId}_enabled`) !== 'false';
 }
@@ -1643,12 +1715,49 @@ function renderAchievements() {
 
 function checkAchievements() {
   const checks = [
+    // Базовые
     { id: 'a1', check: () => game.clicks >= 1 },
     { id: 'a2', check: () => game.clicks >= 100 },
     { id: 'a3', check: () => game.totalCoins >= 1000000 },
     { id: 'a4', check: () => shopItems.every(i => i.cost >= 1000) },
     { id: 'a5', check: () => getPerClick() >= 1000 },
-    { id: 'a6', check: () => getPerSecond() >= 1000 }
+    { id: 'a6', check: () => getPerSecond() >= 1000 },
+    
+    // Новые достижения - клики
+    { id: 'a7', check: () => game.clicks >= 1000 },
+    { id: 'a8', check: () => game.clicks >= 10000 },
+    { id: 'a9', check: () => game.clicks >= 100000 },
+    { id: 'a10', check: () => game.clicks >= 1000000 },
+    
+    // Новые достижения - монеты
+    { id: 'a11', check: () => game.coins >= 10000 },
+    { id: 'a12', check: () => game.coins >= 100000000 },
+    { id: 'a13', check: () => game.coins >= 1000000000000 },
+    
+    // Новые достижения - улучшения
+    { id: 'a14', check: () => shopItems.filter(i => i.cost < 100000).length >= 5 },
+    { id: 'a15', check: () => shopItems.filter(i => i.cost < 100000).length >= 10 },
+    { id: 'a16', check: () => shopItems.every(i => i.cost >= 100000) },
+    
+    // Новые достижения - эффекты
+    { id: 'a17', check: () => Object.keys(game.effects || {}).length >= 1 },
+    { id: 'a18', check: () => Object.keys(game.effects || {}).length >= 6 },
+    
+    // Новые достижения - время
+    { id: 'a19', check: () => game.playTime >= 1800 },
+    { id: 'a20', check: () => game.playTime >= 10800 },
+    
+    // Новые достижения - бонусы (пример - нужно добавить счётчик)
+    { id: 'a21', check: () => game.clicks >= 1000 },
+    { id: 'a22', check: () => game.clicks >= 5000 },
+    
+    // Новые достижения - батлы (пример - нужно добавить счётчик побед)
+    { id: 'a23', check: () => game.clicks >= 10000 },
+    { id: 'a24', check: () => game.clicks >= 50000 },
+    
+    // Новые достижения - квесты
+    { id: 'a25', check: () => game.quests.filter(q => q.completed).length >= 5 },
+    { id: 'a26', check: () => game.quests.every(q => q.completed) }
   ];
   
   checks.forEach(({ id, check }) => {
