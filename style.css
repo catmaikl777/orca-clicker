@@ -21,26 +21,13 @@ body {
   min-height: 100vh;
   color: #fff;
   transition: background 0.5s;
-  background: url('bg_orange.jpg') no-repeat center center fixed;
-  background-size: cover;
+  /* Fallback фон - тёмный градиент */
+  background: linear-gradient(135deg, #0a1628 0%, #1a3a52 50%, #0f2844 100%);
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
-
-body {
-      position: relative;
-      margin: 0;
-      min-height: 100vh;
-    }
-    
-    /* Картинки остаются без наложения */
-    img, picture, video {
-      position: relative;
-      z-index: 9999;
-      filter: none !important;
-    }
-    
 
 /* Полноэкранный режим на всех устройствах */
 html, body {
@@ -48,6 +35,7 @@ html, body {
   height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 .game-screen {
@@ -393,8 +381,10 @@ body::before {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  z-index: -2;
+  background-attachment: fixed;
+  z-index: 0;
   transition: opacity 0.5s;
+  opacity: 0;
 }
 
 .bg-sunny { background-image: url('bg_orange.jpg'); }
@@ -412,6 +402,35 @@ body.bg-white .bg-dark { opacity: 0; }
 body.bg-dark .bg-ocean { opacity: 0; }
 body.bg-dark .bg-white { opacity: 0; }
 body.bg-dark .bg-dark { opacity: 1; }
+
+/* === МОБИЛЬНЫЕ СТИЛИ === */
+@media (max-width: 600px) {
+  /* Фоновые слои на мобильных */
+  .bg-layer {
+    background-attachment: scroll;
+    z-index: -1;
+  }
+  
+  /* Убираем overflow чтобы не было прокрутки */
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* game-screen на весь экран */
+  .game-screen {
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+  }
+  
+  /* Контейнер игры на мобильных */
+  .game-container {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px;
+  }
+}
 
 /* Контейнер игры */
 .game-container {

@@ -2933,7 +2933,9 @@ function setVolume(value) {
 }
 
 function setBg(bgClass, btn) {
-  document.body.className = bgClass;
+  // Очищаем только bg-классы
+  document.body.classList.remove('bg-ocean', 'bg-white', 'bg-dark', 'bg-sunny');
+  document.body.classList.add(bgClass);
   document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   localStorage.setItem('bgClass', bgClass);
@@ -2957,6 +2959,9 @@ function loadSettings() {
     bgMusic.volume = volume / 100;
     bgMusic.play().catch(() => {});
   }
+  
+  // Устанавливаем дефолтный фон (bg-ocean)
+  document.body.classList.add('bg-ocean');
   
   const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
   setBg(bgClass, bgBtn);
