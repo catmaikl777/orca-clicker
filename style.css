@@ -387,9 +387,18 @@ body::before {
   opacity: 0;
 }
 
-.bg-sunny { background-image: url('bg_orange.jpg'); }
-.bg-white { background-image: url('bg_white.jpg'); }
-.bg-dark { background-image: url('bg_dark.jpg'); }
+.bg-sunny { 
+  background-image: url('bg_orange.jpg');
+  background-color: #0a1628; /* Fallback */
+}
+.bg-white { 
+  background-image: url('bg_white.jpg');
+  background-color: #0a1628; /* Fallback */
+}
+.bg-dark { 
+  background-image: url('bg_dark.jpg');
+  background-color: #0a1628; /* Fallback */
+}
 
 body.bg-ocean .bg-ocean { opacity: 1; }
 body.bg-ocean .bg-white { opacity: 0; }

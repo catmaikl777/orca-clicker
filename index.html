@@ -74,9 +74,9 @@
     <div id="clickEffects" class="click-effects"></div>
 
     <!-- Фоновые изображения -->
-    <div class="bg-layer bg-ocean" style="display:block"></div>
-    <div class="bg-layer bg-white"></div>
-    <div class="bg-layer bg-dark"></div>
+    <div class="bg-layer bg-ocean" style="display:block;background-color:#0a1628"></div>
+    <div class="bg-layer bg-white" style="background-color:#0a1628"></div>
+    <div class="bg-layer bg-dark" style="background-color:#0a1628"></div>
 
     <div class="game-container">
       <!-- Верхняя панель -->
@@ -468,6 +468,12 @@
   <audio id="buySound" src="buy.mp3"></audio>
   <audio id="levelSound" src="level.mp3"></audio>
 
+  <script>
+    // Устанавливаем дефолтный фон при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.classList.add('bg-ocean');
+    });
+  </script>
   <script src="auth-client.js"></script>
   <script src="client.js"></script>
 </body>
