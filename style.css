@@ -20,9 +20,8 @@ body {
   font-family: 'Segoe UI', 'Roboto', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
   color: #fff;
-  overflow: hidden; /* Убираем скролл */
   transition: background 0.5s;
-  background: url('bg_orange.jpg') no-repeat center center fixed;
+  background: url('bg_orange.png') no-repeat center center fixed;
   background-size: cover;
   position: relative;
   width: 100vw;
