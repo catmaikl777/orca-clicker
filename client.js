@@ -517,11 +517,8 @@ function handleServerMessage(data) {
           console.log('🛒 Цены загружены с сервера:', d.shopItems);
         }
         
-        if (d.questProgress) {
-          game.quests = questsData.map(q => {
-            const saved = d.questProgress.find(p => p.id === q.id);
-            return { ...q, completed: saved ? saved.completed : false };
-          });
+        if (Array.isArray(d.questProgress) && d.questProgress.length > 0) {
+          initQuests(d.questProgress);
         } else {
           initQuests();
         }
@@ -604,6 +601,11 @@ function handleServerMessage(data) {
         game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
         game.currentSkin = data.data.currentSkin || 'normal';
+        if (Array.isArray(data.data.questProgress) && data.data.questProgress.length > 0) {
+          initQuests(data.data.questProgress);
+        } else {
+          initQuests();
+        }
         eventCoins = data.eventCoins || 0;
         
         console.log(`🎮 Гость: basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
@@ -1461,8 +1463,15 @@ function buyOrEquipSkin(skin) {
 }
 
 // ==================== КВЕСТЫ ====================
-function initQuests() {
-  game.quests = questsData.map(q => ({ ...q, completed: false }));
+function initQuests(savedQuestProgress) {
+  if (Array.isArray(savedQuestProgress) && savedQuestProgress.length > 0) {
+    game.quests = questsData.map(q => {
+      const saved = savedQuestProgress.find(p => p.id === q.id);
+      return { ...q, completed: saved ? !!saved.completed : false };
+    });
+  } else {
+    game.quests = questsData.map(q => ({ ...q, completed: getQuestProgress(q) >= q.target }));
+  }
   // Применяем визуальные эффекты после инициализации квестов
   applyEffects();
 }
