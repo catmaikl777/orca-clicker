@@ -1,8 +1,9 @@
 const { Client } = require('pg');
 
-// Подключаемся к PostgreSQL
+// Подключаемся к PostgreSQL с SSL
 const client = new Client({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    ssl: true  // Включаем SSL для защищенного подключения
 });
 
 async function main() {
