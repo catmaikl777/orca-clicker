@@ -186,27 +186,20 @@ const achievementsData = [
 
 // Эффекты (визуальные изменения + бонусы) - сохраняются как в магазине
 const effectsData = [
-  { id: 'e1', name: 'Золотой клик', desc: '+2x к клику, золотое свечение', cost: 1000, icon: '✨', bonus: { type: 'click', mult: 2 } },
-  { id: 'e2', name: 'Неоновый свет', desc: '+50% к авто-доходу, неоновое свечение', cost: 2000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
-  { id: 'e3', name: 'Радужный след', desc: '+3x к клику, радужный эффект', cost: 4000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
-  { id: 'e4', name: 'Частицы звёзд', desc: '+100% к авто-доходу, звёздные частицы', cost: 6000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
-  { id: 'e5', name: 'Эффект волны', desc: '+5x к клику, волновая анимация', cost: 3000, icon: '🌊', bonus: { type: 'click', mult: 5 } },
-  { id: 'e6', name: 'Огненное сияние', desc: '+10x к клику, огненное свечение', cost: 5000, icon: '🔥', bonus: { type: 'click', mult: 10 } }
+  { id: 'e1', name: 'Золотой клик', desc: 'Золотое свечение при клике', cost: 1000, icon: '✨', bonus: { type: 'click', mult: 2 } },
+  { id: 'e2', name: 'Неоновый свет', desc: 'Неоновое свечение', cost: 2000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
+  { id: 'e3', name: 'Радужный след', desc: 'Радужный эффект при клике', cost: 4000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
+  { id: 'e4', name: 'Частицы звёзд', desc: 'Звёздные частицы', cost: 6000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
+  { id: 'e5', name: 'Эффект волны', desc: 'Волновая анимация при клике', cost: 3000, icon: '🌊', bonus: { type: 'click', mult: 5 } },
+  { id: 'e6', name: 'Огненное сияние', desc: 'Огненное свечение при клике', cost: 5000, icon: '🔥', bonus: { type: 'click', mult: 10 } }
 ];
 
 // Расчет perClick (без навыков - только апгрейды из магазина)
 function getPerClick() {
   const base = 1 + (game.basePerClick || 0);
   
-  // Применяем множители эффектов только если они куплены И включены
+  // Эффекты больше не дают бонусы - только визуальные
   let mult = 1;
-  if (game.effects && game.effects['e1'] && isEffectEnabled('e1')) mult *= 2;   // e1 - Золотой клик 2x
-  if (game.effects && game.effects['e3'] && isEffectEnabled('e3')) mult *= 3;   // e3 - Радужный след 3x
-  if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) mult *= 5;   // e5 - Волновой эффект 5x
-  if (game.effects && game.effects['e6'] && isEffectEnabled('e6')) mult *= 10;  // e6 - Огненное сияние 10x
-  
-  // Ограничение максимального множителя (макс 100x)
-  mult = Math.min(mult, 100);
   
   // Защита от переполнения
   if (!Number.isFinite(base) || !Number.isFinite(mult)) {
@@ -218,13 +211,13 @@ function getPerClick() {
   
   // Дополнительная защита
   if (!Number.isFinite(result) || result > 1e15) {
-    console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick, effects: game.effects });
+    console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick });
     return Math.min(result, 1e15);
   }
   
   // Лог для отладки если basePerClick > 0
   if (game.basePerClick > 0 || result > 100) {
-    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}, effects=${JSON.stringify(game.effects)}`);
+    console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}`);
   }
   
   return result;
@@ -269,13 +262,8 @@ function getPerClick() {
 // Расчет perSecond (без навыков - только апгрейды из магазина)
 function getPerSecond() {
   let base = (game.basePerSecond || 0);
-  // Применяем множители эффектов только если они куплены И включены
+  // Эффекты больше не дают бонусы - только визуальные
   let mult = 1;
-  if (game.effects && game.effects['e2'] && isEffectEnabled('e2')) mult *= 1.5;  // e2 - Неоновый свет 1.5x
-  if (game.effects && game.effects['e4'] && isEffectEnabled('e4')) mult *= 2;    // e4 - Частицы звёзд 2x
-  
-  // Ограничение максимального множителя (макс 10x)
-  mult = Math.min(mult, 10);
   
   // Защита от переполнения
   if (!Number.isFinite(base) || !Number.isFinite(mult)) {

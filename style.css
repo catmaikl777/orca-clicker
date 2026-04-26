@@ -5,49 +5,35 @@
 }
 
 :root {
-  --primary: #20B2AA;
-  --secondary: #48D1CC;
-  --accent: #FF7F50;
-  --dark: #0a1628;
-  --glass: rgba(10, 30, 50, 0.7);
-  --glass-border: rgba(32, 178, 170, 0.3);
-  --neon-cyan: #20B2AA;
-  --neon-pink: #FF7F50;
-  --neon-purple: #20B2AA;
+  --primary: #FF8C00; /* Оранжевый */
+  --secondary: #8A2BE2; /* Фиолетовый */
+  --accent: #FF4500; /* Красный оранжевый */
+  --dark: #2F1B14; /* Темный оранжевый */
+  --glass: rgba(255, 140, 0, 0.7); /* Прозрачный оранжевый */
+  --glass-border: rgba(138, 43, 226, 0.3); /* Прозрачный фиолетовый */
+  --neon-cyan: #FF8C00; /* Оранжевый */
+  --neon-pink: #8A2BE2; /* Фиолетовый */
+  --neon-purple: #8A2BE2; /* Фиолетовый */
 }
 
 body {
   font-family: 'Segoe UI', 'Roboto', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
   color: #fff;
-  overflow-x: hidden;
+  overflow: hidden; /* Убираем скролл */
   transition: background 0.5s;
-  background: linear-gradient(135deg, #0a1628 0%, #1a3a52 50%, #0f2844 100%);
-  background-attachment: fixed;
+  background: url('bg_orange.jpg') no-repeat center center fixed;
+  background-size: cover;
   position: relative;
-  width: 100%;
-  max-width: 100vw;
+  width: 100vw;
+  height: 100vh;
 }
 
 body {
       position: relative;
       margin: 0;
       min-height: 100vh;
-      background: white;
-    }
-    
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #e49c37;
-      opacity: 0.35;        /* Прозрачность 35% - всё видно */
-      mix-blend-mode: overlay; /* Цветное наложение */
-      pointer-events: none;  /* 🔑 Клики проходят сквозь */
-      z-index: 9998;
+      background: linear-gradient(135deg, #FF8C00 0%, #8A2BE2 50%, #FF4500 100%);
     }
     
     /* Картинки остаются без наложения */
@@ -58,20 +44,21 @@ body {
     }
     
 
-/* Полноэкранный режим на мобильных */
-@media (max-width: 600px) {
-  html, body {
-    width: 100vw;
-    height: 100vh;
-    overflow-x: hidden;
-    margin: 0;
-    padding: 0;
-  }
-  
-  body::before {
-    width: 100vw;
-    left: 0;
-  }
+/* Полноэкранный режим на всех устройствах */
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.game-screen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
 /* === ЭКРАН ВХОДА/РЕГИСТРАЦИИ === */
@@ -413,7 +400,7 @@ body::before {
   transition: opacity 0.5s;
 }
 
-.bg-ocean { background-image: url('bg_ocean.jpg'); }
+.bg-sunny { background-image: url('bg_orange.jpg'); }
 .bg-white { background-image: url('bg_white.jpg'); }
 .bg-dark { background-image: url('bg_dark.jpg'); }
 
