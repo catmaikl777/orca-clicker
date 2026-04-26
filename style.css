@@ -22,7 +22,7 @@ body {
   color: #fff;
   transition: background 0.5s;
   /* Fallback фон - тёмный градиент */
-  background: linear-gradient(135deg, #0a1628 0%, #1a3a52 50%, #0f2844 100%);
+  background: linear-gradient(135deg, #e88300 0%, #d4491f 50%, #ffff00 100%);
   position: relative;
   margin: 0;
   padding: 0;
@@ -376,8 +376,8 @@ body::before {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -389,15 +389,15 @@ body::before {
 
 .bg-sunny { 
   background-image: url('bg_orange.jpg');
-  background-color: #0a1628; /* Fallback */
+  background-color: #0a1628;
 }
 .bg-white { 
   background-image: url('bg_white.jpg');
-  background-color: #0a1628; /* Fallback */
+  background-color: #0a1628;
 }
 .bg-dark { 
   background-image: url('bg_dark.jpg');
-  background-color: #0a1628; /* Fallback */
+  background-color: #0a1628;
 }
 
 body.bg-ocean .bg-ocean { opacity: 1; }
