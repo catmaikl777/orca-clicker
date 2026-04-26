@@ -483,16 +483,22 @@ function handleServerMessage(data) {
         // НЕ перезаписываем данные - оставляем локальные
       } else {
         const d = data.data;
-        game.coins = d.coins || 0;
-        game.totalCoins = d.totalCoins || 0;
-        game.level = d.level || 1;
-        game.basePerClick = d.basePerClick ?? d.perClick ?? 0;
-        game.basePerSecond = d.basePerSecond ?? d.perSecond ?? 0;
+        game.coins = Number.isFinite(d.coins) && d.coins >= 0 ? d.coins : 0;
+        game.totalCoins = Number.isFinite(d.totalCoins) && d.totalCoins >= 0 ? d.totalCoins : 0;
+        game.level = Number.isFinite(d.level) && d.level > 0 ? d.level : 1;
+        const serverBasePerClick = d.basePerClick ?? d.perClick;
+        const serverBasePerSecond = d.basePerSecond ?? d.perSecond;
+        game.basePerClick = Number.isFinite(serverBasePerClick) && serverBasePerClick >= 0 ? serverBasePerClick : 0;
+        game.basePerSecond = Number.isFinite(serverBasePerSecond) && serverBasePerSecond >= 0 ? serverBasePerSecond : 0;
         if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
           console.warn(`WARNING: Invalid basePerSecond from server: ${game.basePerSecond}, using 0`);
           game.basePerSecond = 0;
         }
-        game.clicks = d.clicks || 0;
+        if (!Number.isFinite(game.basePerClick) || game.basePerClick < 0) {
+          console.warn(`WARNING: Invalid basePerClick from server: ${game.basePerClick}, using 0`);
+          game.basePerClick = 0;
+        }
+        game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         game.effects = d.effects || {};
         game.achievements = d.achievements || [];
         game.skins = d.skins || { normal: true };
@@ -541,6 +547,7 @@ function handleServerMessage(data) {
     applyEffects();
     
     // КРИТИЧНО: пересоздаем интервал автодохода при каждом логине
+    cleanupIntervals();
     setupAutoClickInterval();
     
     console.log('🎮 Игровые данные загружены');
@@ -578,15 +585,21 @@ function handleServerMessage(data) {
         console.log(`🛡️ Гость: данные уже загружены из localStorage, игнорируем сервер`);
       } else if (data.data) {
         const oldCoins = game.coins;
-        game.coins = data.data.coins || 0;
-        game.totalCoins = data.data.totalCoins || 0;
-        game.basePerClick = data.data.basePerClick ?? data.data.perClick ?? 0;
-        game.basePerSecond = data.data.basePerSecond ?? data.data.perSecond ?? 0;
+        game.coins = Number.isFinite(data.data.coins) && data.data.coins >= 0 ? data.data.coins : 0;
+        game.totalCoins = Number.isFinite(data.data.totalCoins) && data.data.totalCoins >= 0 ? data.data.totalCoins : 0;
+        const guestBasePerClick = data.data.basePerClick ?? data.data.perClick;
+        const guestBasePerSecond = data.data.basePerSecond ?? data.data.perSecond;
+        game.basePerClick = Number.isFinite(guestBasePerClick) && guestBasePerClick >= 0 ? guestBasePerClick : 0;
+        game.basePerSecond = Number.isFinite(guestBasePerSecond) && guestBasePerSecond >= 0 ? guestBasePerSecond : 0;
         if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
           console.warn(`WARNING: Invalid basePerSecond (guest): ${game.basePerSecond}, using 0`);
           game.basePerSecond = 0;
         }
-        game.clicks = data.data.clicks || 0;
+        if (!Number.isFinite(game.basePerClick) || game.basePerClick < 0) {
+          console.warn(`WARNING: Invalid basePerClick (guest): ${game.basePerClick}, using 0`);
+          game.basePerClick = 0;
+        }
+        game.clicks = Number.isFinite(data.data.clicks) && data.data.clicks >= 0 ? data.data.clicks : 0;
         game.effects = data.data.effects || {};
         game.skills = data.data.skills || {};
         game.skins = data.data.skins || {};
@@ -1342,7 +1355,9 @@ function renderShop() {
       </div>
       <div class="shop-item-price">${formatNumber(item.cost)}</div>
     `;
-    div.onclick = () => buyItem(item);
+    div.addEventListener('click', () => buyItem(item));
+    div.setAttribute('role', 'button');
+    div.setAttribute('tabindex', '0');
     container.appendChild(div);
   });
   
@@ -2454,8 +2469,10 @@ function closeAllModals() {
 }
 
 function switchShopTab(tab, btn) {
-  document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+  const tabs = document.querySelectorAll('.shop-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  const activeBtn = btn || tabs[0];
+  if (activeBtn) activeBtn.classList.add('active');
   
   if (tab === 'upgrades') {
     document.getElementById('shopUpgrades').style.display = 'flex';
@@ -2712,17 +2729,22 @@ function loadGame() {
         return;
       }
       
-      game.coins = data.coins || 0;
-      game.totalCoins = data.totalCoins || 0;
-      game.level = data.level || 1;
-      game.basePerClick = data.basePerClick || data.perClick || 0;
-      game.basePerSecond = data.basePerSecond || data.perSecond || 0;
-      // Валидация basePerSecond
+      game.coins = Number.isFinite(data.coins) && data.coins >= 0 ? data.coins : 0;
+      game.totalCoins = Number.isFinite(data.totalCoins) && data.totalCoins >= 0 ? data.totalCoins : 0;
+      game.level = Number.isFinite(data.level) && data.level > 0 ? data.level : 1;
+      const savedBasePerClick = data.basePerClick ?? data.perClick;
+      const savedBasePerSecond = data.basePerSecond ?? data.perSecond;
+      game.basePerClick = Number.isFinite(savedBasePerClick) && savedBasePerClick >= 0 ? savedBasePerClick : 0;
+      game.basePerSecond = Number.isFinite(savedBasePerSecond) && savedBasePerSecond >= 0 ? savedBasePerSecond : 0;
       if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
         console.warn(`WARNING: Invalid basePerSecond from localStorage: ${game.basePerSecond}, using 0`);
         game.basePerSecond = 0;
       }
-      game.clicks = data.clicks || 0;
+      if (!Number.isFinite(game.basePerClick) || game.basePerClick < 0) {
+        console.warn(`WARNING: Invalid basePerClick from localStorage: ${game.basePerClick}, using 0`);
+        game.basePerClick = 0;
+      }
+      game.clicks = Number.isFinite(data.clicks) && data.clicks >= 0 ? data.clicks : 0;
       game.effects = data.effects || {};
       game.achievements = data.achievements || [];
       game.skins = data.skins || {};
