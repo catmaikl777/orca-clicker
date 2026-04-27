@@ -5,13 +5,15 @@
  * Запускается через: node scripts/clear-clans.js
  */
 
+const path = require('path');
 const { Pool } = require('pg');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const path = require('path');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orca_clicker',
+  ssl: {
+    rejectUnauthorized: false // Требуется для PostgreSQL на Render
+  }
 });
 
 async function clearClans() {
