@@ -943,7 +943,39 @@ function handleRestoreSession(ws, data) {
   
   let playerData = db.players[accountId];
   if (!playerData) {
-    playerData = createDefaultPlayer(accountId, username || 'Player');
+    // Загружаем данные из базы данных
+    try {
+      const dbPlayer = await dbAdapter.getPlayer(accountId);
+      if (dbPlayer) {
+        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}`);
+        playerData = {
+          ...dbPlayer,
+          // Преобразуем JSON поля обратно в объекты
+          skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
+          achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
+          skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
+          pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
+          questProgress: dbPlayer.quest_progress || [],
+          dailyQuestDate: dbPlayer.daily_quest_date,
+          dailyQuestIds: dbPlayer.daily_quest_ids || [],
+          antiCheat: dbPlayer.anti_cheat || {},
+          // Преобразуем snake_case в camelCase
+          perClick: dbPlayer.per_click,
+          perSecond: dbPlayer.per_second,
+          totalCoins: dbPlayer.total_coins,
+          currentSkin: dbPlayer.current_skin,
+          eventRewards: dbPlayer.event_rewards,
+          createdAt: dbPlayer.created_at,
+          lastLogin: dbPlayer.last_login
+        };
+      } else {
+        console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
+        playerData = createDefaultPlayer(accountId, username || 'Player');
+      }
+    } catch (error) {
+      console.error(`❌ Ошибка загрузки игрока ${accountId} из БД:`, error);
+      playerData = createDefaultPlayer(accountId, username || 'Player');
+    }
     db.players[accountId] = playerData;
   }
   
