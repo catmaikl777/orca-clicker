@@ -764,6 +764,9 @@ function handleServerMessage(data) {
     case 'clanCreated':
       showNotification(`🏰 Клан "${data.name}" создан!`);
       console.log(`🏰 Клан создан: ${data.clanId}, name: ${data.name}`);
+      game.clan = data.clanId;
+      saveGame();
+      updateClansUI();
       // Обновляем список кланов и участников
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
@@ -775,6 +778,9 @@ function handleServerMessage(data) {
     case 'joinedClan':
       showNotification(`👥 Вы вступили в клан "${data.name}"!`);
       console.log(`👥 Вступил в клан: ${data.clanId}, name: ${data.name}`);
+      game.clan = data.clanId;
+      saveGame();
+      updateClansUI();
       // Обновляем список кланов и участников
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
