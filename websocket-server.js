@@ -947,8 +947,7 @@ async function handleRestoreSession(ws, data) {
     try {
       const dbPlayer = await dbAdapter.getPlayer(accountId);
       if (dbPlayer) {
-        console.log(`💾 Загружены данные игрока из БД: ${accountId}`, dbPlayer);
-        console.log(`💾 clan из БД: ${dbPlayer.clan}`);
+        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}`);
         playerData = {
           ...dbPlayer,
           // Преобразуем JSON поля обратно в объекты
@@ -960,6 +959,17 @@ async function handleRestoreSession(ws, data) {
           dailyQuestDate: dbPlayer.daily_quest_date,
           dailyQuestIds: dbPlayer.daily_quest_ids || [],
           antiCheat: dbPlayer.anti_cheat || {},
+          clan: (() => {
+            let clanValue = dbPlayer.clan;
+            if (typeof clanValue === 'string') {
+              try {
+                clanValue = JSON.parse(clanValue);
+              } catch (e) {
+                // Если значение уже plain string, оставляем его как есть
+              }
+            }
+            return clanValue ?? null;
+          })(),
           // Преобразуем snake_case в camelCase
           perClick: dbPlayer.per_click,
           perSecond: dbPlayer.per_second,

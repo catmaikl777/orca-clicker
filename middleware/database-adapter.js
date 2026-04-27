@@ -271,12 +271,10 @@ class DatabaseAdapter {
       skins = '{"normal": true}';
     }
     
-    // clan может быть null или объект/строка
+    // clan может быть null или строкой/id или объектом
     let clan;
     if (player.clan === null || player.clan === undefined || player.clan === '') {
       clan = null;
-    } else if (typeof player.clan === 'string') {
-      clan = player.clan;
     } else {
       try {
         clan = JSON.stringify(player.clan);
