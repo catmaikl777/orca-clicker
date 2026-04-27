@@ -920,7 +920,7 @@ function handleSavePlayerData(ws, data) {
 }
 
 // Восстановление сессии при переподключении
-function handleRestoreSession(ws, data) {
+async function handleRestoreSession(ws, data) {
   const { accountId, username } = data;
   
   if (!accountId) {
