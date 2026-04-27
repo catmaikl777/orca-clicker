@@ -591,6 +591,7 @@ function handleMessage(ws, data) {
     case 'createClan': handleCreateClan(ws, data.name); break;
     case 'joinClan': handleJoinClan(ws, data.clanId); break;
     case 'leaveClan': handleLeaveClan(ws); break;
+    case 'deleteClan': handleDeleteClan(ws, data.clanId); break;
     case 'getClans': sendClans(ws); break;
     case 'startBattleFromLobby': handleStartBattleFromLobby(ws, data.lobbyId); break;
     case 'getClanMembers': getClanMembers(ws); break;
@@ -1576,8 +1577,17 @@ function handleCreateClan(ws, clanName) {
   }
   
   const player = players.get(id) || db.players[id];
+  
+  // Ограничение: максимум 1 клан на игрока
   if (player.clan) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в клане' }));
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже владеете кланом!' }));
+    return;
+  }
+  
+  // Проверка что игрок не в другом клане
+  const existingClan = Object.values(db.clans).find(c => c.members.includes(id));
+  if (existingClan) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в клане! Выйдите сначала.' }));
     return;
   }
   
@@ -1598,6 +1608,7 @@ function handleCreateClan(ws, clanName) {
   
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName, clanId }));
   broadcastClans();
+  sendClanMembers(clanId);
   savePlayerToDB(id);
   saveClanToDB(clanId);
 }
@@ -1647,6 +1658,40 @@ function handleJoinClan(ws, clanId) {
   sendClanMembers(clanId);
   savePlayerToDB(id);
   saveClanToDB(clanId);
+}
+  
+function handleDeleteClan(ws, clanId) {
+  const id = ws.accountId || ws.playerId;
+  const clan = db.clans[clanId];
+  
+  if (!clan) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Клан не найден' }));
+    return;
+  }
+  
+  if (clan.owner !== id) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Только владелец может удалить клан' }));
+    return;
+  }
+  
+  // Удаляем клан
+  delete db.clans[clanId];
+  db.stats.totalClans--;
+  deleteClanFromDB(clanId);
+  
+  // Удаляем клан у всех участников
+  clan.members.forEach(memberId => {
+    if (db.players[memberId]) {
+      db.players[memberId].clan = null;
+      savePlayerToDB(memberId);
+    }
+    const member = players.get(memberId);
+    if (member) member.clan = null;
+  });
+  
+  ws.send(JSON.stringify({ type: 'clanDeleted', clanId }));
+  broadcastClans();
+  console.log(`🗑️ Клан удалён: ${clanId} владельцем ${id}`);
 }
   
 function handleLeaveClan(ws) {

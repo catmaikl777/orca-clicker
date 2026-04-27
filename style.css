@@ -404,7 +404,7 @@ body::before {
 }
 
 /* Активный фон должен быть виден */
-body.bg-ocean .bg-ocean { 
+body.bg-sunny .bg-sunny { 
   opacity: 1; 
   z-index: 0;
 }
@@ -440,7 +440,7 @@ body {
   /* Фоновые слои на мобильных */
   .bg-layer {
     background-attachment: scroll; /* На мобильных fixed не работает */
-    z-index: -1;
+    z-index: 0;
     width: 100vw;
     height: 100vh;
   }
@@ -466,60 +466,6 @@ body {
   }
 }
   
-.bg-sunny { 
-  background-image: url('bg_orange.jpg');
-  background-color: #0a1628;
-}
-.bg-white { 
-  background-image: url('bg_white.jpg');
-  background-color: #0a1628;
-}
-.bg-dark { 
-  background-image: url('bg_dark.jpg');
-  background-color: #0a1628;
-}
-
-body.bg-ocean .bg-ocean { opacity: 1; }
-body.bg-ocean .bg-white { opacity: 0; }
-body.bg-ocean .bg-dark { opacity: 0; }
-
-body.bg-white .bg-ocean { opacity: 0; }
-body.bg-white .bg-white { opacity: 1; }
-body.bg-white .bg-dark { opacity: 0; }
-
-body.bg-dark .bg-ocean { opacity: 0; }
-body.bg-dark .bg-white { opacity: 0; }
-body.bg-dark .bg-dark { opacity: 1; }
-
-/* === МОБИЛЬНЫЕ СТИЛИ === */
-@media (max-width: 600px) {
-  /* Фоновые слои на мобильных */
-  .bg-layer {
-    background-attachment: scroll;
-    z-index: -1;
-  }
-  
-  /* Убираем overflow чтобы не было прокрутки */
-  body {
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  /* game-screen на весь экран */
-  .game-screen {
-    width: 100vw;
-    height: 100vh;
-    min-height: 100vh;
-  }
-  
-  /* Контейнер игры на мобильных */
-  .game-container {
-    width: 100%;
-    max-width: 100%;
-    padding: 10px;
-  }
-}
-
 /* Контейнер игры */
 .game-container {
   max-width: 900px;

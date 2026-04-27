@@ -756,8 +756,37 @@ function handleServerMessage(data) {
       break;
     case 'leftClan':
       showNotification('🚪 Вы вышли из клана');
-      game.clan = null;  // ✅ Сбрасываем клан локально
-      saveGame();  // ✅ Сохраняем изменение
+      game.clan = null;
+      saveGame();
+      // Обновляем UI
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClans' }));
+          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        }
+      }, 200);
+      break;
+    case 'clanDeleted':
+      showNotification('🗑️ Клан удалён');
+      game.clan = null;
+      saveGame();
+      // Обновляем UI
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClans' }));
+        }
+      }, 200);
+      break;
+    case 'clanDeleted':
+      showNotification('🗑️ Клан удалён');
+      game.clan = null;
+      saveGame();
+      // Обновляем UI
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClans' }));
+        }
+      }, 200);
       break;
     case 'effectBought':
       // Сервер подтвердил покупку эффекта
@@ -2291,11 +2320,32 @@ window.joinClan = function(clanId) {
   ws.send(JSON.stringify({ type: 'joinClan', clanId }));
 }
   
+window.deleteClan = function() {
+  console.log('🔴 deleteClan called');
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  if (confirm('Вы уверены, что хотите УДАЛИТЬ свой клан? Это действие необратимо!')) {
+    console.log('🔴 Отправляю deleteClan');
+    ws.send(JSON.stringify({ type: 'deleteClan', clanId: game.clan }));
+  }
+}
+  
 function updateClansUI(clans) {
   const container = document.getElementById('clanList');
+  const leaveBtn = document.getElementById('leaveClanBtn');
+  const deleteBtn = document.getElementById('deleteClanBtn');
+  const createBtn = document.querySelector('.clan-actions .action-btn');
+  
   if (!container) return;
   
-  console.log(`🏰 updateClansUI: clans=${clans?.length || 0}`);
+  console.log(`🏰 updateClansUI: clans=${clans?.length || 0}, myClan=${game.clan || 'нет'}`);
+  
+  // Обновляем видимость кнопок
+  if (leaveBtn) leaveBtn.style.display = game.clan ? 'inline-block' : 'none';
+  if (deleteBtn) deleteBtn.style.display = game.clan ? 'inline-block' : 'none';
+  if (createBtn) createBtn.style.display = game.clan ? 'none' : 'inline-block';
   
   container.innerHTML = '';
   
@@ -2307,12 +2357,26 @@ function updateClansUI(clans) {
   clans.forEach(clan => {
     const div = document.createElement('div');
     div.className = 'clan-item';
+    
+    // Проверяем если это мой клан
+    const isMyClan = game.clan === clan.id;
+    const isInClan = game.clan && game.clan !== clan.id;
+    
+    let actionBtn = '';
+    if (isMyClan) {
+      actionBtn = `<span style="color:#4caf50">✓ Ваш клан</span>`;
+    } else if (isInClan) {
+      actionBtn = `<span style="color:#888">В другом клане</span>`;
+    } else {
+      actionBtn = `<button onclick="joinClan('${clan.id}')">Вступить</button>`;
+    }
+    
     div.innerHTML = `
       <div>
         <strong>${escapeHtml(clan.name)}</strong>
         <small>(${clan.memberCount || 0} участников)</small>
       </div>
-      <button onclick="joinClan('${clan.id}')">Вступить</button>
+      <div>${actionBtn}</div>
     `;
     container.appendChild(div);
   });
