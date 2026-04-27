@@ -703,7 +703,13 @@ function handleServerMessage(data) {
       break;
     case 'clanMembers':
       console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data.members);
+      if (data.clanId && !game.clan) {
+        console.log(`🏰 Синхронизирую game.clan из clanMembers: ${data.clanId}`);
+        game.clan = data.clanId;
+        saveGame();
+      }
       if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      updateClansUI();
       break;
     case 'battleLobbies':
       updateBattleLobbiesUI(data.lobbies);
@@ -2395,11 +2401,14 @@ function updateClansUI() {
     const div = document.createElement('div');
     div.className = 'clan-item';
     
-    // Проверяем если это мой клан
-    const isMyClan = game.clan === clan.id;
-    const isInClan = game.clan && game.clan !== clan.id;
+    const currentClanId = typeof game.clan === 'object' && game.clan !== null ? game.clan.id : String(game.clan || '');
+    const clanId = String(clan.id || '');
     
-    console.log(`🏰 Клан ${clan.name}: isMyClan=${isMyClan}, isInClan=${isInClan}`);
+    // Проверяем если это мой клан
+    const isMyClan = currentClanId && currentClanId === clanId;
+    const isInClan = currentClanId && currentClanId !== clanId;
+    
+    console.log(`🏰 Клан ${clan.name}: currentClanId=${currentClanId}, clanId=${clanId}, isMyClan=${isMyClan}, isInClan=${isInClan}`);
     
     let actionBtn = '';
     if (isMyClan) {
