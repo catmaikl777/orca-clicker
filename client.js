@@ -17,6 +17,7 @@ const game = {
   multiplier: 1,
   dailyQuestDate: null,
   dailyQuestIds: [],
+  dailyProgress: { clicks: 0, coins: 0, playTime: 0 },
   clan: null
 };
 
@@ -1117,7 +1118,6 @@ function cleanupIntervals() {
 }
 
 function handleClick(e) {
-  // Проверка на спам кликами (защита от автокликеров и багов)
   const now = Date.now();
   if (now - lastClickTime >= 1000) {
     clicksThisSecond = 0;
@@ -1126,33 +1126,14 @@ function handleClick(e) {
   clicksThisSecond++;
 
   if (clicksThisSecond > MAX_CLICKS_PER_SEC) {
-    console.warn(`⚠️ Превышен лимит кликов: ${clicksThisSecond}/сек (макс. ${MAX_CLICKS_PER_SEC})`);
     return;
   }
   
   const perClick = getPerClick();
-  const critChance = 0.1;
-  const critMultiplier = 10;
+  let earned = perClick * game.multiplier;
   
-  // earned = perClick (множители эффектов уже внутри getPerClick)
-  let earned = perClick;
-  let isCrit = false;
-  
-  // КРИТИЧЕСКИ: проверка earned
-  if (!Number.isFinite(earned)) {
-    console.error('❌ ERROR: earned is NaN or Infinity!', { perClick, earned, basePerClick: game.basePerClick });
-    return;
-  }
-  
-  // КРИТИЧЕСКИ: проверка что earned не слишком большой
-  if (earned > 1e15) {
-    console.error(`❌ CRITICAL: earned too large! earned=${earned}, perClick=${perClick}, basePerClick=${game.basePerClick}`);
-    earned = Math.min(earned, 1e15);
-  }
-  
-  // Лог для отладки если earned > 100 или это первый клик после загрузки
-  if (earned > 100 || game.clicks === 1) {
-    console.log(`🖱️ CLICK: coins before=${game.coins}, earned=${earned}, perClick=${perClick}, clicks=${game.clicks}`);
+  if (!Number.isFinite(earned) || earned > 1e15) {
+    earned = Math.min(perClick, 1e15);
   }
   
   const coinsBefore = game.coins;
@@ -1160,23 +1141,20 @@ function handleClick(e) {
   game.totalCoins += earned;
   game.clicks++;
   
-  // Проверка после добавления
+  // Обновляем ежедневный прогресс
+  if (!game.dailyProgress) game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
+  game.dailyProgress.clicks++;
+  game.dailyProgress.coins += earned;
+  
   if (!Number.isFinite(game.coins)) {
-    console.error('❌ CRITICAL: game.coins became invalid!', { earned, coins: game.coins });
     game.coins = 0;
   }
   
-  // Дополнительный лог если монеты скакнули странно
-  if (game.clicks === 1 || Math.abs(game.coins - coinsBefore) > 1000) {
-    console.log(`💰 Coins: ${coinsBefore} → ${game.coins} (earned=${earned})`);
-  }
-  
-  // Плавающий текст
   const rect = clicker.getBoundingClientRect();
   const x = e.clientX || (rect.left + rect.width / 2);
   const y = e.clientY || (rect.top + rect.height / 2);
-  const text = isCrit ? `КРИТ! x${critMultiplier}` : `+${formatNumber(earned)}`;
-  const color = isCrit ? '#ff6b6b' : '#4fc3f7';
+  const text = `+${formatNumber(earned)}`;
+  const color = '#4fc3f7';
   showFloatingText(x, y, text, color);
   
   playSound('clickSound');
@@ -1594,6 +1572,11 @@ function initQuests(savedQuestState) {
     savedIds = Array.isArray(savedQuestState.dailyQuestIds) ? savedQuestState.dailyQuestIds : null;
   }
 
+  // Сброс ежедневного прогресса если наступил новый день
+  if (savedDate !== today) {
+    game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
+  }
+
   const dailyQuestIds = pickRandomDailyQuestIds(savedDate, savedIds);
   game.dailyQuestDate = today;
   game.dailyQuestIds = dailyQuestIds;
@@ -1611,7 +1594,6 @@ function initQuests(savedQuestState) {
     saveGame();
   }
 
-  // Применяем визуальные эффекты после инициализации квестов
   applyEffects();
 }
 
@@ -1636,6 +1618,17 @@ function renderQuests() {
 }
 
 function getQuestProgress(quest) {
+  // Для ежедневных квестов - используем dailyProgress, для постоянных - общую статистику
+  const isDaily = game.dailyQuestIds && game.dailyQuestIds.includes(quest.id);
+  
+  if (isDaily) {
+    // Ежедневный квест - считаем с начала дня
+    if (quest.type === 'clicks') return (game.dailyProgress && game.dailyProgress.clicks) || 0;
+    if (quest.type === 'coins') return (game.dailyProgress && game.dailyProgress.coins) || 0;
+    if (quest.type === 'playTime') return (game.dailyProgress && game.dailyProgress.playTime) || 0;
+  }
+  
+  // Постоянный квест или неподдерживаемый тип
   if (quest.type === 'clicks') return game.clicks;
   if (quest.type === 'coins') return game.coins;
   if (quest.type === 'totalCoins') return game.totalCoins;
@@ -2839,17 +2832,13 @@ function saveGameToServer() {
 }
 
 function saveGame() {
-  // КРИТИЧЕСКАЯ проверка перед сохранением
   if (!Number.isFinite(game.coins) || game.coins > 1e30) {
-    console.error(`🚨 CRITICAL: Attempting to save invalid coins: ${game.coins}`);
     game.coins = Math.min(game.coins, 1e30);
   }
   if (!Number.isFinite(game.totalCoins) || game.totalCoins > 1e30) {
-    console.error(`🚨 CRITICAL: Attempting to save invalid totalCoins: ${game.totalCoins}`);
     game.totalCoins = Math.min(game.totalCoins, 1e30);
   }
   
-  // Сохраняем в localStorage (резервное)
   const saveData = {
     coins: Math.floor(game.coins),
     totalCoins: Math.floor(game.totalCoins),
@@ -2863,19 +2852,13 @@ function saveGame() {
     currentSkin: game.currentSkin,
     playTime: game.playTime,
     clan: game.clan,
-    multiplier: 1, // Всегда сохраняем 1
-    shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-    questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
+    multiplier: 1,
     dailyQuestDate: game.dailyQuestDate,
-    dailyQuestIds: game.dailyQuestIds
+    dailyQuestIds: game.dailyQuestIds,
+    dailyProgress: game.dailyProgress
   };
   localStorage.setItem('cosatkaClicker', JSON.stringify(saveData));
-  
-  // Также отправляем на сервер
   scheduleServerSave();
-  
-  // Лог для отладки
-  console.log(`💾 Сохранено: coins=${saveData.coins}, totalCoins=${saveData.totalCoins}, level=${saveData.level}`);
 }
 
 // Принудительное сохранение всех данных на сервер
@@ -2939,17 +2922,13 @@ function loadGame() {
     try {
       const data = JSON.parse(saved);
       
-      // КРИТИЧЕСКАЯ проверка: если coins > 1e15 - это мусор, сбрасываем
       if (data.coins && data.coins > 1e15) {
-        console.error(`🚨 CRITICAL: Corrupted save detected! coins=${data.coins}, resetting...`);
         localStorage.removeItem('cosatkaClicker');
         initQuests();
         return;
       }
       
-      // Проверка totalCoins
       if (data.totalCoins && data.totalCoins > 1e15) {
-        console.error(`🚨 CRITICAL: Corrupted save detected! totalCoins=${data.totalCoins}, resetting...`);
         localStorage.removeItem('cosatkaClicker');
         initQuests();
         return;
@@ -2962,14 +2941,6 @@ function loadGame() {
       const savedBasePerSecond = data.basePerSecond ?? data.perSecond;
       game.basePerClick = Number.isFinite(savedBasePerClick) && savedBasePerClick >= 0 ? savedBasePerClick : 0;
       game.basePerSecond = Number.isFinite(savedBasePerSecond) && savedBasePerSecond >= 0 ? savedBasePerSecond : 0;
-      if (!Number.isFinite(game.basePerSecond) || game.basePerSecond < 0) {
-        console.warn(`WARNING: Invalid basePerSecond from localStorage: ${game.basePerSecond}, using 0`);
-        game.basePerSecond = 0;
-      }
-      if (!Number.isFinite(game.basePerClick) || game.basePerClick < 0) {
-        console.warn(`WARNING: Invalid basePerClick from localStorage: ${game.basePerClick}, using 0`);
-        game.basePerClick = 0;
-      }
       game.clicks = Number.isFinite(data.clicks) && data.clicks >= 0 ? data.clicks : 0;
       game.effects = data.effects || {};
       game.achievements = data.achievements || [];
@@ -2977,19 +2948,16 @@ function loadGame() {
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
       game.clan = data.clan || null;
-      // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке (он применяется только для x2 бонуса)
       game.multiplier = 1;
+      game.dailyQuestDate = data.dailyQuestDate || null;
+      game.dailyQuestIds = data.dailyQuestIds || [];
+      game.dailyProgress = data.dailyProgress || { clicks: 0, coins: 0, playTime: 0 };
       
-      // КРИТИЧНО: помечаем что данные загружены из localStorage
-      // Но при подключении к серверу данные с сервера будут иметь приоритет
       dataLoadedFromStorage = true;
       serverDataTimestamp = Date.now();
-      console.log(`💾 Данные загружены из localStorage: coins=${game.coins}, totalCoins=${game.totalCoins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}`);
       
-      // НЕ применяем эффекты навыков - они рассчитываются динамически через getPerClick()/getPerSecond()
-      
-      if (data.shopItems) {
-        data.shopItems.forEach(savedItem => {
+      if (data.questProgress) {
+        data.questProgress.forEach(savedItem => {
           const item = shopItems.find(i => i.id === savedItem.id);
           if (item) item.cost = savedItem.cost;
         });
@@ -3005,7 +2973,6 @@ function loadGame() {
         initQuests();
       }
     } catch (e) {
-      console.error('Error loading save:', e);
       initQuests();
     }
   } else {
