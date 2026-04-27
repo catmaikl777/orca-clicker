@@ -947,7 +947,8 @@ async function handleRestoreSession(ws, data) {
     try {
       const dbPlayer = await dbAdapter.getPlayer(accountId);
       if (dbPlayer) {
-        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}`);
+        console.log(`💾 Загружены данные игрока из БД: ${accountId}`, dbPlayer);
+        console.log(`💾 clan из БД: ${dbPlayer.clan}`);
         playerData = {
           ...dbPlayer,
           // Преобразуем JSON поля обратно в объекты
@@ -1632,6 +1633,8 @@ function handleCreateClan(ws, clanName) {
   player.clan = clanId;
   db.players[id].clan = clanId;
   db.stats.totalClans++;
+  
+  console.log(`🏰 Клан создан: ${clanId} для игрока ${id}, player.clan=${player.clan}`);
   
   // Синхронизация в памяти
   if (players.has(id)) {
