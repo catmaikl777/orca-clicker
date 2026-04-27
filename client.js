@@ -446,7 +446,8 @@ function connectWebSocket() {
 function handleServerMessage(data) {
   // Обработка ответа на аутентификацию с аккаунтом (успех)
   if (data.type === 'authSuccess') {
-    console.log(`✅ Аутентификация успешна: ${data.username}`);
+    console.log(`✅ Аутентификация успешна: ${data.username}, accountId: ${data.accountId}`);
+    console.log(`📊 authSuccess данные:`, data);
     
     // СБРОС цен магазина к дефолтным перед загрузкой (чтобы не было цен от предыдущего аккаунта)
     shopItems.forEach(item => {
@@ -476,6 +477,7 @@ function handleServerMessage(data) {
     
     // Загружаем сохраненные данные игрока если есть
     if (data.data) {
+      console.log(`📊 Загружаем данные игрока с сервера:`, data.data);
       // КРИТИЧНО: всегда загружаем данные с сервера (сервер - источник истины)
       // Это предотвращает конфликты между устройствами
       const d = data.data;
@@ -501,6 +503,7 @@ function handleServerMessage(data) {
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
       game.clan = d.clan || null;
+      console.log(`🏰 Загружен clan из сервера: ${game.clan}`);
       // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке с сервера
       game.multiplier = 1;
       
