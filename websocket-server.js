@@ -1516,9 +1516,9 @@ function updateLeaderboard(player) {
   const entry = { 
     id: player.id, 
     name: name, 
-    coins: player.coins || 0, 
-    perSecond: player.perSecond || 0, 
-    level: player.level || 1 
+    coins: Number(player.coins) || 0, 
+    perSecond: Number(player.perSecond) || 0, 
+    level: Number(player.level) || 1 
   };
   
   if (idx >= 0) db.leaderboard[idx] = entry;
@@ -1537,7 +1537,13 @@ function sendLeaderboard(ws) {
   // Перестраиваем лидерборд из текущих данных игроков
   db.leaderboard = Object.values(db.players)
     .filter(p => p && p.id && p.name)
-    .map(p => ({ id: p.id, name: p.name, coins: p.coins || 0, perSecond: p.perSecond || 0, level: p.level || 1 }))
+    .map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      coins: Number(p.coins) || 0, 
+      perSecond: Number(p.perSecond) || 0, 
+      level: Number(p.level) || 1 
+    }))
     .sort((a, b) => b.coins - a.coins)
     .slice(0, 100);
   ws.send(JSON.stringify({ type: 'leaderboard', data: db.leaderboard }));

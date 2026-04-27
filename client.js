@@ -489,6 +489,7 @@ function handleServerMessage(data) {
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
+      game.clan = d.clan || null;
       // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке с сервера
       game.multiplier = 1;
       
@@ -517,7 +518,7 @@ function handleServerMessage(data) {
       // Сохраняем актуальные данные в localStorage после загрузки с сервера
       saveGame();
       
-      console.log(`🎮 Данные загружены с сервера: coins=${game.coins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}, effects=${Object.keys(game.effects).length}, achievements=${game.achievements.length}`);
+      console.log(`🎮 Данные загружены с сервера: coins=${game.coins}, clan=${game.clan || 'нет'}, effects=${Object.keys(game.effects).length}`);
     } else {
       // Если данных с сервера нет - загружаем из localStorage как fallback
       console.log('⚠️ Нет данных с сервера, используем localStorage');
@@ -543,14 +544,14 @@ function handleServerMessage(data) {
     
     console.log('🎮 Игровые данные загружены');
     
-    // Отправляем запрос на получение лобби если открыта модалка батла
+    // Отправляем запросы на клан и лобби после загрузки данных
     setTimeout(() => {
       if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
         ws.send(JSON.stringify({ type: 'getClans' }));
         ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
       }
-    }, 300);
+    }, 500);
     
     return;
   }
@@ -739,6 +740,8 @@ function handleServerMessage(data) {
       break;
     case 'leftClan':
       showNotification('🚪 Вы вышли из клана');
+      game.clan = null;  // ✅ Сбрасываем клан локально
+      saveGame();  // ✅ Сохраняем изменение
       break;
     case 'effectBought':
       // Сервер подтвердил покупку эффекта
