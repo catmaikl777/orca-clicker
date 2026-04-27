@@ -669,9 +669,11 @@ function handleServerMessage(data) {
       endBattleUI(data);
       break;
     case 'clans':
+      console.log(`📊 Получены кланы: ${data.data?.length || 0} шт.`, data.data);
       updateClansUI(data.data || []);
       break;
     case 'clanMembers':
+      console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data.members);
       if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
       break;
     case 'battleLobbies':
@@ -732,11 +734,25 @@ function handleServerMessage(data) {
       break;
     case 'clanCreated':
       showNotification(`🏰 Клан "${data.name}" создан!`);
-      ws.send(JSON.stringify({ type: 'getClanMembers' }));
+      console.log(`🏰 Клан создан: ${data.clanId}, name: ${data.name}`);
+      // Обновляем список кланов и участников
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClans' }));
+          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        }
+      }, 200);
       break;
     case 'joinedClan':
       showNotification(`👥 Вы вступили в клан "${data.name}"!`);
-      ws.send(JSON.stringify({ type: 'getClanMembers' }));
+      console.log(`👥 Вступил в клан: ${data.clanId}, name: ${data.name}`);
+      // Обновляем список кланов и участников
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClans' }));
+          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        }
+      }, 200);
       break;
     case 'leftClan':
       showNotification('🚪 Вы вышли из клана');
@@ -2274,6 +2290,8 @@ function updateClansUI(clans) {
   const container = document.getElementById('clanList');
   if (!container) return;
   
+  console.log(`🏰 updateClansUI: clans=${clans?.length || 0}`);
+  
   container.innerHTML = '';
   
   if (!clans || clans.length === 0) {
@@ -2298,6 +2316,8 @@ function updateClansUI(clans) {
 window.updateClanMembersUI = function(members) {
   const container = document.getElementById('clanMembersList');
   if (!container) return;
+  
+  console.log(`👥 updateClanMembersUI: members=${members?.length || 0}`, members);
   
   container.innerHTML = '';
   if (!members || members.length === 0) {

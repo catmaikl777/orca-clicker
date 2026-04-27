@@ -1596,7 +1596,7 @@ function handleCreateClan(ws, clanName) {
     players.get(id).clan = clanId;
   }
   
-  ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
+  ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName, clanId }));
   broadcastClans();
   savePlayerToDB(id);
   saveClanToDB(clanId);
@@ -1642,7 +1642,7 @@ function handleJoinClan(ws, clanId) {
     players.get(id).clan = clanId;
   }
   
-  ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name }));
+  ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name, clanId }));
   broadcastClans();
   sendClanMembers(clanId);
   savePlayerToDB(id);
@@ -1726,6 +1726,7 @@ function sendClans(ws) {
     id: c.id, name: c.name, ownerName: c.ownerName,
     memberCount: c.members.length, totalCoins: c.totalCoins
   }));
+  console.log(`📡 sendClans: отправлено ${list.length} кланов игроку ${ws.accountId || ws.playerId}`);
   ws.send(JSON.stringify({ type: 'clans', data: list }));
 }
 
@@ -1735,12 +1736,14 @@ function broadcastClans() {
     memberCount: c.members.length, totalCoins: c.totalCoins
   }));
   const data = JSON.stringify({ type: 'clans', data: list });
+  let count = 0;
   wss.clients.forEach(c => {
     if (c.readyState === WebSocket.OPEN) {
       c.send(data);
+      count++;
     }
   });
-  console.log(`📊 Кланов: ${Object.keys(db.clans).length}, отправлено всем клиентам`);
+  console.log(`📊 broadcastClans: ${Object.keys(db.clans).length} кланов, отправлено ${count} клиентам`);
 }
 
 function handleBuyEffect(ws, effectId) {
