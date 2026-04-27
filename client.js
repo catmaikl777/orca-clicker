@@ -397,6 +397,13 @@ function connectWebSocket() {
     ws.send(JSON.stringify({ type: 'getLeaderboard' }));
     ws.send(JSON.stringify({ type: 'getClans' }));
     
+    // Запрашиваем участников клана если игрок в клане
+    setTimeout(() => {
+      if (game.clan && ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getClanMembers' }));
+      }
+    }, 500);
+    
     // Обновляем UI лобби если открыта вкладка
     setTimeout(() => {
       if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
@@ -527,6 +534,10 @@ function handleServerMessage(data) {
       // Отладка клана
       if (game.clan) {
         console.log(`🏰 Игрок в клане: ${game.clan}`);
+        // Запрашиваем участников клана
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        }
       } else {
         console.log('🏰 Игрок НЕ в клане');
       }
