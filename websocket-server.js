@@ -794,6 +794,7 @@ function handleSaveGame(ws, data) {
   p.questProgress = data.questProgress || p.questProgress;
   if (data.dailyQuestDate) p.dailyQuestDate = data.dailyQuestDate;
   if (Array.isArray(data.dailyQuestIds) && data.dailyQuestIds.length > 0) p.dailyQuestIds = data.dailyQuestIds;
+  if (data.clan !== undefined) p.clan = data.clan;
   p.lastLogin = Date.now();
   if (mem) Object.assign(mem, p);
   

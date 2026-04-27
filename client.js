@@ -547,6 +547,8 @@ function handleServerMessage(data) {
     setTimeout(() => {
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+        ws.send(JSON.stringify({ type: 'getClans' }));
+        ws.send(JSON.stringify({ type: 'getClanMembers' }));
       }
     }, 300);
     
@@ -2674,7 +2676,8 @@ function saveGameToServer() {
       shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
       questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
       dailyQuestDate: game.dailyQuestDate,
-      dailyQuestIds: game.dailyQuestIds || []
+      dailyQuestIds: game.dailyQuestIds || [],
+      clan: game.clan || null
     }
   }));
 }
@@ -2939,13 +2942,15 @@ function setBg(bgClass, btn) {
   document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   localStorage.setItem('bgClass', bgClass);
+  
+  console.log('🎨 Фон изменён на:', bgClass, 'body classes:', document.body.className);
 }
 
 function loadSettings() {
   const bgMusicEnabled = localStorage.getItem('bgMusicEnabled') === 'true';
   const sfxEnabled = localStorage.getItem('sfxEnabled') !== 'false';
   const volume = localStorage.getItem('volume') || 50;
-  const bgClass = localStorage.getItem('bgClass') || 'bg-ocean';
+  const bgClass = localStorage.getItem('bgClass') || 'bg-sunny';
   
   const bgMusicToggle = document.getElementById('bgMusicToggle');
   const sfxToggle = document.getElementById('sfxToggle');
@@ -2959,11 +2964,6 @@ function loadSettings() {
     bgMusic.volume = volume / 100;
     bgMusic.play().catch(() => {});
   }
-  
-  // Устанавливаем дефолтный фон (bg-ocean)
-  document.body.classList.add('bg-ocean');
-  
-  console.log('🎨 Фон установлен:', document.body.className);
   
   const bgBtn = document.querySelector(`.bg-btn[onclick*="${bgClass}"]`);
   setBg(bgClass, bgBtn);

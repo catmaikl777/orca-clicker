@@ -385,7 +385,7 @@ body::before {
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: fixed;
-  z-index: 0;
+  z-index: -1;
   transition: opacity 0.5s;
   opacity: 0;
 }
@@ -401,6 +401,38 @@ body::before {
 .bg-dark { 
   background-image: url('bg_dark.jpg');
   background-color: #0a1628;
+}
+
+/* Активный фон должен быть виден */
+body.bg-ocean .bg-ocean { 
+  opacity: 1; 
+  z-index: 0;
+}
+body.bg-white .bg-white { 
+  opacity: 1; 
+  z-index: 0;
+}
+body.bg-dark .bg-dark { 
+  opacity: 1; 
+  z-index: 0;
+}
+
+/* Убедимся что body имеет фон */
+body {
+  font-family: 'Segoe UI', 'Roboto', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  color: #fff;
+  transition: background 0.5s;
+  /* Fallback фон - тёмный градиент */
+  background: linear-gradient(135deg, #0a1628 0%, #1a3a52 50%, #0f2844 100%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
 /* === МОБИЛЬНЫЕ СТИЛИ === */
@@ -433,7 +465,7 @@ body::before {
     padding: 10px;
   }
 }
-
+  
 .bg-sunny { 
   background-image: url('bg_orange.jpg');
   background-color: #0a1628;
