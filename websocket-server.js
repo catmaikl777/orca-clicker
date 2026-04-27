@@ -1597,7 +1597,7 @@ function handleCreateClan(ws, clanName) {
   }
   
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName }));
-  sendClans(ws);
+  broadcastClans();
   savePlayerToDB(id);
   saveClanToDB(clanId);
 }
@@ -1643,7 +1643,7 @@ function handleJoinClan(ws, clanId) {
   }
   
   ws.send(JSON.stringify({ type: 'joinedClan', clanId, name: clan.name }));
-  sendClans(ws);
+  broadcastClans();
   sendClanMembers(clanId);
   savePlayerToDB(id);
   saveClanToDB(clanId);
@@ -1652,18 +1652,28 @@ function handleJoinClan(ws, clanId) {
 function handleLeaveClan(ws) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
-  if (!player || !player.clan) return;
+  if (!player || !player.clan) {
+    console.log(`⚠️ handleLeaveClan: игрок ${id} не в клане`);
+    return;
+  }
   
   const clan = db.clans[player.clan];
-  if (!clan) { player.clan = null; return; }
+  if (!clan) { 
+    player.clan = null; 
+    db.players[id].clan = null;
+    console.log(`⚠️ handleLeaveClan: клан не найден`);
+    return;
+  }
   
   const clanId = clan.id;
+  console.log(`🚪 Игрок ${id} выходит из клана ${clanId}`);
 
   if (clan.owner === id) {
     if (clan.members.length > 1) {
       const newOwner = clan.members.find(mid => mid !== id);
       clan.owner = newOwner;
       clan.ownerName = players.get(newOwner)?.name || 'Unknown';
+      console.log(`👑 Новый владелец клана: ${newOwner}`);
     } else {
       delete db.clans[clanId];
       db.stats.totalClans--;
@@ -1671,7 +1681,8 @@ function handleLeaveClan(ws) {
       player.clan = null;
       db.players[id].clan = null;
       ws.send(JSON.stringify({ type: 'leftClan', clanId }));
-      sendClans(ws);
+      broadcastClans();  // ✅ Отправляем всем
+      console.log(`🗑️ Клан удалён: ${clanId}`);
       return;
     }
   }
@@ -1681,11 +1692,13 @@ function handleLeaveClan(ws) {
   player.clan = null;
   db.players[id].clan = null;
   ws.send(JSON.stringify({ type: 'leftClan', clanId }));
-  sendClans(ws);
+  broadcastClans();
   sendClanMembers(clan.id);
   saveClanToDB(clanId);
+  savePlayerToDB(id);
+  console.log(`✅ Игрок ${id} вышел из клана ${clanId}`);
 }
-
+  
 function sendClanMembers(clanId) {
   const clan = db.clans[clanId];
   if (!clan) return;
@@ -1714,6 +1727,20 @@ function sendClans(ws) {
     memberCount: c.members.length, totalCoins: c.totalCoins
   }));
   ws.send(JSON.stringify({ type: 'clans', data: list }));
+}
+
+function broadcastClans() {
+  const list = Object.values(db.clans).map(c => ({
+    id: c.id, name: c.name, ownerName: c.ownerName,
+    memberCount: c.members.length, totalCoins: c.totalCoins
+  }));
+  const data = JSON.stringify({ type: 'clans', data: list });
+  wss.clients.forEach(c => {
+    if (c.readyState === WebSocket.OPEN) {
+      c.send(data);
+    }
+  });
+  console.log(`📊 Кланов: ${Object.keys(db.clans).length}, отправлено всем клиентам`);
 }
 
 function handleBuyEffect(ws, effectId) {
