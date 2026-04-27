@@ -1301,7 +1301,6 @@ function updateUI() {
 function updateSkin() {
   const skin = skinsData.find(s => s.id === game.currentSkin);
   if (skin && orcaImg) {
-    console.log(`🎨 updateSkin: currentSkin=${game.currentSkin}, skin.image=${skin.image}`);
     orcaImg.src = skin.image;
     orcaImg.style.display = 'block';
     if (orcaEmoji) orcaEmoji.style.display = 'none';
@@ -1315,8 +1314,6 @@ function updateSkin() {
     clicker.className = `clicker skin-${skin.id}`;
     existingClasses.forEach(cls => clicker.classList.add(cls));
     
-  } else {
-    console.log(`⚠️ updateSkin: skin=${!!skin}, orcaImg=${!!orcaImg}, currentSkin=${game.currentSkin}`);
   }
 }
 
@@ -2260,6 +2257,7 @@ function endBattleUI(data) {
 
 // ==================== КЛАНЫ ====================
 window.createClan = function() {
+  console.log('🔴 createClan called');
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
@@ -2267,25 +2265,32 @@ window.createClan = function() {
   
   const name = prompt('Введите название клана:');
   if (name) {
+    console.log(`🔴 Отправляю createClan: ${name}`);
     ws.send(JSON.stringify({ type: 'createClan', name }));
   }
 }
 
 window.leaveClan = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  console.log('🔴 leaveClan called');
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
   if (confirm('Вы уверены, что хотите выйти из клана?')) {
+    console.log('🔴 Отправляю leaveClan');
     ws.send(JSON.stringify({ type: 'leaveClan' }));
   }
 }
 
 window.joinClan = function(clanId) {
+  console.log(`🔴 joinClan called with clanId: ${clanId}`);
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
   ws.send(JSON.stringify({ type: 'joinClan', clanId }));
 }
-
+  
 function updateClansUI(clans) {
   const container = document.getElementById('clanList');
   if (!container) return;
@@ -2298,7 +2303,7 @@ function updateClansUI(clans) {
     container.innerHTML = '<p style="text-align:center;padding:20px">Пока нет кланов. Создайте первый!</p>';
     return;
   }
-  
+
   clans.forEach(clan => {
     const div = document.createElement('div');
     div.className = 'clan-item';
@@ -2324,7 +2329,7 @@ window.updateClanMembersUI = function(members) {
     container.innerHTML = '<p style="text-align:center;color:#888">Нет участников</p>';
     return;
   }
-  
+
   members.forEach(member => {
     const div = document.createElement('div');
     div.className = 'clan-member';
@@ -2650,7 +2655,7 @@ window.handleForceSaveResponse = function(data) {
   }
   console.log('💾 Ответ на forceSaveAll:', data);
 };
-
+  
 // ==================== СОХРАНЕНИЕ ====================
 
 // "Реальное время" для сервера: склеиваем частые изменения в 1 отправку
