@@ -259,9 +259,17 @@ class DatabaseAdapter {
     const lastLogin = player.lastLogin || player.last_login || Date.now();
     
     // Преобразуем JSON поля в строки
-    const skills = typeof player.skills === 'string' ? player.skills : JSON.stringify(player.skills || {});
-    const achievements = typeof player.achievements === 'string' ? player.achievements : JSON.stringify(player.achievements || []);
-    const skins = typeof player.skins === 'string' ? player.skins : JSON.stringify(player.skins || { normal: true });
+    let skills, achievements, skins;
+    try {
+      skills = typeof player.skills === 'string' ? player.skills : JSON.stringify(player.skills || {});
+      achievements = typeof player.achievements === 'string' ? player.achievements : JSON.stringify(player.achievements || []);
+      skins = typeof player.skins === 'string' ? player.skins : JSON.stringify(player.skins || { normal: true });
+    } catch (e) {
+      console.error('Ошибка сериализации JSON полей:', e.message, { skills: player.skills, achievements: player.achievements, skins: player.skins });
+      skills = '{}';
+      achievements = '[]';
+      skins = '{"normal": true}';
+    }
     
     // clan может быть null или объект/строка
     let clan;
@@ -270,10 +278,21 @@ class DatabaseAdapter {
     } else if (typeof player.clan === 'string') {
       clan = player.clan;
     } else {
-      clan = JSON.stringify(player.clan);
+      try {
+        clan = JSON.stringify(player.clan);
+      } catch (e) {
+        console.error('Ошибка сериализации clan:', e.message, player.clan);
+        clan = null;
+      }
     }
     
-    const pendingBoxes = typeof player.pendingBoxes === 'string' ? player.pendingBoxes : JSON.stringify(player.pendingBoxes || []);
+    let pendingBoxes;
+    try {
+      pendingBoxes = typeof player.pendingBoxes === 'string' ? player.pendingBoxes : JSON.stringify(player.pendingBoxes || []);
+    } catch (e) {
+      console.error('Ошибка сериализации pendingBoxes:', e.message, player.pendingBoxes);
+      pendingBoxes = '[]';
+    }
     
     // accountId может быть null для гостей
     const accountId = player.accountId || null;
