@@ -1585,6 +1585,7 @@ function sendLeaderboard(ws) {
 
 function handleCreateClan(ws, clanName) {
   const id = ws.accountId || ws.playerId;
+  console.log(`🏰 handleCreateClan: ws.accountId=${ws.accountId}, ws.playerId=${ws.playerId}, id=${id}`);
   
   // Создаем игрока если его нет
   if (!db.players[id]) {
