@@ -16,8 +16,12 @@ const game = {
   playTime: 0,
   multiplier: 1,
   dailyQuestDate: null,
-  dailyQuestIds: []
+  dailyQuestIds: [],
+  clan: null
 };
+
+// Глобальные переменные для кланов
+let clansList = [];
 
 // ==================== DOM ЭЛЕМЕНТЫ ====================
 let coinsEl, levelEl, perClickEl, perSecondEl;
@@ -526,6 +530,9 @@ function handleServerMessage(data) {
       } else {
         console.log('🏰 Игрок НЕ в клане');
       }
+      
+      // Обновляем UI кланов после загрузки данных игрока
+      updateClansUI();
     } else {
       // Если данных с сервера нет - загружаем из localStorage как fallback
       console.log('⚠️ Нет данных с сервера, используем localStorage');
@@ -677,7 +684,11 @@ function handleServerMessage(data) {
       break;
     case 'clans':
       console.log(`📊 Получены кланы: ${data.data?.length || 0} шт.`, data.data);
-      updateClansUI(data.data || []);
+      clansList = data.data || [];
+      // Обновляем UI только если game.clan уже загружен
+      if (typeof game.clan !== 'undefined') {
+        updateClansUI();
+      }
       break;
     case 'clanMembers':
       console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data.members);
@@ -2328,35 +2339,50 @@ window.deleteClan = function() {
   }
 }
   
-function updateClansUI(clans) {
+function updateClansUI() {
   const container = document.getElementById('clanList');
   const leaveBtn = document.getElementById('leaveClanBtn');
   const deleteBtn = document.getElementById('deleteClanBtn');
   const createBtn = document.getElementById('createClanBtn');
+  const membersContainer = document.getElementById('clanMembersList');
   
   if (!container) return;
   
-  console.log(`🏰 updateClansUI: clans=${clans?.length || 0}, myClan=${game.clan || 'нет'}`);
+  console.log(`🏰 updateClansUI: clans=${clansList?.length || 0}, myClan=${game.clan || 'нет'}`);
+  console.log('🏰 Кнопки:', { leaveBtn: !!leaveBtn, deleteBtn: !!deleteBtn, createBtn: !!createBtn });
   
   // Обновляем видимость кнопок
-  if (leaveBtn) leaveBtn.style.display = game.clan ? 'inline-block' : 'none';
-  if (deleteBtn) deleteBtn.style.display = game.clan ? 'inline-block' : 'none';
-  if (createBtn) createBtn.style.display = game.clan ? 'none' : 'inline-block';
+  if (leaveBtn) {
+    leaveBtn.style.display = game.clan ? 'inline-block' : 'none';
+    console.log(`🏰 leaveBtn: ${game.clan ? 'показан' : 'скрыт'}`);
+  }
+  if (deleteBtn) {
+    deleteBtn.style.display = game.clan ? 'inline-block' : 'none';
+    console.log(`🏰 deleteBtn: ${game.clan ? 'показан' : 'скрыт'}`);
+  }
+  if (createBtn) {
+    createBtn.style.display = game.clan ? 'none' : 'inline-block';
+    console.log(`🏰 createBtn: ${game.clan ? 'скрыт' : 'показан'}`);
+  }
   
   container.innerHTML = '';
   
-  if (!clans || clans.length === 0) {
+  if (!clansList || clansList.length === 0) {
     container.innerHTML = '<p style="text-align:center;padding:20px">Пока нет кланов. Создайте первый!</p>';
+    // Также скрываем список участников если нет клана
+    if (membersContainer) membersContainer.innerHTML = '<p style="text-align:center;color:#888">Нет участников</p>';
     return;
   }
 
-  clans.forEach(clan => {
+  clansList.forEach(clan => {
     const div = document.createElement('div');
     div.className = 'clan-item';
     
     // Проверяем если это мой клан
     const isMyClan = game.clan === clan.id;
     const isInClan = game.clan && game.clan !== clan.id;
+    
+    console.log(`🏰 Клан ${clan.name}: isMyClan=${isMyClan}, isInClan=${isInClan}`);
     
     let actionBtn = '';
     if (isMyClan) {
@@ -2794,6 +2820,7 @@ function saveGame() {
     skins: game.skins,
     currentSkin: game.currentSkin,
     playTime: game.playTime,
+    clan: game.clan,
     multiplier: 1, // Всегда сохраняем 1
     shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
     questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
@@ -2907,6 +2934,7 @@ function loadGame() {
       game.skins = data.skins || {};
       game.currentSkin = data.currentSkin || 'normal';
       game.playTime = data.playTime || 0;
+      game.clan = data.clan || null;
       // КРИТИЧНО: всегда сбрасываем multiplier до 1 при загрузке (он применяется только для x2 бонуса)
       game.multiplier = 1;
       

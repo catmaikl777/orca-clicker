@@ -1763,7 +1763,13 @@ function sendClanMembers(clanId) {
 function getClanMembers(ws) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
-  if (player && player.clan) sendClanMembers(player.clan);
+  console.log(`📡 getClanMembers: игрок=${id}, clan=${player?.clan || 'нет'}`);
+  if (player && player.clan) {
+    console.log(`📡 Отправляю участников клана: ${player.clan}`);
+    sendClanMembers(player.clan);
+  } else {
+    console.log(`📡 Игрок не в клане, не отправляю участников`);
+  }
 }
 
 function sendClans(ws) {
