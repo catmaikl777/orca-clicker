@@ -6,13 +6,14 @@
  */
 
 const path = require('path');
-const { Pool } = require('pg');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orca_clicker',
   ssl: {
-    rejectUnauthorized: false // Требуется для PostgreSQL на Render
+    rejectUnauthorized: false
   }
 });
 

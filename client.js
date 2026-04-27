@@ -519,6 +519,13 @@ function handleServerMessage(data) {
       saveGame();
       
       console.log(`🎮 Данные загружены с сервера: coins=${game.coins}, clan=${game.clan || 'нет'}, effects=${Object.keys(game.effects).length}`);
+      
+      // Отладка клана
+      if (game.clan) {
+        console.log(`🏰 Игрок в клане: ${game.clan}`);
+      } else {
+        console.log('🏰 Игрок НЕ в клане');
+      }
     } else {
       // Если данных с сервера нет - загружаем из localStorage как fallback
       console.log('⚠️ Нет данных с сервера, используем localStorage');
@@ -763,17 +770,6 @@ function handleServerMessage(data) {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'getClans' }));
           ws.send(JSON.stringify({ type: 'getClanMembers' }));
-        }
-      }, 200);
-      break;
-    case 'clanDeleted':
-      showNotification('🗑️ Клан удалён');
-      game.clan = null;
-      saveGame();
-      // Обновляем UI
-      setTimeout(() => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'getClans' }));
         }
       }, 200);
       break;
@@ -2336,7 +2332,7 @@ function updateClansUI(clans) {
   const container = document.getElementById('clanList');
   const leaveBtn = document.getElementById('leaveClanBtn');
   const deleteBtn = document.getElementById('deleteClanBtn');
-  const createBtn = document.querySelector('.clan-actions .action-btn');
+  const createBtn = document.getElementById('createClanBtn');
   
   if (!container) return;
   
