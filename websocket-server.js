@@ -957,7 +957,7 @@ function handleAuthRequest(ws, data) {
   ws.username = username;
   
   // Используем функцию из auth.js
-  handleAuthRegister(ws, { username, password }, db, players, savePlayerToDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB);
+  handleAuthRegister(ws, { username, password }, db, players, savePlayerToDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB, dbAdapter);
 }
 
 // Обработчик сохранения данных игрока

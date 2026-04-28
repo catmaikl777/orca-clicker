@@ -15,7 +15,7 @@ async function verifyPassword(password, hash) {
 }
 
 // Регистрация нового аккаунта
-async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB) {
+async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo, broadcastLeaderboard, updateLeaderboard, savePlayerToDB, dbAdapter) {
   const { username, password } = data;
   
   if (!username || !password) {
@@ -49,6 +49,43 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     // Получаем или создаём игровые данные
     let playerData = db.players[accountId];
+    if (!playerData && dbAdapter && dbAdapter.usePostgreSQL) {
+      // Загружаем из БД если нет в памяти
+      try {
+        const dbPlayer = await dbAdapter.getPlayer(accountId);
+        if (dbPlayer) {
+          console.log(`💾 [auth.js] Загружен игрок из БД: ${accountId}, coins=${dbPlayer.coins}`);
+          playerData = {
+            id: dbPlayer.id,
+            name: dbPlayer.name,
+            coins: dbPlayer.coins || 0,
+            totalCoins: dbPlayer.total_coins || 0,
+            perClick: dbPlayer.per_click || 1,
+            perSecond: dbPlayer.per_second || 0,
+            clicks: dbPlayer.clicks || 0,
+            level: dbPlayer.level || 1,
+            skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
+            achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
+            skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
+            currentSkin: dbPlayer.current_skin || 'normal',
+            pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
+            questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
+            dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
+            dailyQuestDate: dbPlayer.daily_quest_date,
+            dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
+            clan: dbPlayer.clan || null,
+            eventRewards: dbPlayer.event_rewards || 0,
+            createdAt: dbPlayer.created_at || Date.now(),
+            lastLogin: dbPlayer.last_login || Date.now(),
+            antiCheat: null
+          };
+          db.players[accountId] = playerData;
+        }
+      } catch (err) {
+        console.error(`❌ [auth.js] Ошибка загрузки игрока из БД:`, err.message);
+      }
+    }
+    
     if (!playerData) {
       playerData = createDefaultPlayer(accountId, account.username);
       db.players[accountId] = playerData;
@@ -67,7 +104,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
       eventCoins: db.event.eventCoins[accountId] || 0
     }));
     
-    console.log(`✅ Вход: ${account.username}`);
+    console.log(`✅ Вход: ${account.username}, coins=${playerData.coins}`);
     broadcastLeaderboard();
     broadcastEventInfo();
     
