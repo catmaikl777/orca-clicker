@@ -96,6 +96,9 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     updateLeaderboard(playerData);
     // Не сохраняем сразу - это сделает websocket-server.js после загрузки из БД
     
+    // Лог для отладки - что отправляем клиенту
+    console.log(`📤 authSuccess: accountId=${accountId}, username=${account.username}, coins=${playerData.coins}, totalCoins=${playerData.totalCoins}`);
+    
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
       accountId,
