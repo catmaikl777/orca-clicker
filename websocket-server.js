@@ -506,6 +506,7 @@ httpServer.listen(PORT, () => {
               antiCheat: null
             };
             console.log(`💾 Загружен игрок: ${row.id}, coins=${row.coins}, clan=${row.clan || 'null'}`);
+            db.players[row.id]._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
                 bannedUntil: Infinity,
@@ -969,6 +970,16 @@ function handleSavePlayerData(ws, data) {
     return;
   }
   
+  // Защита: если только что загрузили игрока из БД (в течение 2 секунд), игнорируем сохранение от клиента
+  const player = db.players[accountId];
+  if (player && player._justLoadedFromDB) {
+    const timeSinceLoad = Date.now() - player._justLoadedFromDB;
+    if (timeSinceLoad < 2000) {
+      console.log(`⏱️ Игнорируем savePlayerData от клиента (только что загружен из БД: ${timeSinceLoad}мс назад)`);
+      return;
+    }
+  }
+  
   // Обновляем данные в БД
   if (!db.players[accountId]) {
     db.players[accountId] = createDefaultPlayer(accountId, 'Player');
@@ -1016,7 +1027,7 @@ async function handleRestoreSession(ws, data) {
     ws.send(JSON.stringify({ type: 'sessionExpired', message: 'Войдите снова' }));
     return;
   }
-
+  
   // Бан по античиту — не пускаем в игру
   if (db.players[accountId] && isPlayerBanned(accountId)) {
     ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: автокликер/бот' }));
@@ -1072,6 +1083,7 @@ async function handleRestoreSession(ws, data) {
       playerData = createDefaultPlayer(accountId, account.username);
     }
     db.players[accountId] = playerData;
+    playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
   }
   
   if (!playerData.shopItems) playerData.shopItems = [];

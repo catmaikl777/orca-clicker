@@ -80,6 +80,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
             antiCheat: null
           };
           db.players[accountId] = playerData;
+          playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
         }
       } catch (err) {
         console.error(`❌ [auth.js] Ошибка загрузки игрока из БД:`, err.message);
