@@ -389,6 +389,10 @@ async function cleanupPlayerAccounts() {
       console.log(`🧹 Найдено ${result.rows.length} гостевых аккаунтов (Player...) для удаления`);
       
       for (const row of result.rows) {
+        // Лог перед удалением
+        const existingPlayer = db.players[row.id];
+        console.log(`🗑️ Удаляю гостевой аккаунт: ${row.name} (${row.id}), exists in db.players=${!!existingPlayer}, coins=${existingPlayer?.coins || 'N/A'}`);
+        
         // Удалить из памяти
         delete db.players[row.id];
         players.delete(row.id);

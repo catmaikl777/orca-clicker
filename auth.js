@@ -57,8 +57,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     players.set(accountId, { ...playerData, ws });
     updateLeaderboard(playerData);
-    saveDB();
-    savePlayerToDB(accountId);
+    // Не сохраняем сразу - это сделает websocket-server.js после загрузки из БД
     
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
@@ -105,8 +104,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     ws.username = username;
     players.set(accountId, { ...playerData, ws });
     updateLeaderboard(playerData);
-    saveDB();
-    savePlayerToDB(accountId);
+    // Не сохраняем сразу - это сделает websocket-server.js
     
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
