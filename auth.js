@@ -79,7 +79,9 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
             eventRewards: dbPlayer.event_rewards || 0,
             createdAt: dbPlayer.created_at || Date.now(),
             lastLogin: dbPlayer.last_login || Date.now(),
-            antiCheat: null
+            antiCheat: null,
+            _pendingEventClicks: Number(dbPlayer.pending_event_clicks) || 0,
+            _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0
           };
           db.players[accountId] = playerData;
           playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД

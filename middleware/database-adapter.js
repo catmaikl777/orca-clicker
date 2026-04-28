@@ -98,6 +98,8 @@ class DatabaseAdapter {
         daily_quest_progress JSONB DEFAULT '{"clicks": 0, "coins": 0, "playTime": 0}',
         daily_quest_date VARCHAR(20) DEFAULT NULL,
         daily_quest_ids JSONB DEFAULT '[]',
+        pending_event_clicks INTEGER DEFAULT 0,
+        last_processed_clicks INTEGER DEFAULT 0,
         created_at BIGINT NOT NULL,
         last_login BIGINT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -107,6 +109,10 @@ class DatabaseAdapter {
       `ALTER TABLE players ALTER COLUMN coins TYPE BIGINT USING coins::BIGINT`,
       `ALTER TABLE players ALTER COLUMN total_coins TYPE BIGINT USING total_coins::BIGINT`,
       `ALTER TABLE players ALTER COLUMN event_rewards TYPE BIGINT USING event_rewards::BIGINT`,
+      
+      // Добавить поля для отслеживания кликов
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS pending_event_clicks INTEGER DEFAULT 0`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS last_processed_clicks INTEGER DEFAULT 0`,
       
       // Миграция clan JSONB -> VARCHAR(50) для существующих таблиц
       `ALTER TABLE players ALTER COLUMN clan TYPE VARCHAR(50) USING clan::VARCHAR(50)`,
@@ -272,6 +278,10 @@ class DatabaseAdapter {
     const createdAt = player.createdAt || player.created_at || Date.now();
     const lastLogin = player.lastLogin || player.last_login || Date.now();
     
+    // Сохраняем pendingEventClicks и lastProcessedClicks
+    const pendingEventClicks = player._pendingEventClicks || 0;
+    const lastProcessedClicks = player._lastProcessedClicks || 0;
+    
     // Преобразуем JSON поля в строки
     let skills, achievements, skins;
     try {
@@ -354,8 +364,8 @@ class DatabaseAdapter {
         clicks, level, skills, achievements, skins, current_skin,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, created_at, last_login,
-        banned_at, ban_reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        banned_at, ban_reason, pending_event_clicks, last_processed_clicks
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -377,16 +387,20 @@ class DatabaseAdapter {
         last_login = EXCLUDED.last_login,
         updated_at = NOW(),
         banned_at = EXCLUDED.banned_at,
-        ban_reason = EXCLUDED.ban_reason`,
+        ban_reason = EXCLUDED.ban_reason,
+        pending_event_clicks = EXCLUDED.pending_event_clicks,
+        last_processed_clicks = EXCLUDED.last_processed_clicks`,
       [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal',
         clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
         dailyQuestDate, dailyQuestIds, createdAt, lastLogin,
-        bannedAt, banReason
+        bannedAt, banReason, pendingEventClicks, lastProcessedClicks
       ]
     );
+    
+    console.log(`💾 savePlayer DEBUG: pending_event_clicks=${pendingEventClicks}, last_processed_clicks=${lastProcessedClicks}`);
   }
   
   async saveEventCoins(accountId, coins) {

@@ -513,6 +513,10 @@ httpServer.listen(PORT, () => {
             db.players[row.id].totalCoins = Number(row.total_coins) || 0;
             db.players[row.id].eventRewards = Number(row.event_rewards) || 0;
             
+            // Загружаем pendingEventClicks
+            db.players[row.id]._pendingEventClicks = Number(row.pending_event_clicks) || 0;
+            db.players[row.id]._lastProcessedClicks = Number(row.last_processed_clicks) || 0;
+            
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
                 bannedUntil: Infinity,
@@ -1056,30 +1060,32 @@ async function handleRestoreSession(ws, data) {
       const dbPlayer = await dbAdapter.getPlayer(accountId);
       if (dbPlayer) {
         console.log(`💾 Загружены данные игрока из БД: ${accountId}, coins=${dbPlayer.coins}, clan=${dbPlayer.clan || 'null'}`);
-        playerData = {
-          id: dbPlayer.id,
-          name: dbPlayer.name,
-          coins: dbPlayer.coins || 0,
-          totalCoins: dbPlayer.total_coins || 0,
-          perClick: dbPlayer.per_click || 1,
-          perSecond: dbPlayer.per_second || 0,
-          clicks: dbPlayer.clicks || 0,
-          level: dbPlayer.level || 1,
-          skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
-          achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
-          skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
-          currentSkin: dbPlayer.current_skin || 'normal',
-          pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
-          questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
-          dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
-          dailyQuestDate: dbPlayer.daily_quest_date,
-          dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
-          clan: dbPlayer.clan || null,
-          eventRewards: dbPlayer.event_rewards || 0,
-          createdAt: dbPlayer.created_at || Date.now(),
-          lastLogin: dbPlayer.last_login || Date.now(),
-          antiCheat: dbPlayer.anti_cheat || {}
-        };
+      playerData = {
+        id: dbPlayer.id,
+        name: dbPlayer.name,
+        coins: Number(dbPlayer.coins) || 0,
+        totalCoins: Number(dbPlayer.total_coins) || 0,
+        perClick: Number(dbPlayer.per_click) || 1,
+        perSecond: Number(dbPlayer.per_second) || 0,
+        clicks: Number(dbPlayer.clicks) || 0,
+        level: Number(dbPlayer.level) || 1,
+        skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
+        achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
+        skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
+        currentSkin: dbPlayer.current_skin || 'normal',
+        pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
+        questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
+        dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
+        dailyQuestDate: dbPlayer.daily_quest_date,
+        dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
+        clan: dbPlayer.clan || null,
+        eventRewards: Number(dbPlayer.event_rewards) || 0,
+        createdAt: dbPlayer.created_at || Date.now(),
+        lastLogin: dbPlayer.last_login || Date.now(),
+        antiCheat: null,
+        _pendingEventClicks: Number(dbPlayer.pending_event_clicks) || 0,
+        _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0
+      };
       } else {
         console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
         playerData = createDefaultPlayer(accountId, account.username);
@@ -1095,6 +1101,13 @@ async function handleRestoreSession(ws, data) {
     playerData.coins = Number(playerData.coins) || 0;
     playerData.totalCoins = Number(playerData.totalCoins) || 0;
     playerData.eventRewards = Number(playerData.eventRewards) || 0;
+    
+    // Сохраняем pendingEventClicks в БД если не было сохранено
+    if (!playerData._lastProcessedClicks || playerData.clicks > playerData._lastProcessedClicks) {
+      playerData._lastProcessedClicks = playerData.clicks || 0;
+      playerData._pendingEventClicks = 0;
+      savePlayerToDB(accountId);
+    }
   }
   
   if (!playerData.shopItems) playerData.shopItems = [];
