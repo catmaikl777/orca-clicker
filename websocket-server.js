@@ -360,6 +360,42 @@ function generateId() {
   return Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 4);
 }
 
+// Удаление игроков с ником начинающимся с "Player"
+async function cleanupPlayerAccounts() {
+  if (!dbAdapter.usePostgreSQL) return;
+  
+  try {
+    // Найти всех игроков с именем начинающимся с "Player"
+    const result = await dbAdapter.pool.query(
+      "SELECT id, name FROM players WHERE name LIKE 'Player%' AND account_id IS NULL"
+    );
+    
+    if (result.rows.length > 0) {
+      console.log(`🧹 Найдено ${result.rows.length} гостевых аккаунтов (Player...) для удаления`);
+      
+      for (const row of result.rows) {
+        // Удалить из памяти
+        delete db.players[row.id];
+        players.delete(row.id);
+        
+        // Удалить из БД
+        await dbAdapter.pool.query('DELETE FROM players WHERE id = $1', [row.id]);
+        
+        console.log(`🗑️ Удалён гостевой аккаунт: ${row.name} (${row.id})`);
+      }
+      
+      console.log(`✅ Удалено ${result.rows.length} гостевых аккаунтов`);
+    }
+  } catch (error) {
+    console.error('❌ Ошибка удаления гостевых аккаунтов:', error.message);
+  }
+}
+
+// Запуск проверки на удаление гостевых аккаунтов каждые 10 минут
+setInterval(() => {
+  cleanupPlayerAccounts();
+}, 10 * 60 * 1000); // 10 минут
+
 // WebSocket сервер с CORS поддержкой
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -481,6 +517,11 @@ httpServer.listen(PORT, () => {
         db.stats.totalClans = clans.length;
 
         console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins, ${clans.length} кланов`);
+        
+        // Запустить очистку гостевых аккаунтов при старте
+        cleanupPlayerAccounts().then(() => {
+          console.log('✅ Очистка гостевых аккаунтов завершена');
+        }).catch(e => console.error('Ошибка очистки:', e.message));
       } catch (e) {
         console.error('❌ Ошибка загрузки из PostgreSQL:', e.message);
       }
@@ -1062,6 +1103,25 @@ function handleRegisterGuest(ws, name) {
     playerData.lastLogin = Date.now();
   }
   
+  // Проверка: если ник начинается с "Player" - удаляем игрока
+  if (playerData.name.startsWith('Player')) {
+    console.log(`🗑️ Удаляю гостевой аккаунт: ${playerData.name} (${playerId})`);
+    delete db.players[playerId];
+    players.delete(playerId);
+    
+    // Удаляем из БД если есть
+    if (dbAdapter.usePostgreSQL) {
+      dbAdapter.pool.query('DELETE FROM players WHERE id = $1', [playerId])
+        .catch(e => console.error('Ошибка удаления гостевого аккаунта:', e.message));
+    }
+    
+    ws.send(JSON.stringify({ 
+      type: 'error', 
+      message: 'Имя "Player..." зарезервировано. Пожалуйста, выберите другое имя или войдите в аккаунт.' 
+    }));
+    return;
+  }
+  
   // Инициализируем поля для отслеживания билетов
   playerData._pendingEventClicks = 0;
   playerData._lastProcessedClicks = playerData.clicks || 0;
@@ -1108,7 +1168,7 @@ function handleUpdateScore(ws, coins, perClick, perSecond) {
   updateLeaderboard(player);
   savePlayerToDB(id);
 }
-
+  
 // Добавление eventCoins
 function addEventCoins(playerId, amount) {
   if (!db.event) return;
