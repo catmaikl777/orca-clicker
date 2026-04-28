@@ -428,11 +428,14 @@ httpServer.listen(PORT, () => {
             clan: typeof row.clan === 'string' ? JSON.parse(row.clan) : row.clan || null,
             eventRewards: row.event_rewards || 0,
             pendingBoxes: typeof row.pending_boxes === 'string' ? JSON.parse(row.pending_boxes) : row.pending_boxes || [],
+            questProgress: typeof row.quest_progress === 'string' ? JSON.parse(row.quest_progress) : row.quest_progress || [],
+            dailyProgress: typeof row.daily_quest_progress === 'string' ? JSON.parse(row.daily_quest_progress) : row.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
+            dailyQuestDate: row.daily_quest_date,
+            dailyQuestIds: typeof row.daily_quest_ids === 'string' ? JSON.parse(row.daily_quest_ids) : row.daily_quest_ids || [],
             createdAt: row.created_at || Date.now(),
             lastLogin: row.last_login || Date.now(),
-            antiCheat: null // Загрузим баны ниже
+            antiCheat: null
           };
-          // Восстановить бан если есть
           if (row.banned_at) {
             db.players[row.id].antiCheat = {
               bannedUntil: Infinity,
@@ -795,6 +798,7 @@ function handleSaveGame(ws, data) {
   p.questProgress = data.questProgress || p.questProgress;
   if (data.dailyQuestDate) p.dailyQuestDate = data.dailyQuestDate;
   if (Array.isArray(data.dailyQuestIds) && data.dailyQuestIds.length > 0) p.dailyQuestIds = data.dailyQuestIds;
+  if (data.dailyProgress) p.dailyProgress = data.dailyProgress;
   if (data.clan !== undefined) p.clan = data.clan;
   p.lastLogin = Date.now();
   if (mem) Object.assign(mem, p);
@@ -935,8 +939,10 @@ async function handleRestoreSession(ws, data) {
     return;
   }
   
-  // Аккаунт не найден — БД была сброшена (Render), просим перелогиниться
-  if (!db.accounts || !db.accounts[accountId]) {
+  // Аккаунт не найден — просим перелогиниться
+  let account = Object.values(db.accounts || {}).find(a => a.id === accountId);
+  if (!account) {
+    console.log(`⚠️ Аккаунт ${accountId} не найден, просим перелогиниться`);
     ws.send(JSON.stringify({ type: 'sessionExpired', message: 'Сессия истекла, войдите снова' }));
     return;
   }
@@ -947,30 +953,27 @@ async function handleRestoreSession(ws, data) {
     try {
       const dbPlayer = await dbAdapter.getPlayer(accountId);
       if (dbPlayer) {
-        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}`);
+        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}, dailyProgress=${JSON.stringify(dbPlayer.daily_quest_progress)}`);
         playerData = {
           ...dbPlayer,
-          // Преобразуем JSON поля обратно в объекты
           skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
           achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
           skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
           pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
-          questProgress: dbPlayer.quest_progress || [],
+          questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
+          dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
           dailyQuestDate: dbPlayer.daily_quest_date,
-          dailyQuestIds: dbPlayer.daily_quest_ids || [],
+          dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
           antiCheat: dbPlayer.anti_cheat || {},
           clan: (() => {
             let clanValue = dbPlayer.clan;
             if (typeof clanValue === 'string') {
               try {
                 clanValue = JSON.parse(clanValue);
-              } catch (e) {
-                // Если значение уже plain string, оставляем его как есть
-              }
+              } catch (e) {}
             }
             return clanValue ?? null;
           })(),
-          // Преобразуем snake_case в camelCase
           perClick: dbPlayer.per_click,
           perSecond: dbPlayer.per_second,
           totalCoins: dbPlayer.total_coins,
@@ -981,26 +984,22 @@ async function handleRestoreSession(ws, data) {
         };
       } else {
         console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
-        playerData = createDefaultPlayer(accountId, username || 'Player');
+        playerData = createDefaultPlayer(accountId, account.username);
       }
     } catch (error) {
       console.error(`❌ Ошибка загрузки игрока ${accountId} из БД:`, error);
-      playerData = createDefaultPlayer(accountId, username || 'Player');
+      playerData = createDefaultPlayer(accountId, account.username);
     }
     db.players[accountId] = playerData;
   }
   
-  // Инициализируем shopItems если нет
-  if (!playerData.shopItems) {
-    playerData.shopItems = [];
-  }
+  if (!playerData.shopItems) playerData.shopItems = [];
   
   playerData.lastLogin = Date.now();
-  db.accounts[accountId].lastLogin = Date.now();
+  account.lastLogin = Date.now();
   ws.authenticated = true;
   ws.accountId = accountId;
   
-  // Инициализируем поля для отслеживания билетов
   playerData._pendingEventClicks = 0;
   playerData._lastProcessedClicks = playerData.clicks || 0;
   
@@ -1008,33 +1007,27 @@ async function handleRestoreSession(ws, data) {
   updateLeaderboard(playerData);
   savePlayerToDB(accountId);
 
-  // Лог для отладки высоких значений perSecond
   const basePS = playerData.perSecond || 0;
-  const calcPerSecond = basePS * (playerData.skills?.['s3'] ? 2 : 1) * (playerData.skills?.['s6'] ? 5 : 1);
-  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), basePerSecond=${basePS}, skills=s3:${!!playerData.skills?.['s3']} s6:${!!playerData.skills?.['s6']}, calcPerSecond=${calcPerSecond}`);
+  console.log(`🔄 Сессия восстановлена: ${account.username} (${accountId}), basePerSecond=${basePS}, клан: ${playerData.clan || 'нет'}`);
 
-  // Отправляем данные игроку (perSecond = basePerSecond, множители применяются на клиенте)
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
-    username: username || playerData.name,
+    username: account.username,
     data: {
       ...playerData,
-      basePerClick: playerData.perClick,  // Явно указываем что это база
-      basePerSecond: playerData.perSecond  // Явно указываем что это база
+      basePerClick: playerData.perClick,
+      basePerSecond: playerData.perSecond
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
   
-  // Отправляем список кланов
   setTimeout(() => sendClans(ws), 100);
   
-  // Если игрок в клане - отправляем информацию о членах клана
   if (playerData.clan && db.clans[playerData.clan]) {
     setTimeout(() => sendClanMembers(playerData.clan), 150);
   }
   
-  console.log(`🔄 Сессия восстановлена: ${username} (${accountId}), клан: ${playerData.clan || 'нет'}`);
   broadcastLeaderboard();
   broadcastEventInfo();
 }

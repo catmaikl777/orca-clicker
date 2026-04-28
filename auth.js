@@ -102,7 +102,7 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     ws.authenticated = true;
     ws.accountId = accountId;
-    ws.username = username; // Сохраняем username
+    ws.username = username;
     players.set(accountId, { ...playerData, ws });
     updateLeaderboard(playerData);
     saveDB();
@@ -130,8 +130,8 @@ function createDefaultPlayer(accountId, username) {
     name: username,
     coins: 0,
     totalCoins: 0,
-    perClick: 0,  // Сумма апгрейдов из магазина (без базового 1)
-    perSecond: 0, // Сумма апгрейдов из магазина
+    perClick: 0,
+    perSecond: 0,
     clicks: 0,
     level: 1,
     skills: {},
@@ -141,10 +141,11 @@ function createDefaultPlayer(accountId, username) {
     clan: null,
     eventRewards: 0,
     pendingBoxes: [],
-    shopItems: [], // Цены предметов (пусто = дефолтные цены)
+    shopItems: [],
     questProgress: [],
     dailyQuestDate: null,
     dailyQuestIds: [],
+    dailyProgress: { clicks: 0, coins: 0, playTime: 0 },
     createdAt: Date.now(),
     lastLogin: Date.now()
   };

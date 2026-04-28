@@ -453,7 +453,6 @@ function handleServerMessage(data) {
       currentUser.id = data.accountId;
       currentUser.username = data.username;
     }
-    localStorage.setItem('userSession', JSON.stringify(currentUser));
     
     // Загружаем данные с сервера
     if (data.data) {
@@ -2730,7 +2729,8 @@ function updateStats() {
 
 function resetGame() {
   if (confirm('Вы уверены? Весь прогресс будет потерян!')) {
-    localStorage.removeItem('cosatkaClicker');
+    console.log('🗑️ Сброс игры...');
+    // Данные удаляются на сервере через API
     location.reload();
   }
 }
@@ -2832,32 +2832,7 @@ function saveGameToServer() {
 }
 
 function saveGame() {
-  if (!Number.isFinite(game.coins) || game.coins > 1e30) {
-    game.coins = Math.min(game.coins, 1e30);
-  }
-  if (!Number.isFinite(game.totalCoins) || game.totalCoins > 1e30) {
-    game.totalCoins = Math.min(game.totalCoins, 1e30);
-  }
-  
-  const saveData = {
-    coins: Math.floor(game.coins),
-    totalCoins: Math.floor(game.totalCoins),
-    perClick: game.basePerClick,
-    perSecond: game.basePerSecond,
-    clicks: game.clicks,
-    level: game.level,
-    effects: game.effects,
-    achievements: game.achievements,
-    skins: game.skins,
-    currentSkin: game.currentSkin,
-    playTime: game.playTime,
-    clan: game.clan,
-    multiplier: 1,
-    dailyQuestDate: game.dailyQuestDate,
-    dailyQuestIds: game.dailyQuestIds,
-    dailyProgress: game.dailyProgress
-  };
-  localStorage.setItem('cosatkaClicker', JSON.stringify(saveData));
+  // Только серверное сохранение
   scheduleServerSave();
 }
 
@@ -2888,18 +2863,78 @@ window.forceSave = function() {
       shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
       questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
       dailyQuestDate: game.dailyQuestDate,
-      dailyQuestIds: game.dailyQuestIds
+      dailyQuestIds: game.dailyQuestIds,
+      dailyProgress: game.dailyProgress,
+      clan: game.clan
     }
   }));
 
-  // Обновляем статус сохранения
   const saveStatus = document.getElementById('saveStatus');
   if (saveStatus) {
     saveStatus.textContent = '💾 Сохранение...';
     saveStatus.style.color = '#ffd700';
   }
 
-  // Через 2 секунды возвращаем обратно
+  setTimeout(() => {
+    if (saveStatus) {
+      saveStatus.textContent = '✅ Сохранено!';
+      saveStatus.style.color = '#4caf50';
+    }
+    setTimeout(() => {
+      if (saveStatus) {
+        saveStatus.textContent = '💾 Автосохранение включено';
+        saveStatus.style.color = 'rgba(255,255,255,0.5)';
+      }
+    }, 2000);
+  }, 1000);
+
+  console.log('💾 Принудительное сохранение инициировано');
+};
+
+function saveGame() {
+  // Только серверное сохранение
+  scheduleServerSave();
+}
+
+// Принудительное сохранение всех данных на сервер
+window.forceSave = function() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  showNotification('💾 Сохранение данных...');
+  
+  ws.send(JSON.stringify({
+    type: 'saveGame',
+    data: {
+      coins: game.coins,
+      totalCoins: game.totalCoins,
+      perClick: game.basePerClick,
+      perSecond: game.basePerSecond,
+      clicks: game.clicks,
+      level: game.level,
+      effects: game.effects,
+      skins: game.skins,
+      currentSkin: game.currentSkin,
+      achievements: game.achievements,
+      pendingBoxes: pendingBoxes,
+      playTime: game.playTime,
+      shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
+      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
+      dailyQuestDate: game.dailyQuestDate,
+      dailyQuestIds: game.dailyQuestIds,
+      dailyProgress: game.dailyProgress,
+      clan: game.clan
+    }
+  }));
+
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    saveStatus.textContent = '💾 Сохранение...';
+    saveStatus.style.color = '#ffd700';
+  }
+
   setTimeout(() => {
     if (saveStatus) {
       saveStatus.textContent = '✅ Сохранено!';
@@ -2917,105 +2952,24 @@ window.forceSave = function() {
 };
 
 function loadGame() {
-  const saved = localStorage.getItem('cosatkaClicker');
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-      
-      if (data.coins && data.coins > 1e15) {
-        localStorage.removeItem('cosatkaClicker');
-        initQuests();
-        return;
-      }
-      
-      if (data.totalCoins && data.totalCoins > 1e15) {
-        localStorage.removeItem('cosatkaClicker');
-        initQuests();
-        return;
-      }
-      
-      game.coins = Number.isFinite(data.coins) && data.coins >= 0 ? data.coins : 0;
-      game.totalCoins = Number.isFinite(data.totalCoins) && data.totalCoins >= 0 ? data.totalCoins : 0;
-      game.level = Number.isFinite(data.level) && data.level > 0 ? data.level : 1;
-      const savedBasePerClick = data.basePerClick ?? data.perClick;
-      const savedBasePerSecond = data.basePerSecond ?? data.perSecond;
-      game.basePerClick = Number.isFinite(savedBasePerClick) && savedBasePerClick >= 0 ? savedBasePerClick : 0;
-      game.basePerSecond = Number.isFinite(savedBasePerSecond) && savedBasePerSecond >= 0 ? savedBasePerSecond : 0;
-      game.clicks = Number.isFinite(data.clicks) && data.clicks >= 0 ? data.clicks : 0;
-      game.effects = data.effects || {};
-      game.achievements = data.achievements || [];
-      game.skins = data.skins || {};
-      game.currentSkin = data.currentSkin || 'normal';
-      game.playTime = data.playTime || 0;
-      game.clan = data.clan || null;
-      game.multiplier = 1;
-      game.dailyQuestDate = data.dailyQuestDate || null;
-      game.dailyQuestIds = data.dailyQuestIds || [];
-      game.dailyProgress = data.dailyProgress || { clicks: 0, coins: 0, playTime: 0 };
-      
-      dataLoadedFromStorage = true;
-      serverDataTimestamp = Date.now();
-      
-      if (data.questProgress) {
-        data.questProgress.forEach(savedItem => {
-          const item = shopItems.find(i => i.id === savedItem.id);
-          if (item) item.cost = savedItem.cost;
-        });
-      }
-      
-      if (data.questProgress || data.dailyQuestIds) {
-        initQuests({
-          progress: data.questProgress,
-          dailyQuestDate: data.dailyQuestDate,
-          dailyQuestIds: data.dailyQuestIds
-        });
-      } else {
-        initQuests();
-      }
-    } catch (e) {
-      initQuests();
-    }
-  } else {
-    initQuests();
-  }
-}
-
-function exportSave() {
-  const saved = localStorage.getItem('cosatkaClicker');
-  document.getElementById('saveData').value = btoa(saved || '{}');
-}
-
-function importSave() {
-  try {
-    const data = atob(document.getElementById('saveData').value);
-    localStorage.setItem('cosatkaClicker', data);
-    loadGame();
-    updateUI();
-    showNotification('✅ Сохранение загружено!');
-  } catch (e) {
-    alert('Ошибка загрузки сохранения');
-  }
+  // Данные загружаются с сервера при подключении
+  console.log('🔄 Ожидание загрузки данных с сервера...');
+  game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
+  initQuests();
 }
 
 function resetGame() {
   if (confirm('Вы уверены? Весь прогресс будет потерян!')) {
     console.log('🗑️ Сброс игры...');
-    localStorage.removeItem('cosatkaClicker');
-    
-    // Также очищаем все игровые настройки
-    for (let i = 1; i <= 6; i++) {
-      localStorage.removeItem(`effect_e${i}_enabled`);
-    }
-    
+    // Данные удаляются на сервере через API
     location.reload();
   }
 }
 
-// Ручная функция для отладки - сброс если обнаружены аномалии
+// Ручная функция для отладки
 window.debugResetGame = function() {
-  if (confirm('⚠️ DEBUG: Сброс всех данных из-за аномалий?')) {
+  if (confirm('⚠️ DEBUG: Сброс всех данных?')) {
     console.log('🗑️ DEBUG: Полный сброс игры...');
-    localStorage.clear();
     location.reload();
   }
 }

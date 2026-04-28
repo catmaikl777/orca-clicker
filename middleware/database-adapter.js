@@ -94,6 +94,10 @@ class DatabaseAdapter {
         clan JSONB DEFAULT NULL,
         event_rewards BIGINT DEFAULT 0,
         pending_boxes JSONB DEFAULT '[]',
+        quest_progress JSONB DEFAULT '[]',
+        daily_quest_progress JSONB DEFAULT '{"clicks": 0, "coins": 0, "playTime": 0}',
+        daily_quest_date VARCHAR(20) DEFAULT NULL,
+        daily_quest_ids JSONB DEFAULT '[]',
         created_at BIGINT NOT NULL,
         last_login BIGINT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -107,6 +111,12 @@ class DatabaseAdapter {
       // Добавить поля бана в players (для совместимости)
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS ban_reason VARCHAR(255)`,
+      
+      // Добавить поля квестов в players (для совместимости)
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS quest_progress JSONB DEFAULT '[]'`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_progress JSONB DEFAULT '{"clicks": 0, "coins": 0, "playTime": 0}'`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_date VARCHAR(20)`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_ids JSONB DEFAULT '[]'`,
       
       // Обновить внешний ключ если таблица уже существует (для миграции)
       `DO $$ 
@@ -292,6 +302,32 @@ class DatabaseAdapter {
       pendingBoxes = '[]';
     }
     
+    let questProgress;
+    try {
+      questProgress = typeof player.questProgress === 'string' ? player.questProgress : JSON.stringify(player.questProgress || []);
+    } catch (e) {
+      console.error('Ошибка сериализации questProgress:', e.message, player.questProgress);
+      questProgress = '[]';
+    }
+    
+    let dailyQuestProgress;
+    try {
+      dailyQuestProgress = typeof player.dailyProgress === 'string' ? player.dailyProgress : JSON.stringify(player.dailyProgress || { clicks: 0, coins: 0, playTime: 0 });
+    } catch (e) {
+      console.error('Ошибка сериализации dailyProgress:', e.message, player.dailyProgress);
+      dailyQuestProgress = '{"clicks": 0, "coins": 0, "playTime": 0}';
+    }
+    
+    let dailyQuestIds;
+    try {
+      dailyQuestIds = typeof player.dailyQuestIds === 'string' ? player.dailyQuestIds : JSON.stringify(player.dailyQuestIds || []);
+    } catch (e) {
+      console.error('Ошибка сериализации dailyQuestIds:', e.message, player.dailyQuestIds);
+      dailyQuestIds = '[]';
+    }
+    
+    const dailyQuestDate = player.dailyQuestDate || null;
+    
     // accountId может быть null для гостей
     const accountId = player.accountId || null;
     
@@ -303,9 +339,10 @@ class DatabaseAdapter {
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
         clicks, level, skills, achievements, skins, current_skin,
-        clan, event_rewards, pending_boxes, created_at, last_login, updated_at,
+        clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
+        daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
         banned_at, ban_reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), $22, $23)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -320,6 +357,10 @@ class DatabaseAdapter {
         clan = EXCLUDED.clan,
         event_rewards = EXCLUDED.event_rewards,
         pending_boxes = EXCLUDED.pending_boxes,
+        quest_progress = EXCLUDED.quest_progress,
+        daily_quest_progress = EXCLUDED.daily_quest_progress,
+        daily_quest_date = EXCLUDED.daily_quest_date,
+        daily_quest_ids = EXCLUDED.daily_quest_ids,
         last_login = EXCLUDED.last_login,
         updated_at = NOW(),
         banned_at = EXCLUDED.banned_at,
@@ -328,7 +369,8 @@ class DatabaseAdapter {
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal',
-        clan, player.eventRewards || 0, pendingBoxes, createdAt, lastLogin,
+        clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
+        dailyQuestDate, dailyQuestIds, createdAt, lastLogin,
         bannedAt, banReason
       ]
     );

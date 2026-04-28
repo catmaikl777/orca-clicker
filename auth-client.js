@@ -14,20 +14,8 @@ function checkAuthStatus() {
   const authScreen = document.getElementById('authScreen');
   const gameScreen = document.getElementById('gameScreen');
   
-  // Проверяем сохраненную сессию
-  const savedSession = localStorage.getItem('userSession');
-  
-  if (savedSession) {
-    try {
-      currentUser = JSON.parse(savedSession);
-      isGuest = false;
-      showGameScreen();
-      console.log(`✅ Автовход: ${currentUser.username}`);
-    } catch (e) {
-      console.error('Ошибка загрузки сессии:', e);
-      localStorage.removeItem('userSession');
-    }
-  }
+  // Сессия теперь только в памяти, всегда показываем экран входа
+  console.log('🔐 Ожидание входа в аккаунт...');
 }
 
 // Установка слушателей
@@ -160,7 +148,6 @@ function logout() {
     // Очищаем сессию
     currentUser = null;
     isGuest = false;
-    localStorage.removeItem('userSession');
     
     // Возвращаемся на экран входа
     const authScreen = document.getElementById('authScreen');
