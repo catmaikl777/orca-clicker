@@ -535,6 +535,8 @@ function handleServerMessage(data) {
         game.skins = data.data.skins || { normal: true };
         game.currentSkin = data.data.currentSkin || 'normal';
         game.playTime = data.data.playTime || 0;
+        // Обработка клана для гостей
+        game.clan = data.data.clan || null;
         if (data.data?.questProgress || data.data?.dailyQuestIds) {
           initQuests({ progress: data.data.questProgress, dailyQuestDate: data.data.dailyQuestDate, dailyQuestIds: data.data.dailyQuestIds });
         } else {
@@ -551,6 +553,13 @@ function handleServerMessage(data) {
         renderShop();
         renderBoxes();
         applyEffects();
+        // Если игрок в клане - запрашиваем информацию о клане
+        if (game.clan && ws?.readyState === WebSocket.OPEN) {
+          setTimeout(() => {
+            ws.send(JSON.stringify({ type: 'getClans' }));
+            ws.send(JSON.stringify({ type: 'getClanMembers' }));
+          }, 300);
+        }
       }
       break;
     case 'eventInfo':
@@ -610,8 +619,8 @@ function handleServerMessage(data) {
       saveGame();
       updateClansUI();
       break;
-      // Зарегистрирован
-      
+    case 'registered':
+      // Гость зарегистрирован
       // КРИТИЧНО: всегда загружаем данные с сервера (сервер - источник истины)
       if (data.data) {
         const oldCoins = game.coins;
@@ -636,6 +645,8 @@ function handleServerMessage(data) {
         game.skins = data.data.skins || { normal: true };
         game.currentSkin = data.data.currentSkin || 'normal';
         game.playTime = data.data.playTime || 0;
+        // Обработка клана для гостей
+        game.clan = data.data.clan || null;
         if (data.data?.questProgress || data.data?.dailyQuestIds) {
           initQuests({
             progress: data.data.questProgress,
@@ -648,20 +659,24 @@ function handleServerMessage(data) {
         if (data.data?.pendingBoxes) pendingBoxes = data.data.pendingBoxes;
         eventCoins = data.eventCoins || 0;
         
-        // console.log(`🎮 Гость: coins=${game.coins}, basePerClick=${game.basePerClick}, basePerSecond=${game.basePerSecond}, effects=${Object.keys(game.effects).length}, achievements=${game.achievements.length}`);
-        
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
           playSound('bonusSound');
         }
         
-        // Сохраняем актуальные данные в localStorage после загрузки с сервера
         saveGame();
         
         updateUI();
         renderShop();
         renderBoxes();
         applyEffects();
+        // Если игрок в клане - запрашиваем информацию о клане
+        if (game.clan && ws?.readyState === WebSocket.OPEN) {
+          setTimeout(() => {
+            ws.send(JSON.stringify({ type: 'getClans' }));
+            ws.send(JSON.stringify({ type: 'getClanMembers' }));
+          }, 300);
+        }
       } else {
         console.log('⚠️ Нет данных с сервера для гостя');
       }
@@ -715,13 +730,16 @@ function handleServerMessage(data) {
       }
       break;
     case 'clanMembers':
-      console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data.members);
+      console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data);
+      // Если пришли данные о клане и game.clan ещё не установлен - устанавливаем
       if (data.clanId && !game.clan) {
         console.log(`🏰 Синхронизирую game.clan из clanMembers: ${data.clanId}`);
         game.clan = data.clanId;
         saveGame();
       }
+      // Обновляем UI участников
       if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      // Всегда обновляем список кланов
       updateClansUI();
       break;
     case 'battleLobbies':
@@ -2403,9 +2421,14 @@ function updateClansUI() {
   
   if (!container) return;
   
-  if (leaveBtn) leaveBtn.style.display = game.clan ? 'inline-block' : 'none';
-  if (deleteBtn) deleteBtn.style.display = game.clan ? 'inline-block' : 'none';
-  if (createBtn) createBtn.style.display = game.clan ? 'none' : 'inline-block';
+  // game.clan может быть null, строкой (clanId) или объектом
+  const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
+  
+  console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}`);
+  
+  if (leaveBtn) leaveBtn.style.display = myClanId ? 'inline-block' : 'none';
+  if (deleteBtn) deleteBtn.style.display = myClanId ? 'inline-block' : 'none';
+  if (createBtn) createBtn.style.display = myClanId ? 'none' : 'inline-block';
   
   container.innerHTML = '';
   
@@ -2419,17 +2442,12 @@ function updateClansUI() {
     const div = document.createElement('div');
     div.className = 'clan-item';
     
-    const currentClanId = typeof game.clan === 'object' && game.clan !== null ? game.clan.id : String(game.clan || '');
     const clanId = String(clan.id || '');
-    
-    const isMyClan = currentClanId && currentClanId === clanId;
-    const isInClan = currentClanId && currentClanId !== clanId;
+    const isMyClan = myClanId && myClanId === clanId;
     
     let actionBtn = '';
     if (isMyClan) {
       actionBtn = `<span style="color:#4caf50">✓ Ваш клан</span>`;
-    } else if (isInClan) {
-      actionBtn = `<span style="color:#888">В другом клане</span>`;
     } else {
       actionBtn = `<button onclick="joinClan('${clan.id}')">Вступить</button>`;
     }
@@ -2443,6 +2461,16 @@ function updateClansUI() {
     `;
     container.appendChild(div);
   });
+  
+  // Обновляем участников клана если есть
+  if (myClanId && window.updateClanMembersUI) {
+    // Запрашиваем участников если не получали
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'getClanMembers' }));
+    }
+  } else if (membersContainer) {
+    membersContainer.innerHTML = '<p style="text-align:center;color:#888">Вы не в клане</p>';
+  }
 }
 
 window.updateClanMembersUI = function(members) {

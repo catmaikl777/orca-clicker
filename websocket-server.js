@@ -1063,10 +1063,22 @@ async function handleRestoreSession(ws, data) {
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
   
+  // Отправляем список кланов
   setTimeout(() => sendClans(ws), 100);
   
+  // Если игрок в клане - сразу отправляем информацию о членах клана
   if (playerData.clan && db.clans[playerData.clan]) {
-    setTimeout(() => sendClanMembers(playerData.clan), 150);
+    setTimeout(() => {
+      const clan = db.clans[playerData.clan];
+      if (clan) {
+        const membersData = clan.members.map(id => ({
+          id, name: db.players[id]?.name || 'Unknown',
+          coins: db.players[id]?.coins || 0, isOwner: id === clan.owner
+        }));
+        ws.send(JSON.stringify({ type: 'clanMembers', clanId: playerData.clan, members: membersData }));
+        console.log(`👥 Отправлены участники клана ${playerData.clan}: ${membersData.length} шт.`);
+      }
+    }, 150);
   }
   
   broadcastLeaderboard();
