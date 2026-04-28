@@ -49,6 +49,8 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     // Получаем или создаём игровые данные
     let playerData = db.players[accountId];
+    console.log(`🔍 [auth.js] playerData из db.players: ${accountId}, exists=${!!playerData}, coins=${playerData?.coins}, type=${typeof playerData}`);
+    
     if (!playerData && dbAdapter && dbAdapter.usePostgreSQL) {
       // Загружаем из БД если нет в памяти
       try {

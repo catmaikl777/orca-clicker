@@ -204,8 +204,9 @@ class DatabaseAdapter {
   async getPlayer(accountId) {
     if (!this.usePostgreSQL) return null;
     
+    // Ищем по id ИЛИ по account_id (для совместимости)
     const result = await this.pool.query(
-      'SELECT * FROM players WHERE account_id = $1',
+      'SELECT * FROM players WHERE id = $1 OR account_id = $1',
       [accountId]
     );
     return result.rows[0] || null;
