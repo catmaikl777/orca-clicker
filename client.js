@@ -1414,6 +1414,11 @@ function updateSkin() {
 }
 
 function formatNumber(num) {
+  // Преобразуем строки в числа
+  if (typeof num === 'string') {
+    num = Number(num);
+  }
+  
   if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) {
     console.warn(`WARNING: formatNumber received invalid value: ${num}`);
     return '0';
