@@ -1039,22 +1039,30 @@ async function handleRestoreSession(ws, data) {
           clan: (() => {
             let clanValue = dbPlayer.clan;
             console.log(`🏰 Загрузка clan из БД для ${accountId}: typeof=${typeof clanValue}, value=${clanValue}`);
-            if (typeof clanValue === 'string') {
-              // Если это JSON строка - парсим
-              try {
-                const parsed = JSON.parse(clanValue);
-                // Если это объект с id - возвращаем объект, иначе это просто ID
-                if (parsed && typeof parsed === 'object') {
-                  clanValue = parsed;
-                } else {
-                  clanValue = parsed; // Это строка ID
-                }
-              } catch (e) {
-                // Если не JSON - это просто ID (строка)
-                console.log(`🏰 clanValue не JSON, используем как ID: ${clanValue}`);
-              }
+            // clan может быть null, строкой (ID), или JSON-строкой
+            if (clanValue === null || clanValue === undefined) {
+              return null;
             }
-            return clanValue ?? null;
+            if (typeof clanValue === 'string') {
+              // Если это JSON строка (начинается с { или [) - пробуем распарсить
+              if (clanValue.startsWith('{') || clanValue.startsWith('[')) {
+                try {
+                  const parsed = JSON.parse(clanValue);
+                  if (parsed && typeof parsed === 'object' && parsed.id) {
+                    return parsed.id;
+                  }
+                } catch (e) {
+                  // Если не получилось - возвращаем как есть
+                }
+              }
+              // Иначе это просто ID
+              return clanValue;
+            }
+            // Если объект - берём id
+            if (typeof clanValue === 'object' && clanValue.id) {
+              return clanValue.id;
+            }
+            return clanValue;
           })(),
           perClick: dbPlayer.per_click,
           perSecond: dbPlayer.per_second,

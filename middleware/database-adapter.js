@@ -285,7 +285,14 @@ class DatabaseAdapter {
     let clan;
     if (player.clan === null || player.clan === undefined || player.clan === '') {
       clan = null;
+    } else if (typeof player.clan === 'string') {
+      // Если это уже строка ID - сохраняем как есть
+      clan = player.clan;
+    } else if (typeof player.clan === 'object' && player.clan.id) {
+      // Если это объект с id - сохраняем только id
+      clan = player.clan.id;
     } else {
+      // Иначе пробуем сериализовать
       try {
         clan = JSON.stringify(player.clan);
       } catch (e) {
@@ -293,6 +300,7 @@ class DatabaseAdapter {
         clan = null;
       }
     }
+    console.log(`💾 savePlayerToDB: clan = ${clan} (type: ${typeof clan})`);
     
     let pendingBoxes;
     try {

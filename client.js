@@ -457,6 +457,7 @@ function handleServerMessage(data) {
     // Загружаем данные с сервера
     if (data.data) {
       const d = data.data;
+      console.log(`📥 authSuccess data: clan=${d.clan}, type=${typeof d.clan}`);
       game.coins = Number.isFinite(d.coins) && d.coins >= 0 ? d.coins : 0;
       game.totalCoins = Number.isFinite(d.totalCoins) && d.totalCoins >= 0 ? d.totalCoins : 0;
       game.level = Number.isFinite(d.level) && d.level > 0 ? d.level : 1;
