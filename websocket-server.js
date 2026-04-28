@@ -97,14 +97,17 @@ function savePlayerToDB(accountId) {
   if (!dbAdapter.usePostgreSQL) return;
   if (!dbAdapter.initialized) return; // Адаптер ещё не инициализирован
   const p = db.players[accountId];
-  if (!p) return;
+  if (!p) {
+    console.log(`💾 savePlayerToDB: игрок ${accountId} не найден в db.players`);
+    return;
+  }
   
   // Проверяем что это зарегистрированный игрок (есть в accounts)
   const acc = db.accounts[accountId];
   const isRegistered = !!acc;
   
-  // Лог для отладки
-  console.log(`💾 savePlayerToDB: id=${accountId}, name=${p.name}, isRegistered=${isRegistered}`);
+  // Лог для отладки - ВАЖНО: логируем coins перед сохранением
+  console.log(`💾 savePlayerToDB: id=${accountId}, name=${p.name}, coins=${p.coins}, totalCoins=${p.totalCoins}, isRegistered=${isRegistered}`);
   
   // Если игрок зарегистрирован но аккаунт ещё не сохранён в БД - сохраняем сначала
   if (isRegistered && acc) {
@@ -548,6 +551,12 @@ httpServer.listen(PORT, () => {
         db.stats.totalClans = clans.length;
 
         console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins, ${clans.length} кланов`);
+        
+        // Лог для отладки - показать монеты загруженных игроков
+        console.log(`💾 Загруженные игроки (coins):`);
+        Object.entries(db.players).forEach(([id, p]) => {
+          console.log(`   ${id}: ${p.name}, coins=${p.coins}, totalCoins=${p.totalCoins}`);
+        });
         
         // Запустить очистку гостевых аккаунтов при старте
         cleanupPlayerAccounts().then(() => {
@@ -1073,6 +1082,10 @@ async function handleRestoreSession(ws, data) {
   
   players.set(accountId, { ...playerData, ws });
   updateLeaderboard(playerData);
+  
+  // Лог перед сохранением
+  console.log(`💾 Перед сохранением: accountId=${accountId}, coins=${playerData.coins}, totalCoins=${playerData.totalCoins}`);
+  
   savePlayerToDB(accountId);
 
   const basePS = playerData.perSecond || 0;
