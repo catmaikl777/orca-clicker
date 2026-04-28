@@ -468,7 +468,27 @@ function handleServerMessage(data) {
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
-      game.clan = d.clan || null;
+      // Обработка clan - может быть null, строкой (ID) или объектом
+      if (d.clan) {
+        if (typeof d.clan === 'string') {
+          // Если это JSON строка - парсим
+          try {
+            const parsed = JSON.parse(d.clan);
+            game.clan = typeof parsed === 'object' ? parsed.id || d.clan : d.clan;
+          } catch (e) {
+            // Если не JSON - это просто ID
+            game.clan = d.clan;
+          }
+        } else if (typeof d.clan === 'object') {
+          // Если это объект - берём ID
+          game.clan = d.clan.id || d.clan;
+        } else {
+          game.clan = d.clan;
+        }
+      } else {
+        game.clan = null;
+      }
+      console.log(`🏰 authSuccess: game.clan = ${game.clan}, type = ${typeof game.clan}`);
       game.multiplier = 1;
       
       if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
@@ -2424,7 +2444,7 @@ function updateClansUI() {
   // game.clan может быть null, строкой (clanId) или объектом
   const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
   
-  console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}`);
+  console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}, clansList.length=${clansList.length}`);
   
   if (leaveBtn) leaveBtn.style.display = myClanId ? 'inline-block' : 'none';
   if (deleteBtn) deleteBtn.style.display = myClanId ? 'inline-block' : 'none';
@@ -2444,6 +2464,8 @@ function updateClansUI() {
     
     const clanId = String(clan.id || '');
     const isMyClan = myClanId && myClanId === clanId;
+    
+    console.log(`  🏰 Clan: ${clan.name}, id=${clanId}, isMyClan=${isMyClan}`);
     
     let actionBtn = '';
     if (isMyClan) {

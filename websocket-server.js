@@ -1038,10 +1038,21 @@ async function handleRestoreSession(ws, data) {
           antiCheat: dbPlayer.anti_cheat || {},
           clan: (() => {
             let clanValue = dbPlayer.clan;
+            console.log(`🏰 Загрузка clan из БД для ${accountId}: typeof=${typeof clanValue}, value=${clanValue}`);
             if (typeof clanValue === 'string') {
+              // Если это JSON строка - парсим
               try {
-                clanValue = JSON.parse(clanValue);
-              } catch (e) {}
+                const parsed = JSON.parse(clanValue);
+                // Если это объект с id - возвращаем объект, иначе это просто ID
+                if (parsed && typeof parsed === 'object') {
+                  clanValue = parsed;
+                } else {
+                  clanValue = parsed; // Это строка ID
+                }
+              } catch (e) {
+                // Если не JSON - это просто ID (строка)
+                console.log(`🏰 clanValue не JSON, используем как ID: ${clanValue}`);
+              }
             }
             return clanValue ?? null;
           })(),
@@ -1081,6 +1092,13 @@ async function handleRestoreSession(ws, data) {
   const basePS = playerData.perSecond || 0;
   console.log(`🔄 Сессия восстановлена: ${account.username} (${accountId}), basePerSecond=${basePS}, клан: ${playerData.clan || 'нет'}`);
 
+  // Преобразуем clan в ID если это объект
+  let clanIdToSend = playerData.clan;
+  if (clanIdToSend && typeof clanIdToSend === 'object') {
+    clanIdToSend = clanIdToSend.id || null;
+  }
+  console.log(`🏰 Отправляем clanId=${clanIdToSend} игроку ${accountId}`);
+
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
@@ -1088,7 +1106,8 @@ async function handleRestoreSession(ws, data) {
     data: {
       ...playerData,
       basePerClick: playerData.perClick,
-      basePerSecond: playerData.perSecond
+      basePerSecond: playerData.perSecond,
+      clan: clanIdToSend
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
