@@ -1113,6 +1113,12 @@ async function handleRestoreSession(ws, data) {
   
   // Лог для отладки - что отправляем клиенту
   console.log(`📤 authSuccess (restoreSession): accountId=${accountId}, coins=${playerData.coins}, totalCoins=${playerData.totalCoins}`);
+  console.log(`📤 authSuccess (restoreSession) data object:`, {
+    coins: playerData.coins,
+    totalCoins: playerData.totalCoins,
+    level: playerData.level,
+    clan: playerData.clan
+  });
   
   ws.send(JSON.stringify({ 
     type: 'authSuccess',

@@ -459,8 +459,15 @@ function handleServerMessage(data) {
       const d = data.data;
       console.log(`📥 authSuccess data: coins=${d.coins}, totalCoins=${d.totalCoins}, type(coins)=${typeof d.coins}`);
       console.log(`📥 authSuccess data: clan=${d.clan}, type=${typeof d.clan}`);
+      console.log(`📥 authSuccess data: level=${d.level}, perClick=${d.perClick}, perSecond=${d.perSecond}`);
+      
+      // Отладка проверки монет
+      console.log(`📥 Проверка монет: Number.isFinite(d.coins)=${Number.isFinite(d.coins)}, d.coins>=0=${d.coins >= 0}`);
+      
       game.coins = Number.isFinite(d.coins) && d.coins >= 0 ? d.coins : 0;
       game.totalCoins = Number.isFinite(d.totalCoins) && d.totalCoins >= 0 ? d.totalCoins : 0;
+      
+      console.log(`📥 После присваивания: game.coins=${game.coins}, game.totalCoins=${game.totalCoins}`);
       game.level = Number.isFinite(d.level) && d.level > 0 ? d.level : 1;
       game.basePerClick = Number.isFinite(d.basePerClick ?? d.perClick) ? (d.basePerClick ?? d.perClick) : 0;
       game.basePerSecond = Number.isFinite(d.basePerSecond ?? d.perSecond) ? (d.basePerSecond ?? d.perSecond) : 0;

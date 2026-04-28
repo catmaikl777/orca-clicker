@@ -99,6 +99,14 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
     
     // Лог для отладки - что отправляем клиенту
     console.log(`📤 authSuccess: accountId=${accountId}, username=${account.username}, coins=${playerData.coins}, totalCoins=${playerData.totalCoins}`);
+    console.log(`📤 authSuccess data object:`, {
+      id: playerData.id,
+      name: playerData.name,
+      coins: playerData.coins,
+      totalCoins: playerData.totalCoins,
+      level: playerData.level,
+      clan: playerData.clan
+    });
     
     ws.send(JSON.stringify({ 
       type: 'authSuccess',
