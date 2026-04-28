@@ -460,36 +460,53 @@ httpServer.listen(PORT, () => {
         // Загрузить игроков
         const rows = await dbAdapter.pool.query('SELECT * FROM players');
         rows.rows.forEach(row => {
-          db.players[row.id] = {
-            id: row.id,
-            name: row.name,
-            coins: row.coins || 0,
-            totalCoins: row.total_coins || 0,
-            perClick: row.per_click || 1,
-            perSecond: row.per_second || 0,
-            clicks: row.clicks || 0,
-            level: row.level || 1,
-            skills: typeof row.skills === 'string' ? JSON.parse(row.skills) : row.skills || {},
-            achievements: typeof row.achievements === 'string' ? JSON.parse(row.achievements) : row.achievements || [],
-            skins: typeof row.skins === 'string' ? JSON.parse(row.skins) : row.skins || { normal: true },
-            currentSkin: row.current_skin || 'normal',
-            clan: typeof row.clan === 'string' ? JSON.parse(row.clan) : row.clan || null,
-            eventRewards: row.event_rewards || 0,
-            pendingBoxes: typeof row.pending_boxes === 'string' ? JSON.parse(row.pending_boxes) : row.pending_boxes || [],
-            questProgress: typeof row.quest_progress === 'string' ? JSON.parse(row.quest_progress) : row.quest_progress || [],
-            dailyProgress: typeof row.daily_quest_progress === 'string' ? JSON.parse(row.daily_quest_progress) : row.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
-            dailyQuestDate: row.daily_quest_date,
-            dailyQuestIds: typeof row.daily_quest_ids === 'string' ? JSON.parse(row.daily_quest_ids) : row.daily_quest_ids || [],
-            createdAt: row.created_at || Date.now(),
-            lastLogin: row.last_login || Date.now(),
-            antiCheat: null
-          };
-          if (row.banned_at) {
-            db.players[row.id].antiCheat = {
-              bannedUntil: Infinity,
-              banReason: row.ban_reason || 'autoclicker',
-              bannedAt: row.banned_at
+          try {
+            // Вспомогательная функция для безопасного парсинга JSON
+            const safeParseJSON = (str, defaultVal) => {
+              if (!str) return defaultVal;
+              if (typeof str === 'object') return str;
+              if (typeof str !== 'string') return defaultVal;
+              try {
+                return JSON.parse(str);
+              } catch (e) {
+                console.warn(`⚠️ Ошибка парсинга JSON для поля: ${str.substring(0, 50)}...`, e.message);
+                return defaultVal;
+              }
             };
+            
+            db.players[row.id] = {
+              id: row.id,
+              name: row.name,
+              coins: row.coins || 0,
+              totalCoins: row.total_coins || 0,
+              perClick: row.per_click || 1,
+              perSecond: row.per_second || 0,
+              clicks: row.clicks || 0,
+              level: row.level || 1,
+              skills: safeParseJSON(row.skills, {}),
+              achievements: safeParseJSON(row.achievements, []),
+              skins: safeParseJSON(row.skins, { normal: true }),
+              currentSkin: row.current_skin || 'normal',
+              clan: safeParseJSON(row.clan, null),
+              eventRewards: row.event_rewards || 0,
+              pendingBoxes: safeParseJSON(row.pending_boxes, []),
+              questProgress: safeParseJSON(row.quest_progress, []),
+              dailyProgress: safeParseJSON(row.daily_quest_progress, { clicks: 0, coins: 0, playTime: 0 }),
+              dailyQuestDate: row.daily_quest_date,
+              dailyQuestIds: safeParseJSON(row.daily_quest_ids, []),
+              createdAt: row.created_at || Date.now(),
+              lastLogin: row.last_login || Date.now(),
+              antiCheat: null
+            };
+            if (row.banned_at) {
+              db.players[row.id].antiCheat = {
+                bannedUntil: Infinity,
+                banReason: row.ban_reason || 'autoclicker',
+                bannedAt: row.banned_at
+              };
+            }
+          } catch (e) {
+            console.error(`❌ Ошибка загрузки игрока ${row.id}:`, e.message);
           }
         });
         
@@ -543,7 +560,7 @@ httpServer.listen(PORT, () => {
     console.log('ℹ️ File-based database (database.json)');
   }
 });
-
+  
 wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress;
   
