@@ -2446,7 +2446,7 @@ function updateClansUI() {
   // game.clan может быть null, строкой (clanId) или объектом
   const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
   
-  console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}, clansList.length=${clansList.length}`);
+  // console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}, clansList.length=${clansList.length}`);
   
   if (leaveBtn) leaveBtn.style.display = myClanId ? 'inline-block' : 'none';
   if (deleteBtn) deleteBtn.style.display = myClanId ? 'inline-block' : 'none';
@@ -2467,7 +2467,7 @@ function updateClansUI() {
     const clanId = String(clan.id || '');
     const isMyClan = myClanId && myClanId === clanId;
     
-    console.log(`  🏰 Clan: ${clan.name}, id=${clanId}, isMyClan=${isMyClan}`);
+    // console.log(`  🏰 Clan: ${clan.name}, id=${clanId}, isMyClan=${isMyClan}`);
     
     let actionBtn = '';
     if (isMyClan) {
