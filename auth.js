@@ -83,6 +83,11 @@ async function handleRegister(ws, data, db, players, saveDB, broadcastEventInfo,
           };
           db.players[accountId] = playerData;
           playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
+          
+          // Преобразуем coins в число (PostgreSQL возвращает их как строки из BIGINT)
+          playerData.coins = Number(playerData.coins) || 0;
+          playerData.totalCoins = Number(playerData.totalCoins) || 0;
+          playerData.eventRewards = Number(playerData.eventRewards) || 0;
         }
       } catch (err) {
         console.error(`❌ [auth.js] Ошибка загрузки игрока из БД:`, err.message);

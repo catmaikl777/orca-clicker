@@ -507,6 +507,12 @@ httpServer.listen(PORT, () => {
             };
             console.log(`💾 Загружен игрок: ${row.id}, coins=${row.coins}, clan=${row.clan || 'null'}`);
             db.players[row.id]._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
+            
+            // Преобразуем coins в число
+            db.players[row.id].coins = Number(row.coins) || 0;
+            db.players[row.id].totalCoins = Number(row.total_coins) || 0;
+            db.players[row.id].eventRewards = Number(row.event_rewards) || 0;
+            
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
                 bannedUntil: Infinity,
@@ -1084,6 +1090,11 @@ async function handleRestoreSession(ws, data) {
     }
     db.players[accountId] = playerData;
     playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
+    
+    // Преобразуем coins в число (PostgreSQL возвращает их как строки из BIGINT)
+    playerData.coins = Number(playerData.coins) || 0;
+    playerData.totalCoins = Number(playerData.totalCoins) || 0;
+    playerData.eventRewards = Number(playerData.eventRewards) || 0;
   }
   
   if (!playerData.shopItems) playerData.shopItems = [];
