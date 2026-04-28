@@ -340,9 +340,9 @@ class DatabaseAdapter {
         id, account_id, name, coins, total_coins, per_click, per_second,
         clicks, level, skills, achievements, skins, current_skin,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
-        daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
+        daily_quest_date, daily_quest_ids, created_at, last_login,
         banned_at, ban_reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), $22, $23)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,

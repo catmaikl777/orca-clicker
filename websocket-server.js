@@ -66,13 +66,25 @@ function banPlayer(playerId, reason) {
 
 // Сохранение клана в PostgreSQL
 function saveClanToDB(clanId) {
-  if (!dbAdapter.usePostgreSQL) return;
-  if (!dbAdapter.initialized) return;
+  if (!dbAdapter.usePostgreSQL) {
+    console.log(`⚠️ saveClanToDB: PostgreSQL не используется`);
+    return;
+  }
+  if (!dbAdapter.initialized) {
+    console.log(`⚠️ saveClanToDB: PostgreSQL ещё не инициализирован`);
+    return;
+  }
   const clan = db.clans[clanId];
-  if (!clan) return;
-  dbAdapter.saveClan(clan).catch(e => console.error('Ошибка сохранения клана:', e.message));
+  if (!clan) {
+    console.log(`⚠️ saveClanToDB: клан ${clanId} не найден`);
+    return;
+  }
+  console.log(`💾 Сохранение клана в БД: ${clanId}, name=${clan.name}, owner=${clan.owner}, members=${clan.members.length}`);
+  dbAdapter.saveClan(clan).then(() => {
+    console.log(`✅ Клан сохранён: ${clanId}`);
+  }).catch(e => console.error('❌ Ошибка сохранения клана:', e.message));
 }
-
+  
 // Удаление клана из PostgreSQL
 function deleteClanFromDB(clanId) {
   if (!dbAdapter.usePostgreSQL) return;
@@ -513,6 +525,7 @@ httpServer.listen(PORT, () => {
         const clans = await dbAdapter.getAllClans();
         clans.forEach(clan => {
           db.clans[clan.id] = clan;
+          console.log(`🏰 Загружен клан из БД: ${clan.id}, name=${clan.name}, owner=${clan.owner}, members=${clan.members.length}`);
         });
         db.stats.totalClans = clans.length;
 
@@ -1660,7 +1673,8 @@ function sendLeaderboard(ws) {
 
 function handleCreateClan(ws, clanName) {
   const id = ws.accountId || ws.playerId;
-  console.log(`🏰 handleCreateClan: ws.accountId=${ws.accountId}, ws.playerId=${ws.playerId}, id=${id}`);
+  console.log(`🏰 handleCreateClan: ws.accountId=${ws.accountId}, ws.playerId=${ws.playerId}, id=${id}, clanName=${clanName}`);
+  console.log(`  dbAdapter.initialized=${dbAdapter.initialized}, usePostgreSQL=${dbAdapter.usePostgreSQL}`);
   
   // Создаем игрока если его нет
   if (!db.players[id]) {
