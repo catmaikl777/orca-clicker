@@ -487,7 +487,7 @@ httpServer.listen(PORT, () => {
               achievements: safeParseJSON(row.achievements, []),
               skins: safeParseJSON(row.skins, { normal: true }),
               currentSkin: row.current_skin || 'normal',
-              clan: safeParseJSON(row.clan, null),
+              clan: row.clan || null,
               eventRewards: row.event_rewards || 0,
               pendingBoxes: safeParseJSON(row.pending_boxes, []),
               questProgress: safeParseJSON(row.quest_progress, []),
@@ -498,6 +498,7 @@ httpServer.listen(PORT, () => {
               lastLogin: row.last_login || Date.now(),
               antiCheat: null
             };
+            console.log(`💾 Загружен игрок: ${row.id}, coins=${row.coins}, clan=${row.clan || 'null'}`);
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
                 bannedUntil: Infinity,
@@ -1024,53 +1025,30 @@ async function handleRestoreSession(ws, data) {
     try {
       const dbPlayer = await dbAdapter.getPlayer(accountId);
       if (dbPlayer) {
-        console.log(`💾 Загружены данные игрока из БД: ${accountId}, clan=${dbPlayer.clan || 'null'}, dailyProgress=${JSON.stringify(dbPlayer.daily_quest_progress)}`);
+        console.log(`💾 Загружены данные игрока из БД: ${accountId}, coins=${dbPlayer.coins}, clan=${dbPlayer.clan || 'null'}`);
         playerData = {
-          ...dbPlayer,
+          id: dbPlayer.id,
+          name: dbPlayer.name,
+          coins: dbPlayer.coins || 0,
+          totalCoins: dbPlayer.total_coins || 0,
+          perClick: dbPlayer.per_click || 1,
+          perSecond: dbPlayer.per_second || 0,
+          clicks: dbPlayer.clicks || 0,
+          level: dbPlayer.level || 1,
           skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
           achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
           skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
+          currentSkin: dbPlayer.current_skin || 'normal',
           pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
           questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
           dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
           dailyQuestDate: dbPlayer.daily_quest_date,
           dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
-          antiCheat: dbPlayer.anti_cheat || {},
-          clan: (() => {
-            let clanValue = dbPlayer.clan;
-            console.log(`🏰 Загрузка clan из БД для ${accountId}: typeof=${typeof clanValue}, value=${clanValue}`);
-            // clan может быть null, строкой (ID), или JSON-строкой
-            if (clanValue === null || clanValue === undefined) {
-              return null;
-            }
-            if (typeof clanValue === 'string') {
-              // Если это JSON строка (начинается с { или [) - пробуем распарсить
-              if (clanValue.startsWith('{') || clanValue.startsWith('[')) {
-                try {
-                  const parsed = JSON.parse(clanValue);
-                  if (parsed && typeof parsed === 'object' && parsed.id) {
-                    return parsed.id;
-                  }
-                } catch (e) {
-                  // Если не получилось - возвращаем как есть
-                }
-              }
-              // Иначе это просто ID
-              return clanValue;
-            }
-            // Если объект - берём id
-            if (typeof clanValue === 'object' && clanValue.id) {
-              return clanValue.id;
-            }
-            return clanValue;
-          })(),
-          perClick: dbPlayer.per_click,
-          perSecond: dbPlayer.per_second,
-          totalCoins: dbPlayer.total_coins,
-          currentSkin: dbPlayer.current_skin,
-          eventRewards: dbPlayer.event_rewards,
-          createdAt: dbPlayer.created_at,
-          lastLogin: dbPlayer.last_login
+          clan: dbPlayer.clan || null,
+          eventRewards: dbPlayer.event_rewards || 0,
+          createdAt: dbPlayer.created_at || Date.now(),
+          lastLogin: dbPlayer.last_login || Date.now(),
+          antiCheat: dbPlayer.anti_cheat || {}
         };
       } else {
         console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
@@ -1099,14 +1077,11 @@ async function handleRestoreSession(ws, data) {
 
   const basePS = playerData.perSecond || 0;
   console.log(`🔄 Сессия восстановлена: ${account.username} (${accountId}), basePerSecond=${basePS}, клан: ${playerData.clan || 'нет'}`);
-
-  // Преобразуем clan в ID если это объект
-  let clanIdToSend = playerData.clan;
-  if (clanIdToSend && typeof clanIdToSend === 'object') {
-    clanIdToSend = clanIdToSend.id || null;
-  }
-  console.log(`🏰 Отправляем clanId=${clanIdToSend} игроку ${accountId}`);
-
+  
+  // clan всегда должен быть строкой ID или null
+  const finalClanId = playerData.clan || null;
+  console.log(`🏰 finalClanId = ${finalClanId}`);
+  
   ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
@@ -1115,7 +1090,7 @@ async function handleRestoreSession(ws, data) {
       ...playerData,
       basePerClick: playerData.perClick,
       basePerSecond: playerData.perSecond,
-      clan: clanIdToSend
+      clan: finalClanId
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
@@ -1764,15 +1739,16 @@ function handleCreateClan(ws, clanName) {
     members: [id], memberNames: [player.name],
     totalCoins: 0, createdAt: Date.now(), description: ''
   };
+  // clan должен быть строкой ID
   player.clan = clanId;
   db.players[id].clan = clanId;
-  db.stats.totalClans++;
-  
-  console.log(`🏰 Клан создан: ${clanId} для игрока ${id}, player.clan=${player.clan}`);
+  console.log(`🏰 Клан создан: ${clanId} для игрока ${id}, player.clan=${player.clan} (type: ${typeof player.clan})`);
   
   // Синхронизация в памяти
   if (players.has(id)) {
-    players.get(id).clan = clanId;
+    const memPlayer = players.get(id);
+    memPlayer.clan = clanId;
+    console.log(`🏰 Синхронизация: players.get(id).clan=${memPlayer.clan} (type: ${typeof memPlayer.clan})`);
   }
   
   ws.send(JSON.stringify({ type: 'clanCreated', clanId, name: clanName, clanId }));

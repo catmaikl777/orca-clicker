@@ -91,7 +91,7 @@ class DatabaseAdapter {
         achievements JSONB DEFAULT '[]',
         skins JSONB DEFAULT '{"normal": true}',
         current_skin VARCHAR(50) DEFAULT 'normal',
-        clan JSONB DEFAULT NULL,
+        clan VARCHAR(50) DEFAULT NULL,
         event_rewards BIGINT DEFAULT 0,
         pending_boxes JSONB DEFAULT '[]',
         quest_progress JSONB DEFAULT '[]',
@@ -107,6 +107,9 @@ class DatabaseAdapter {
       `ALTER TABLE players ALTER COLUMN coins TYPE BIGINT USING coins::BIGINT`,
       `ALTER TABLE players ALTER COLUMN total_coins TYPE BIGINT USING total_coins::BIGINT`,
       `ALTER TABLE players ALTER COLUMN event_rewards TYPE BIGINT USING event_rewards::BIGINT`,
+      
+      // Миграция clan JSONB -> VARCHAR(50) для существующих таблиц
+      `ALTER TABLE players ALTER COLUMN clan TYPE VARCHAR(50) USING clan::VARCHAR(50)`,
       
       // Добавить поля бана в players (для совместимости)
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
@@ -281,26 +284,27 @@ class DatabaseAdapter {
       skins = '{"normal": true}';
     }
     
-    // clan может быть null или строкой/id или объектом
+    // clan всегда должен быть строкой ID или null
     let clan;
+    console.log(`💾 savePlayer DEBUG: player.clan = ${JSON.stringify(player.clan)}, type = ${typeof player.clan}`);
+    
     if (player.clan === null || player.clan === undefined || player.clan === '') {
       clan = null;
     } else if (typeof player.clan === 'string') {
-      // Если это уже строка ID - сохраняем как есть
       clan = player.clan;
-    } else if (typeof player.clan === 'object' && player.clan.id) {
-      // Если это объект с id - сохраняем только id
-      clan = player.clan.id;
-    } else {
-      // Иначе пробуем сериализовать
-      try {
-        clan = JSON.stringify(player.clan);
-      } catch (e) {
-        console.error('Ошибка сериализации clan:', e.message, player.clan);
+    } else if (typeof player.clan === 'object') {
+      // Если это объект с id - берём id
+      if (player.clan.id) {
+        clan = player.clan.id;
+        console.log(`💾 clan из объекта: ${clan}`);
+      } else {
+        console.log(`💾 clan - пустой объект, ставим null`);
         clan = null;
       }
+    } else {
+      clan = String(player.clan);
     }
-    console.log(`💾 savePlayerToDB: clan = ${clan} (type: ${typeof clan})`);
+    console.log(`💾 savePlayer: clan = ${clan} (type: ${typeof clan})`);
     
     let pendingBoxes;
     try {
