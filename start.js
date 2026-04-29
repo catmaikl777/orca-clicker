@@ -43,4 +43,4 @@ process.on('SIGTERM', () => {
 
 console.log('✅ Оба сервера запущены. Нажмите Ctrl+C для остановки.');
 console.log('🎮 Игра: http://localhost:3000');
-console.log('⚙️  Админка: http://localhost:3001/admin.html\n');
+console.log('⚙️  Админка: http://localhost:3002/admin.html\n');

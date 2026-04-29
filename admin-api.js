@@ -221,10 +221,10 @@ app.post('/api/admin/unban/:id', checkAdmin, async (req, res) => {
 });
 
 // Запустить сервер админки
-const PORT = process.env.ADMIN_PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`✅ Админка запущена на порту ${PORT}`);
-  console.log(`📍 URL: http://localhost:${PORT}/admin.html`);
+const ADMIN_PORT = process.env.ADMIN_PORT || 3002;
+app.listen(ADMIN_PORT, () => {
+  console.log(`✅ Админка запущена на порту ${ADMIN_PORT}`);
+  console.log(`📍 URL: http://localhost:${ADMIN_PORT}/admin.html`);
   console.log(`🔑 Пароль по умолчанию: ${ADMIN_PASSWORD}`);
   console.log(`⚠️  Измените ADMIN_PASSWORD в переменной окружения!`);
 });

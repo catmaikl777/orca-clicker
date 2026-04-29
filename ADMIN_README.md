@@ -6,7 +6,7 @@
 
 ### 1. Установите зависимости
 ```bash
-npm install express bcrypt pg
+npm install express pg concurrently
 ```
 
 ### 2. Настройте переменные окружения
@@ -14,7 +14,7 @@ npm install express bcrypt pg
 # .env
 DATABASE_URL=postgresql://user:password@localhost:5432/yourdb
 ADMIN_PASSWORD=your_secure_password_here
-ADMIN_PORT=3001
+ADMIN_PORT=3002
 ```
 
 ### 3. Запустите админку
@@ -24,7 +24,7 @@ node admin-api.js
 
 ### 4. Откройте в браузере
 ```
-http://localhost:3001/admin.html
+http://localhost:3002/admin.html
 ```
 
 ## 🔑 Авторизация
