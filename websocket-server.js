@@ -6,9 +6,27 @@
 
 const WebSocket = require('ws');
 const http = require('http');
+const express = require('express');
 const { handleRegister: handleAuthRegister, createDefaultPlayer, generateId: generateAuthId } = require('./auth');
 const { WebSocketRateLimiter } = require('./middleware/rate-limiter');
 const dbAdapter = require('./middleware/database-adapter');
+
+// ==================== Admin API ====================
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+function checkAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Требуется авторизация' });
+  }
+  
+  const token = auth.replace('Bearer ', '');
+  if (token !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: 'Неверный пароль' });
+  }
+  
+  next();
+}
 
 const wsRateLimiter = new WebSocketRateLimiter({ 
   maxConnections: 200, 
@@ -451,6 +469,225 @@ const wss = new WebSocket.Server({
     
     return !origin || allowedOrigins.includes(origin);
   }
+});
+  
+// ==================== Admin API Routes ====================
+// Middleware для парсинга JSON
+httpServer.on('request', express.json());
+
+// Health check + Admin routes
+httpServer.on('request', (req, res) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+  };
+  
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, corsHeaders);
+    res.end();
+    return;
+  }
+  
+  // Admin API routes
+  const adminPrefix = '/api/admin';
+  
+  if (req.url.startsWith(adminPrefix)) {
+    // Получить всех игроков
+    if (req.method === 'GET' && req.url === `${adminPrefix}/players`) {
+      checkAdmin(req, res, async () => {
+        try {
+          if (!dbAdapter.usePostgreSQL) {
+            return res.status(500).json({ error: 'PostgreSQL не подключен' });
+          }
+          
+          const result = await dbAdapter.pool.query(
+            'SELECT p.*, a.username FROM players p LEFT JOIN accounts a ON p.account_id = a.id ORDER BY p.total_coins DESC LIMIT 100'
+          );
+          
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Ошибка получения игроков:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Получить одного игрока
+    const getPlayerMatch = req.url.match(`${adminPrefix}/players/([^/]+)`);
+    if (getPlayerMatch && req.method === 'GET') {
+      const playerId = getPlayerMatch[1];
+      checkAdmin(req, res, async () => {
+        try {
+          const result = await dbAdapter.pool.query('SELECT * FROM players WHERE id = $1', [playerId]);
+          if (result.rows.length === 0) {
+            return res.writeHead(404, { 'Content-Type': 'application/json', ...corsHeaders }).end(JSON.stringify({ error: 'Игрок не найден' }));
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify(result.rows[0]));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Обновить игрока
+    const updatePlayerMatch = req.url.match(`${adminPrefix}/players/([^/]+)`);
+    if (updatePlayerMatch && req.method === 'PUT') {
+      const playerId = updatePlayerMatch[1];
+      checkAdmin(req, res, async () => {
+        try {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            const data = JSON.parse(body);
+            
+            const updates = [];
+            const values = [];
+            let paramIndex = 1;
+            
+            if (data.coins !== undefined) { updates.push(`coins = $${paramIndex++}`); values.push(data.coins); }
+            if (data.totalCoins !== undefined) { updates.push(`total_coins = $${paramIndex++}`); values.push(data.totalCoins); }
+            if (data.level !== undefined) { updates.push(`level = $${paramIndex++}`); values.push(data.level); }
+            if (data.perClick !== undefined) { updates.push(`per_click = $${paramIndex++}`); values.push(data.perClick); }
+            if (data.perSecond !== undefined) { updates.push(`per_second = $${paramIndex++}`); values.push(data.perSecond); }
+            if (data.clicks !== undefined) { updates.push(`clicks = $${paramIndex++}`); values.push(data.clicks); }
+            
+            if (updates.length === 0) {
+              return res.writeHead(400, { 'Content-Type': 'application/json', ...corsHeaders }).end(JSON.stringify({ error: 'Нет данных для обновления' }));
+            }
+            
+            updates.push(`updated_at = NOW()`);
+            values.push(playerId);
+            
+            await dbAdapter.pool.query(`UPDATE players SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
+            
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: true, message: 'Данные обновлены' }));
+          });
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Забанить игрока
+    const banMatch = req.url.match(`${adminPrefix}/ban/([^/]+)`);
+    if (banMatch && req.method === 'POST') {
+      const playerId = banMatch[1];
+      checkAdmin(req, res, async () => {
+        try {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            const data = JSON.parse(body);
+            await dbAdapter.pool.query(
+              'UPDATE players SET banned_at = $1, ban_reason = $2 WHERE id = $3',
+              [Date.now(), data.reason || 'Нет описания', playerId]
+            );
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: true, message: 'Игрок забанен' }));
+          });
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Разбанить игрока
+    const unbanMatch = req.url.match(`${adminPrefix}/unban/([^/]+)`);
+    if (unbanMatch && req.method === 'POST') {
+      const playerId = unbanMatch[1];
+      checkAdmin(req, res, async () => {
+        try {
+          await dbAdapter.pool.query(
+            'UPDATE players SET banned_at = NULL, ban_reason = NULL WHERE id = $1',
+            [playerId]
+          );
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ success: true, message: 'Игрок разбанен' }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Удалить игрока
+    const deleteMatch = req.url.match(`${adminPrefix}/players/([^/]+)`);
+    if (deleteMatch && req.method === 'DELETE') {
+      const playerId = deleteMatch[1];
+      checkAdmin(req, res, async () => {
+        try {
+          await dbAdapter.pool.query('DELETE FROM players WHERE id = $1', [playerId]);
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ success: true, message: 'Игрок удалён' }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+    
+    // Получить статистику
+    if (req.method === 'GET' && req.url === `${adminPrefix}/stats`) {
+      checkAdmin(req, res, async () => {
+        try {
+          const stats = await dbAdapter.getStats();
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify(stats));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+  }
+  
+  // Serve admin.html
+  if (req.url === '/admin.html' || req.url === '/admin/') {
+    const fs = require('fs');
+    const path = require('path');
+    const adminHtmlPath = path.join(__dirname, 'public', 'admin.html');
+    
+    fs.readFile(adminHtmlPath, 'utf8', (err, html) => {
+      if (err) {
+        res.writeHead(500);
+        res.end('Admin panel not found');
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      }
+    });
+    return;
+  }
+  
+  // Health check
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      players: players.size 
+    }));
+    return;
+  }
+  
+  res.writeHead(404);
+  res.end('Not found');
 });
   
 // Запуск HTTP сервера

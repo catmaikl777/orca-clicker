@@ -6,41 +6,29 @@ const path = require('path');
 
 console.log('🚀 Запуск ORCA Clicker API + Админки...\n');
 
-// Запуск основного сервера
-const gameServer = spawn('node', [path.join(__dirname, 'websocket-server.js')], {
+// Запуск основного сервера (игра + админка)
+const gameServer = spawn('node', [path.join(__dirname, 'server.js')], {
   stdio: 'inherit',
   shell: true
 });
 
 gameServer.on('error', (err) => {
-  console.error('❌ Ошибка игрового сервера:', err.message);
-});
-
-// Запуск админки
-const adminServer = spawn('node', [path.join(__dirname, 'admin-api.js')], {
-  stdio: 'inherit',
-  shell: true
-});
-
-adminServer.on('error', (err) => {
-  console.error('❌ Ошибка админки:', err.message);
+  console.error('❌ Ошибка сервера:', err.message);
 });
 
 // Обработка Ctrl+C
 process.on('SIGINT', () => {
-  console.log('\n⏹️  Остановка серверов...');
+  console.log('\n⏹️  Остановка сервера...');
   gameServer.kill();
-  adminServer.kill();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n⏹️  Остановка серверов...');
+  console.log('\n⏹️  Остановка сервера...');
   gameServer.kill();
-  adminServer.kill();
   process.exit(0);
 });
 
-console.log('✅ Оба сервера запущены. Нажмите Ctrl+C для остановки.');
+console.log('✅ Сервер запущен. Нажмите Ctrl+C для остановки.');
 console.log('🎮 Игра: http://localhost:3000');
-console.log('⚙️  Админка: http://localhost:3002/admin.html\n');
+console.log('⚙️  Админка: http://localhost:3000/admin.html\n');
