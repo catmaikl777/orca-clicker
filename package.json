@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "admin": "node admin-api.js",
-    "start-all": "concurrently \"npm start\" \"npm run admin\"",
+    "start-all": "node start.js",
     "backup": "node scripts/backup-db.js",
     "clear-db": "node scripts/clear-json-db.js --force",
     "clear-postgres": "node scripts/clear-postgres-db.js --force",
