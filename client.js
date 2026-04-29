@@ -500,8 +500,22 @@ function handleServerMessage(data) {
       console.log(`🏰 authSuccess: game.clan = ${game.clan}, type = ${typeof game.clan}`);
       game.multiplier = 1;
       
-      if (d.pendingBoxes) pendingBoxes = Array.isArray(d.pendingBoxes) ? d.pendingBoxes : [];
-      if (d.pendingFishBoxes) pendingFishBoxes = Array.isArray(d.pendingFishBoxes) ? d.pendingFishBoxes : [];
+      if (d.pendingBoxes) {
+        // Загружаем боксы - если это массив ID, сохраняем как есть, иначе создаём заглушки
+        if (Array.isArray(d.pendingBoxes)) {
+          pendingBoxes = d.pendingBoxes.map(id => id || 'box');
+        } else {
+          pendingBoxes = new Array(d.pendingBoxes).fill('box');
+        }
+      }
+      if (d.pendingFishBoxes) {
+        // Загружаем рыбные боксы - если это массив ID, сохраняем как есть, иначе создаём заглушки
+        if (Array.isArray(d.pendingFishBoxes)) {
+          pendingFishBoxes = d.pendingFishBoxes.map(id => id || 'fishbox');
+        } else {
+          pendingFishBoxes = new Array(d.pendingFishBoxes).fill('fishbox');
+        }
+      }
       
       if (d.shopItems && Array.isArray(d.shopItems)) {
         d.shopItems.forEach(saved => {
@@ -572,8 +586,20 @@ function handleServerMessage(data) {
         } else {
           initQuests();
         }
-        if (data.data?.pendingBoxes) pendingBoxes = Array.isArray(data.data.pendingBoxes) ? data.data.pendingBoxes : [];
-        if (data.data?.pendingFishBoxes) pendingFishBoxes = Array.isArray(data.data.pendingFishBoxes) ? data.data.pendingFishBoxes : [];
+        if (data.data?.pendingBoxes) {
+          if (Array.isArray(data.data.pendingBoxes)) {
+            pendingBoxes = data.data.pendingBoxes.map(id => id || 'box');
+          } else {
+            pendingBoxes = new Array(data.data.pendingBoxes).fill('box');
+          }
+        }
+        if (data.data?.pendingFishBoxes) {
+          if (Array.isArray(data.data.pendingFishBoxes)) {
+            pendingFishBoxes = data.data.pendingFishBoxes.map(id => id || 'fishbox');
+          } else {
+            pendingFishBoxes = new Array(data.data.pendingFishBoxes).fill('fishbox');
+          }
+        }
         eventCoins = data.eventCoins || 0;
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
@@ -687,8 +713,20 @@ function handleServerMessage(data) {
         } else {
           initQuests();
         }
-        if (data.data?.pendingBoxes) pendingBoxes = Array.isArray(data.data.pendingBoxes) ? data.data.pendingBoxes : [];
-        if (data.data?.pendingFishBoxes) pendingFishBoxes = Array.isArray(data.data.pendingFishBoxes) ? data.data.pendingFishBoxes : [];
+        if (data.data?.pendingBoxes) {
+          if (Array.isArray(data.data.pendingBoxes)) {
+            pendingBoxes = data.data.pendingBoxes.map(id => id || 'box');
+          } else {
+            pendingBoxes = new Array(data.data.pendingBoxes).fill('box');
+          }
+        }
+        if (data.data?.pendingFishBoxes) {
+          if (Array.isArray(data.data.pendingFishBoxes)) {
+            pendingFishBoxes = data.data.pendingFishBoxes.map(id => id || 'fishbox');
+          } else {
+            pendingFishBoxes = new Array(data.data.pendingFishBoxes).fill('fishbox');
+          }
+        }
         eventCoins = data.eventCoins || 0;
         
         if (game.coins > oldCoins + 1000) {
@@ -895,6 +933,9 @@ function handleServerMessage(data) {
       // Сервер подтвердил покупку - обновляем данные
       if (data.boxId) {
         pendingBoxes.push(data.boxId);
+      } else {
+        // Если сервер не вернул ID, используем заглушку
+        pendingBoxes.push('box');
       }
       if (data.coins !== undefined) {
         game.coins = data.coins;
@@ -908,6 +949,9 @@ function handleServerMessage(data) {
       // Сервер подтвердил покупку Рыбного бокса
       if (data.boxId) {
         pendingFishBoxes.push(data.boxId);
+      } else {
+        // Если сервер не вернул ID, используем заглушку
+        pendingFishBoxes.push('fishbox');
       }
       if (data.coins !== undefined) {
         game.coins = data.coins;
@@ -929,7 +973,8 @@ function handleServerMessage(data) {
         console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
       if (data.pendingBoxes !== undefined) {
-        pendingBoxes = new Array(data.pendingBoxes).fill(null);
+        // Обновляем количество боксов, сохраняя массив пустым (ID не нужны)
+        pendingBoxes = new Array(data.pendingBoxes).fill('box');
       }
       updateUI();
       updateBoxUI();
@@ -950,7 +995,8 @@ function handleServerMessage(data) {
         activateTemporaryMultiplier(data.reward.mult, data.reward.duration);
       }
       if (data.pendingFishBoxes !== undefined) {
-        pendingFishBoxes = new Array(data.pendingFishBoxes).fill(null);
+        // Обновляем количество рыбных боксов, сохраняя массив пустым (ID не нужны)
+        pendingFishBoxes = new Array(data.pendingFishBoxes).fill('fishbox');
       }
       updateUI();
       updateFishBoxUI();
@@ -1105,7 +1151,7 @@ function deactivateX2Multiplier() {
   updateUI();
   saveGame();
 }
-
+  
 // Функция для установки автокликера (может быть вызвана несколько раз)
 function setupAutoClickInterval() {
   // Сначала очищаем старый интервал если есть
