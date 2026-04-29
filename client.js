@@ -919,6 +919,7 @@ function handleServerMessage(data) {
       break;
     case 'boxOpened':
       showBoxReward(data.reward);
+      isOpeningBox = false;  // Сбрасываем флаг
       if (data.reward.type === 'skin') {
         game.skins[data.reward.skinId] = true;
       } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
@@ -937,6 +938,7 @@ function handleServerMessage(data) {
       break;
     case 'fishBoxOpened':
       showFishBoxReward(data.reward);
+      isOpeningFishBox = false;  // Сбрасываем флаг
       if (data.reward.type === 'visualEffect' && data.reward.effectId) {
         // Получаем визуальный эффект НАВСЕГДА
         if (!game.effects) game.effects = {};
@@ -2656,28 +2658,36 @@ function buyBox() {
 
 function openBox(boxId) {
   if (isOpeningBox) return;
-  isOpeningBox = true;
   
   const boxIndex = pendingBoxes.indexOf(boxId);
   if (boxIndex === -1) {
-    isOpeningBox = false;
     showNotification('⚠️ Бокс не найден');
     return;
   }
 
-  // Удаляем бокс локально пока ждем подтверждения
-  pendingBoxes.splice(boxIndex, 1);
-  renderBoxes();
-  
-  // Запускаем катсцену
-  showBoxOpeningCutscene();
-  
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'openBox', boxId }));
-  } else {
-    isOpeningBox = false;
+  // Проверяем подключение
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
+    return;
   }
+  
+  // Отправляем на сервер ПЕРВЫМ делом
+  isOpeningBox = true;
+  ws.send(JSON.stringify({ type: 'openBox', boxId }));
+  
+  // Показываем катсцену сразу для отзывчивости UI
+  showBoxOpeningCutscene(() => {
+    // Если сервер не ответил за 5 секунд - возвращаем бокс
+    setTimeout(() => {
+      if (isOpeningBox) {
+        console.error('⚠️ Тайм-аут открытия бокса!');
+        isOpeningBox = false;
+        pendingBoxes.splice(boxIndex, 0, boxId);
+        renderBoxes();
+        showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+      }
+    }, 5000);
+  });
 }
   
 function buyFishBox() {
@@ -2689,28 +2699,36 @@ function buyFishBox() {
   
 function openFishBox(boxId) {
   if (isOpeningFishBox) return;
-  isOpeningFishBox = true;
   
   const boxIndex = pendingFishBoxes.indexOf(boxId);
   if (boxIndex === -1) {
-    isOpeningFishBox = false;
     showNotification('⚠️ Рыбный бокс не найден');
     return;
   }
 
-  // Удаляем бокс локально пока ждем подтверждения
-  pendingFishBoxes.splice(boxIndex, 1);
-  renderBoxes();
-  
-  // Запускаем катсцену
-  showBoxOpeningCutscene();
-  
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
-  } else {
-    isOpeningFishBox = false;
+  // Проверяем подключение
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
+    return;
   }
+  
+  // Отправляем на сервер ПЕРВЫМ делом
+  isOpeningFishBox = true;
+  ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
+  
+  // Показываем катсцену сразу для отзывчивости UI
+  showBoxOpeningCutscene(() => {
+    // Если сервер не ответил за 5 секунд - возвращаем бокс
+    setTimeout(() => {
+      if (isOpeningFishBox) {
+        console.error('⚠️ Тайм-аут открытия рыбного бокса!');
+        isOpeningFishBox = false;
+        pendingFishBoxes.splice(boxIndex, 0, boxId);
+        renderBoxes();
+        showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+      }
+    }, 5000);
+  });
 }
   
 function openFishBoxUI() {
@@ -2719,7 +2737,7 @@ function openFishBoxUI() {
   }
 }
   
-function showBoxOpeningCutscene() {
+function showBoxOpeningCutscene(onComplete) {
   const cutscene = document.createElement('div');
   cutscene.className = 'box-cutscene';
   cutscene.innerHTML = `
@@ -2757,7 +2775,8 @@ function showBoxOpeningCutscene() {
   
   setTimeout(() => {
     cutscene.remove();
-    isOpeningBox = false;
+    // НЕ сбрасываем isOpeningBox здесь - это делает обработчик ответа от сервера
+    if (onComplete) onComplete();
   }, 3500);
 }
 
@@ -2860,7 +2879,7 @@ function deactivateTemporaryMultiplier() {
   updateUI();
   saveGame();
 }
-
+  
 function showFishBoxReward(reward) {
   const rewardModal = document.createElement('div');
   rewardModal.className = 'box-reward-modal';
