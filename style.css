@@ -1545,10 +1545,31 @@ body {
   text-align: center;
 }
 
+.box-item.fish-box {
+  background: linear-gradient(145deg, rgba(0,212,255,0.15), rgba(0,150,255,0.1));
+  border: 1px solid rgba(0,212,255,0.4);
+}
+
 .box-icon {
   font-size: 48px;
   margin-bottom: 8px;
   animation: bonusFloat 2s ease-in-out infinite;
+}
+
+.svg-box-icon {
+  width: 60px;
+  height: 60px;
+  color: #ffd700;
+}
+
+.fish-icon {
+  color: #00d4ff;
+}
+
+.svg-box-icon-large {
+  width: 150px;
+  height: 150px;
+  color: #ffd700;
 }
 
 .box-item h4 {

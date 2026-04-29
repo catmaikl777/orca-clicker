@@ -160,7 +160,15 @@
       <div class="shop-tabs">
         <button type="button" class="shop-tab active" onclick="switchShopTab('upgrades', this)">⚡ Улучшения</button>
         <button type="button" class="shop-tab" onclick="switchShopTab('skins', this)">🎨 Скины</button>
-        <button type="button" class="shop-tab" onclick="switchShopTab('boxes', this)">🎁 Боксы</button>
+        <button type="button" class="shop-tab" onclick="switchShopTab('boxes', this)">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;vertical-align:middle;display:inline-block;margin-right:4px;">
+            <rect x="3" y="7" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="11" y="7" width="2" height="14" stroke="currentColor" stroke-width="2"/>
+            <rect x="3" y="5" width="18" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          Боксы
+        </button>
         <button type="button" class="shop-tab" onclick="switchShopTab('effects', this)">✨ Эффекты</button>
       </div>
       <div id="shopUpgrades" class="shop-items"></div>

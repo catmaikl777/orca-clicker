@@ -898,7 +898,20 @@ function handleServerMessage(data) {
       }
       updateBoxUI();
       updateUI();
-      showNotification('🎁 Бокс куплен! Откройте в магазине');
+      showNotification('📦 Бокс куплен! Откройте в магазине');
+      saveGame();
+      break;
+    case 'fishBoxBought':
+      // Сервер подтвердил покупку Рыбного бокса
+      if (data.boxId) {
+        pendingFishBoxes.push(data.boxId);
+      }
+      if (data.coins !== undefined) {
+        game.coins = data.coins;
+      }
+      updateFishBoxUI();
+      updateUI();
+      showNotification('🐟 Рыбный бокс куплен! Откройте для баффов!');
       saveGame();
       break;
     case 'boxOpened':
@@ -916,6 +929,22 @@ function handleServerMessage(data) {
       }
       updateUI();
       updateBoxUI();
+      saveGame();
+      break;
+    case 'fishBoxOpened':
+      showFishBoxReward(data.reward);
+      if (data.reward.type === 'effect' && data.reward.effectId) {
+        // Активируем временный эффект
+        activateTemporaryEffect(data.reward.effectId, data.reward.duration);
+      } else if (data.reward.type === 'multiplier' && data.reward.mult) {
+        // Активируем временный множитель
+        activateTemporaryMultiplier(data.reward.mult, data.reward.duration);
+      }
+      if (data.pendingFishBoxes !== undefined) {
+        pendingFishBoxes = new Array(data.pendingFishBoxes).fill(null).map((_, i) => `fishbox_${i}`);
+      }
+      updateUI();
+      updateFishBoxUI();
       saveGame();
       break;
     case 'itemBought':
@@ -1066,7 +1095,7 @@ function deactivateX2Multiplier() {
   updateUI();
   saveGame();
 }
-  
+
 // Функция для установки автокликера (может быть вызвана несколько раз)
 function setupAutoClickInterval() {
   // Сначала очищаем старый интервал если есть
@@ -1174,7 +1203,7 @@ function handleClick(e) {
   if (clicksThisSecond > MAX_CLICKS_PER_SEC) {
     return;
   }
-  
+
   const perClick = getPerClick();
   let earned = perClick * game.multiplier;
   
@@ -1495,10 +1524,18 @@ function renderBoxes() {
   
   container.innerHTML = '';
   
+  // Тайный Бокс
   const boxDiv = document.createElement('div');
   boxDiv.className = 'box-item';
   boxDiv.innerHTML = `
-    <div class="box-icon">🎁</div>
+    <div class="box-icon">
+      <svg viewBox="0 0 100 100" class="svg-box-icon">
+        <rect x="15" y="30" width="70" height="60" rx="5" fill="none" stroke="currentColor" stroke-width="4"/>
+        <rect x="45" y="30" width="10" height="60" stroke="currentColor" stroke-width="4"/>
+        <rect x="15" y="25" width="70" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="4"/>
+        <rect x="42" y="15" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="4"/>
+      </svg>
+    </div>
     <h4>Тайный Бокс</h4>
     <p>Скин или косатки!</p>
     <div class="box-price">🐋 ${formatNumber(1700)}</div>
@@ -1509,6 +1546,30 @@ function renderBoxes() {
     </div>
   `;
   container.appendChild(boxDiv);
+  
+  // Рыбный Бокс
+  const fishBoxDiv = document.createElement('div');
+  fishBoxDiv.className = 'box-item fish-box';
+  fishBoxDiv.innerHTML = `
+    <div class="box-icon">
+      <svg viewBox="0 0 100 100" class="svg-box-icon fish-icon">
+        <path d="M80 50 Q95 35 90 20 Q75 25 70 35 Q85 40 85 50 Q85 60 70 65 Q75 75 90 80 Q95 65 80 50" fill="none" stroke="currentColor" stroke-width="3"/>
+        <ellipse cx="45" cy="50" rx="30" ry="25" fill="none" stroke="currentColor" stroke-width="4"/>
+        <circle cx="35" cy="45" r="3" fill="currentColor"/>
+        <path d="M20 50 L5 35 L5 65 Z" fill="none" stroke="currentColor" stroke-width="3"/>
+        <path d="M45 25 L45 15 M40 30 L38 20 M50 30 L52 20" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    </div>
+    <h4>Рыбный Бокс</h4>
+    <p>Временные баффы и эффекты!</p>
+    <div class="box-price">🐋 ${formatNumber(2500)}</div>
+    <button class="box-buy-btn" onclick="buyFishBox()">Купить</button>
+    <div class="box-inventory">
+      <p>У вас есть: <strong id="fishBoxCount">${pendingFishBoxes.length}</strong> бокс(ов)</p>
+      <button class="box-open-btn" onclick="openFishBoxUI()" ${pendingFishBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
+    </div>
+  `;
+  container.appendChild(fishBoxDiv);
 }
   
 function openBoxUI() {
@@ -1848,55 +1909,33 @@ function renderEffects() {
     console.error('Контейнер #shopEffects не найден!');
     return;
   }
-  container.innerHTML = '';
+  
+  container.innerHTML = `
+    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;">
+      <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты доступны только из Рыбного бокса!</p>
+      <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс в разделе "Боксы" чтобы получить временные эффекты и баффы.</p>
+    </div>
+  `;
   
   effectsData.forEach(effect => {
     const bought = !!game.effects[effect.id];
-    const canAfford = game.coins >= effect.cost;
     const div = document.createElement('div');
-    div.className = `effect-item ${bought ? 'bought' : ''} ${!bought && !canAfford ? 'locked' : ''}`;
+    div.className = `effect-item ${bought ? 'bought' : 'locked'}`;
     div.innerHTML = `
       <div class="effect-icon">${effect.icon}</div>
       <div class="effect-info">
         <h4>${effect.name}</h4>
         <p>${effect.desc}</p>
       </div>
-      <div class="effect-price">${bought ? '✅' : formatNumber(effect.cost)}</div>
+      <div class="effect-price">🐟 Только из бокса</div>
     `;
-    // Всегда добавляем onclick, проверяем внутри
-    div.onclick = () => buyEffect(effect);
     container.appendChild(div);
   });
 }
 
 function buyEffect(effect) {
-  // Инициализация если нет
-  if (!game.effects) game.effects = {};
-  
-  // Если уже куплено - ничего не делаем
-  if (game.effects[effect.id]) {
-    showNotification('✨ Эффект уже куплен!');
-    return;
-  }
-  
-  if (game.coins >= effect.cost) {
-    // Отправляем запрос на сервер
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'buyEffect', effectId: effect.id }));
-      // НЕ обновляем локально - ждём подтверждения
-    } else {
-      // Локальная покупка если нет сервера
-      game.coins -= effect.cost;
-      game.effects[effect.id] = true;
-      showNotification(`✨ Эффект получен: ${effect.name}`);
-      applyEffects();  // Применяем визуальный эффект
-      renderEffects();
-      updateUI();
-      saveGame();
-    }
-  } else {
-    showNotification('⚠️ Недостаточно монет!');
-  }
+  // Эффекты теперь ТОЛЬКО из Рыбного бокса - нельзя купить в магазине
+  showNotification('🐟 Эффекты можно получить только из Рыбного бокса!');
 }
 
 // ==================== ДОСТИЖЕНИЯ ====================
@@ -2589,7 +2628,9 @@ function openEventModal() {
 
 // ==================== БОКСЫ ====================
 let pendingBoxes = [];
+let pendingFishBoxes = [];
 let isOpeningBox = false;
+let isOpeningFishBox = false;
 
 function buyBox() {
   if (isOpeningBox) return;
@@ -2619,13 +2660,53 @@ function openBox(boxId) {
   }
 }
 
+function buyFishBox() {
+  if (isOpeningFishBox) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'buyFishBox' }));
+  }
+}
+
+function openFishBox(boxId) {
+  if (isOpeningFishBox) return;
+  isOpeningFishBox = true;
+  
+  const boxIndex = pendingFishBoxes.indexOf(boxId);
+  if (boxIndex === -1) {
+    isOpeningFishBox = false;
+    return;
+  }
+  
+  // Запускаем катсцену
+  showBoxOpeningCutscene();
+  
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
+  } else {
+    isOpeningFishBox = false;
+  }
+}
+  
+function openFishBoxUI() {
+  if (pendingFishBoxes.length > 0) {
+    openFishBox(pendingFishBoxes[0]);
+  }
+}
+
 function showBoxOpeningCutscene() {
   const cutscene = document.createElement('div');
   cutscene.className = 'box-cutscene';
   cutscene.innerHTML = `
     <div class="box-cutscene-bg"></div>
     <div class="box-cutscene-content">
-      <div class="mystery-box">🎁</div>
+      <div class="mystery-box">
+        <svg viewBox="0 0 100 100" class="svg-box-icon-large">
+          <rect x="15" y="30" width="70" height="60" rx="5" fill="none" stroke="currentColor" stroke-width="4"/>
+          <rect x="45" y="30" width="10" height="60" stroke="currentColor" stroke-width="4"/>
+          <rect x="15" y="25" width="70" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="4"/>
+          <rect x="42" y="15" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="4"/>
+        </svg>
+      </div>
       <div class="box-shake"></div>
       <div class="box-light"></div>
     </div>
@@ -2701,6 +2782,116 @@ function updateBoxUI() {
   if (boxCountEl) {
     boxCountEl.textContent = pendingBoxes.length;
   }
+  const fishBoxCountEl = document.getElementById('fishBoxCount');
+  if (fishBoxCountEl) {
+    fishBoxCountEl.textContent = pendingFishBoxes.length;
+  }
+}
+
+function updateFishBoxUI() {
+  const fishBoxCountEl = document.getElementById('fishBoxCount');
+  if (fishBoxCountEl) {
+    fishBoxCountEl.textContent = pendingFishBoxes.length;
+  }
+}
+
+function activateTemporaryEffect(effectId, duration) {
+  const effectName = getEffectName(effectId);
+  showNotification(`✨ ВРЕМЕННЫЙ ЭФФЕКТ: ${effectName} на ${duration} сек!`);
+  playSound('bonusSound');
+  
+  // Применяем визуальный эффект
+  applyEffects();
+  
+  // Устанавливаем таймер отключения
+  setTimeout(() => {
+    localStorage.setItem(`effect_${effectId}_enabled`, 'false');
+    showNotification(`⏰ Эффект ${effectName} закончился`);
+    applyEffects();
+  }, duration * 1000);
+}
+
+function activateTemporaryMultiplier(mult, duration) {
+  showNotification(`⭐ ВРЕМЕННЫЙ МНОЖИТЕЛЬ X${mult} на ${duration} сек!`);
+  playSound('bonusSound');
+  
+  game.multiplier = mult;
+  const clicker = document.getElementById('clicker');
+  const timerEl = document.getElementById('x2Timer');
+  
+  if (clicker) clicker.classList.add('x2-active');
+  if (timerEl) timerEl.classList.remove('hidden');
+  
+  // Таймер обратного отсчета
+  let timeLeft = duration;
+  const timerInterval = setInterval(() => {
+    timeLeft--;
+    const timerValueEl = document.getElementById('x2TimerValue');
+    if (timerValueEl) timerValueEl.textContent = timeLeft;
+    
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      deactivateTemporaryMultiplier();
+    }
+  }, 1000);
+}
+
+function deactivateTemporaryMultiplier() {
+  game.multiplier = 1;
+  const clicker = document.getElementById('clicker');
+  const timerEl = document.getElementById('x2Timer');
+  
+  if (clicker) clicker.classList.remove('x2-active');
+  if (timerEl) timerEl.classList.add('hidden');
+  
+  showNotification('⏱️ Временный множитель закончился');
+  updateUI();
+  saveGame();
+}
+
+function showFishBoxReward(reward) {
+  const rewardModal = document.createElement('div');
+  rewardModal.className = 'box-reward-modal';
+  
+  const rarityColors = {
+    legendary: '#ff6b6b',
+    epic: '#a855f7',
+    rare: '#4fc3f7'
+  };
+  
+  const rarityGlow = {
+    legendary: '0 0 60px #ff6b6b',
+    epic: '0 0 40px #a855f7',
+    rare: '0 0 30px #4fc3f7'
+  };
+  
+  let icon = '';
+  let title = '';
+  let value = '';
+  
+  if (reward.type === 'effect') {
+    icon = '✨';
+    title = 'Временный эффект!';
+    value = `${getEffectName(reward.effectId)} на ${reward.duration} сек`;
+  } else if (reward.type === 'multiplier') {
+    icon = '⭐';
+    title = 'Временный множитель!';
+    value = `X${reward.mult} на ${reward.duration} сек`;
+  }
+  
+  rewardModal.innerHTML = `
+    <div class="reward-overlay"></div>
+    <div class="reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
+      <div class="reward-icon" style="background: ${rarityColors[reward.rarity]}">${icon}</div>
+      <h2 class="reward-title ${reward.rarity}">${title}</h2>
+      <p class="reward-value">${value}</p>
+      <p class="reward-rarity ${reward.rarity}">${reward.rarity === 'legendary' ? 'ЛЕГЕНДАРНО' : reward.rarity === 'epic' ? 'ЭПИЧЕСКИЙ' : 'РЕДКИЙ'}</p>
+      <button class="reward-btn" onclick="this.closest('.box-reward-modal').remove()">Забрать</button>
+    </div>
+  `;
+  
+  document.body.appendChild(rewardModal);
+  setTimeout(() => rewardModal.classList.add('show'), 10);
 }
 function showModal(id) {
   document.getElementById('modalOverlay').classList.add('active');

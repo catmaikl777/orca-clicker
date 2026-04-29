@@ -716,6 +716,8 @@ function handleMessage(ws, data) {
     case 'equipSkin': handleEquipSkin(ws, data.skinId); break;
     case 'buyBox': handleBuyBox(ws); break;
     case 'openBox': handleOpenBox(ws, data.boxId); break;
+    case 'buyFishBox': handleBuyFishBox(ws); break;
+    case 'openFishBox': handleOpenFishBox(ws, data.boxId); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
     case 'forceSaveAll': handleForceSaveAll(ws); break;
   }
@@ -2015,42 +2017,8 @@ function broadcastClans() {
 }
 
 function handleBuyEffect(ws, effectId) {
-  const id = ws.accountId || ws.playerId;
-  if (!id || !db.players[id]) return;
-  const p = db.players[id];
-  const mem = players.get(id);
-  const coins = mem ? mem.coins : p.coins;
-  
-  const effects = {
-    'e1': { name: 'Золотой клик', cost: 500 },
-    'e2': { name: 'Неоновый свет', cost: 1000 },
-    'e3': { name: 'Радужный след', cost: 2000 },
-    'e4': { name: 'Частицы звёзд', cost: 3000 },
-    'e5': { name: 'Эффект волны', cost: 1500 },
-    'e6': { name: 'Огненное сияние', cost: 2500 }
-  };
-  
-  const effect = effects[effectId];
-  if (!effect || (p.effects && p.effects[effectId])) return;
-  if (coins < effect.cost) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
-    return;
-  }
-  
-  p.coins = coins - effect.cost;
-  if (!p.effects) p.effects = {};
-  p.effects[effectId] = true;
-  if (mem) { mem.coins = p.coins; mem.effects = p.effects; }
-  
-  savePlayerToDB(id);
-  
-  ws.send(JSON.stringify({ 
-    type: 'effectBought', 
-    effectId, 
-    effectName: effect.name 
-  }));
-  
-  console.log(`✨ Игрок ${id} купил эффект: ${effect.name}`);
+  // Эффекты теперь ТОЛЬКО из Рыбного бокса - нельзя купить в магазине
+  ws.send(JSON.stringify({ type: 'error', message: 'Эффекты можно получить только из Рыбного бокса!' }));
 }
 
 // Покупка предмета в магазине
@@ -2148,6 +2116,7 @@ function handleEquipSkin(ws, skinId) {
 
 // Боксы
 const boxPrice = 1700;
+const fishBoxPrice = 2500;
 
 // ==================== ЗАЩИТА ОТ БОТОВ (умная) ====================
 // Отличает людей от ботов по паттернам кликов
@@ -2223,6 +2192,23 @@ const boxRewards = {
     { amount: 2500, weight: 15 },
     { amount: 5000, weight: 8 },
     { amount: 10000, weight: 3 }
+  ]
+};
+
+// Награды Рыбного бокса - временные баффы и эффекты
+const fishBoxRewards = {
+  effects: [
+    { id: 'e1', name: 'Золотой клик', weight: 20, duration: 60, rarity: 'rare' },
+    { id: 'e2', name: 'Неоновый свет', weight: 18, duration: 60, rarity: 'rare' },
+    { id: 'e3', name: 'Радужный след', weight: 12, duration: 45, rarity: 'epic' },
+    { id: 'e4', name: 'Частицы звёзд', weight: 10, duration: 45, rarity: 'epic' },
+    { id: 'e5', name: 'Эффект волны', weight: 8, duration: 30, rarity: 'epic' },
+    { id: 'e6', name: 'Огненное сияние', weight: 5, duration: 30, rarity: 'legendary' }
+  ],
+  multipliers: [
+    { mult: 2, weight: 25, duration: 30, rarity: 'rare' },
+    { mult: 3, weight: 15, duration: 25, rarity: 'epic' },
+    { mult: 5, weight: 8, duration: 20, rarity: 'legendary' }
   ]
 };
 
@@ -2347,6 +2333,120 @@ function handleOpenBox(ws, boxId) {
   }));
   
   console.log(`🎁 Игрок ${id} открыл бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
+}
+
+function handleBuyFishBox(ws) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
+  
+  const playerDB = db.players[id];
+  const playerMem = players.get(id);
+  
+  const coins = playerMem ? playerMem.coins : playerDB.coins;
+  
+  if (coins < fishBoxPrice) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно косаток' }));
+    return;
+  }
+  
+  playerDB.coins = coins - fishBoxPrice;
+  if (playerMem) {
+    playerMem.coins = playerDB.coins;
+  }
+  
+  if (!playerDB.pendingBoxes) {
+    playerDB.pendingBoxes = [];
+  }
+  const fishBoxId = generateId();
+  playerDB.pendingBoxes.push(fishBoxId);
+  
+  if (playerMem) {
+    playerMem.pendingBoxes = [...playerDB.pendingBoxes];
+  }
+  
+  savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'fishBoxBought', 
+    boxId: fishBoxId,
+    coins: playerDB.coins,
+    pendingFishBoxes: playerDB.pendingBoxes.length
+  }));
+  
+  console.log(`🐟 Игрок ${id} купил Рыбный бокс. Всего боксов: ${playerDB.pendingBoxes.length}`);
+}
+
+function handleOpenFishBox(ws, boxId) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
+  
+  const playerDB = db.players[id];
+  const playerMem = players.get(id);
+  const pendingBoxes = playerDB.pendingBoxes || [];
+  const boxIndex = pendingBoxes.indexOf(boxId);
+  
+  if (boxIndex === -1) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Бокс не найден' }));
+    return;
+  }
+  
+  pendingBoxes.splice(boxIndex, 1);
+  playerDB.pendingBoxes = pendingBoxes;
+  
+  if (playerMem) {
+    playerMem.pendingBoxes = [...pendingBoxes];
+  }
+  
+  // 60% шанс на эффект, 40% на множитель
+  const isEffect = Math.random() < 0.6;
+  let reward = {};
+  
+  if (isEffect) {
+    const totalWeight = fishBoxRewards.effects.reduce((sum, e) => sum + e.weight, 0);
+    let random = Math.random() * totalWeight;
+    let selectedEffect = fishBoxRewards.effects[0];
+    for (const effect of fishBoxRewards.effects) {
+      random -= effect.weight;
+      if (random <= 0) { selectedEffect = effect; break; }
+    }
+    reward = {
+      type: 'effect',
+      effectId: selectedEffect.id,
+      effectName: selectedEffect.name,
+      duration: selectedEffect.duration,
+      rarity: selectedEffect.rarity
+    };
+  } else {
+    const totalWeight = fishBoxRewards.multipliers.reduce((sum, m) => sum + m.weight, 0);
+    let random = Math.random() * totalWeight;
+    let selectedMult = fishBoxRewards.multipliers[0];
+    for (const mult of fishBoxRewards.multipliers) {
+      random -= mult.weight;
+      if (random <= 0) { selectedMult = mult; break; }
+    }
+    reward = {
+      type: 'multiplier',
+      mult: selectedMult.mult,
+      duration: selectedMult.duration,
+      rarity: selectedMult.rarity
+    };
+  }
+  
+  savePlayerToDB(id);
+  
+  ws.send(JSON.stringify({ 
+    type: 'fishBoxOpened', 
+    reward,
+    pendingFishBoxes: playerDB.pendingBoxes.length
+  }));
+  
+  console.log(`🐟 Игрок ${id} открыл Рыбный бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 process.on('SIGINT', () => {
