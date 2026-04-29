@@ -7,7 +7,7 @@ const path = require('path');
 console.log('🚀 Запуск ORCA Clicker API + Админки...\n');
 
 // Запуск основного сервера (игра + админка)
-const gameServer = spawn('node', [path.join(__dirname, 'server.js')], {
+const gameServer = spawn('node', [path.join(__dirname, 'websocket-server.js')], {
   stdio: 'inherit',
   shell: true
 });
