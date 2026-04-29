@@ -2357,14 +2357,14 @@ function handleBuyFishBox(ws) {
     playerMem.coins = playerDB.coins;
   }
   
-  if (!playerDB.pendingBoxes) {
-    playerDB.pendingBoxes = [];
+  if (!playerDB.pendingFishBoxes) {
+    playerDB.pendingFishBoxes = [];
   }
   const fishBoxId = generateId();
-  playerDB.pendingBoxes.push(fishBoxId);
+  playerDB.pendingFishBoxes.push(fishBoxId);
   
   if (playerMem) {
-    playerMem.pendingBoxes = [...playerDB.pendingBoxes];
+    playerMem.pendingFishBoxes = [...playerDB.pendingFishBoxes];
   }
   
   savePlayerToDB(id);
@@ -2373,10 +2373,10 @@ function handleBuyFishBox(ws) {
     type: 'fishBoxBought', 
     boxId: fishBoxId,
     coins: playerDB.coins,
-    pendingFishBoxes: playerDB.pendingBoxes.length
+    pendingFishBoxes: playerDB.pendingFishBoxes.length
   }));
   
-  console.log(`🐟 Игрок ${id} купил Рыбный бокс. Всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`🐟 Игрок ${id} купил Рыбный бокс. Всего рыбных боксов: ${playerDB.pendingFishBoxes.length}`);
 }
 
 function handleOpenFishBox(ws, boxId) {
@@ -2388,19 +2388,19 @@ function handleOpenFishBox(ws, boxId) {
   
   const playerDB = db.players[id];
   const playerMem = players.get(id);
-  const pendingBoxes = playerDB.pendingBoxes || [];
-  const boxIndex = pendingBoxes.indexOf(boxId);
+  const pendingFishBoxes = playerDB.pendingFishBoxes || [];
+  const boxIndex = pendingFishBoxes.indexOf(boxId);
   
   if (boxIndex === -1) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Бокс не найден' }));
+    ws.send(JSON.stringify({ type: 'error', message: 'Рыбный бокс не найден' }));
     return;
   }
   
-  pendingBoxes.splice(boxIndex, 1);
-  playerDB.pendingBoxes = pendingBoxes;
+  pendingFishBoxes.splice(boxIndex, 1);
+  playerDB.pendingFishBoxes = pendingFishBoxes;
   
   if (playerMem) {
-    playerMem.pendingBoxes = [...pendingBoxes];
+    playerMem.pendingFishBoxes = [...pendingFishBoxes];
   }
   
   // 60% шанс на эффект, 40% на множитель
@@ -2443,10 +2443,10 @@ function handleOpenFishBox(ws, boxId) {
   ws.send(JSON.stringify({ 
     type: 'fishBoxOpened', 
     reward,
-    pendingFishBoxes: playerDB.pendingBoxes.length
+    pendingFishBoxes: playerDB.pendingFishBoxes.length
   }));
   
-  console.log(`🐟 Игрок ${id} открыл Рыбный бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`🐟 Игрок ${id} открыл Рыбный бокс. Награда: ${reward.type}. Всего рыбных боксов: ${playerDB.pendingFishBoxes.length}`);
 }
 
 process.on('SIGINT', () => {

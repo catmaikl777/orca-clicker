@@ -500,7 +500,8 @@ function handleServerMessage(data) {
       console.log(`🏰 authSuccess: game.clan = ${game.clan}, type = ${typeof game.clan}`);
       game.multiplier = 1;
       
-      if (d.pendingBoxes) pendingBoxes = d.pendingBoxes;
+      if (d.pendingBoxes) pendingBoxes = Array.isArray(d.pendingBoxes) ? d.pendingBoxes : [];
+      if (d.pendingFishBoxes) pendingFishBoxes = Array.isArray(d.pendingFishBoxes) ? d.pendingFishBoxes : [];
       
       if (d.shopItems && Array.isArray(d.shopItems)) {
         d.shopItems.forEach(saved => {
@@ -571,7 +572,8 @@ function handleServerMessage(data) {
         } else {
           initQuests();
         }
-        if (data.data?.pendingBoxes) pendingBoxes = data.data.pendingBoxes;
+        if (data.data?.pendingBoxes) pendingBoxes = Array.isArray(data.data.pendingBoxes) ? data.data.pendingBoxes : [];
+        if (data.data?.pendingFishBoxes) pendingFishBoxes = Array.isArray(data.data.pendingFishBoxes) ? data.data.pendingFishBoxes : [];
         eventCoins = data.eventCoins || 0;
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
@@ -685,7 +687,8 @@ function handleServerMessage(data) {
         } else {
           initQuests();
         }
-        if (data.data?.pendingBoxes) pendingBoxes = data.data.pendingBoxes;
+        if (data.data?.pendingBoxes) pendingBoxes = Array.isArray(data.data.pendingBoxes) ? data.data.pendingBoxes : [];
+        if (data.data?.pendingFishBoxes) pendingFishBoxes = Array.isArray(data.data.pendingFishBoxes) ? data.data.pendingFishBoxes : [];
         eventCoins = data.eventCoins || 0;
         
         if (game.coins > oldCoins + 1000) {
@@ -925,10 +928,11 @@ function handleServerMessage(data) {
         console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
       if (data.pendingBoxes !== undefined) {
-        pendingBoxes = new Array(data.pendingBoxes).fill(null).map((_, i) => `box_${i}`);
+        pendingBoxes = new Array(data.pendingBoxes).fill(null);
       }
       updateUI();
       updateBoxUI();
+      renderBoxes();
       saveGame();
       break;
     case 'fishBoxOpened':
@@ -941,10 +945,11 @@ function handleServerMessage(data) {
         activateTemporaryMultiplier(data.reward.mult, data.reward.duration);
       }
       if (data.pendingFishBoxes !== undefined) {
-        pendingFishBoxes = new Array(data.pendingFishBoxes).fill(null).map((_, i) => `fishbox_${i}`);
+        pendingFishBoxes = new Array(data.pendingFishBoxes).fill(null);
       }
       updateUI();
       updateFishBoxUI();
+      renderBoxes();
       saveGame();
       break;
     case 'itemBought':
@@ -1542,7 +1547,7 @@ function renderBoxes() {
     <button class="box-buy-btn" onclick="buyBox()">Купить</button>
     <div class="box-inventory">
       <p>У вас есть: <strong id="boxCount">${pendingBoxes.length}</strong> бокс(ов)</p>
-      <button class="box-open-btn" onclick="openBoxUI()" ${pendingBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
+      <button class="box-open-btn" onclick="tryOpenBox()" ${pendingBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
     </div>
   `;
   container.appendChild(boxDiv);
@@ -1566,16 +1571,22 @@ function renderBoxes() {
     <button class="box-buy-btn" onclick="buyFishBox()">Купить</button>
     <div class="box-inventory">
       <p>У вас есть: <strong id="fishBoxCount">${pendingFishBoxes.length}</strong> бокс(ов)</p>
-      <button class="box-open-btn" onclick="openFishBoxUI()" ${pendingFishBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
+      <button class="box-open-btn" onclick="tryOpenFishBox()" ${pendingFishBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
     </div>
   `;
   container.appendChild(fishBoxDiv);
 }
   
-function openBoxUI() {
-  if (pendingBoxes.length > 0) {
-    openBox(pendingBoxes[0]);
-  }
+function tryOpenBox() {
+  if (isOpeningBox || pendingBoxes.length === 0) return;
+  // Открываем первый бокс из массива
+  openBox(pendingBoxes[0]);
+}
+
+function tryOpenFishBox() {
+  if (isOpeningFishBox || pendingFishBoxes.length === 0) return;
+  // Открываем первый рыбный бокс из массива
+  openFishBox(pendingFishBoxes[0]);
 }
 
 function buyItem(item) {
@@ -2646,10 +2657,14 @@ function openBox(boxId) {
   const boxIndex = pendingBoxes.indexOf(boxId);
   if (boxIndex === -1) {
     isOpeningBox = false;
+    showNotification('⚠️ Бокс не найден');
     return;
   }
 
-  // НЕ удаляем локально - ждём подтверждения от сервера
+  // Удаляем бокс локально пока ждем подтверждения
+  pendingBoxes.splice(boxIndex, 1);
+  renderBoxes();
+  
   // Запускаем катсцену
   showBoxOpeningCutscene();
   
@@ -2657,16 +2672,17 @@ function openBox(boxId) {
     ws.send(JSON.stringify({ type: 'openBox', boxId }));
   } else {
     isOpeningBox = false;
+    showNotification('⚠️ Нет подключения к серверу');
   }
 }
-
+  
 function buyFishBox() {
   if (isOpeningFishBox) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'buyFishBox' }));
   }
 }
-
+  
 function openFishBox(boxId) {
   if (isOpeningFishBox) return;
   isOpeningFishBox = true;
@@ -2674,8 +2690,13 @@ function openFishBox(boxId) {
   const boxIndex = pendingFishBoxes.indexOf(boxId);
   if (boxIndex === -1) {
     isOpeningFishBox = false;
+    showNotification('⚠️ Рыбный бокс не найден');
     return;
   }
+
+  // Удаляем бокс локально пока ждем подтверждения
+  pendingFishBoxes.splice(boxIndex, 1);
+  renderBoxes();
   
   // Запускаем катсцену
   showBoxOpeningCutscene();
@@ -2684,6 +2705,7 @@ function openFishBox(boxId) {
     ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
   } else {
     isOpeningFishBox = false;
+    showNotification('⚠️ Нет подключения к серверу');
   }
 }
   
@@ -2692,7 +2714,7 @@ function openFishBoxUI() {
     openFishBox(pendingFishBoxes[0]);
   }
 }
-
+  
 function showBoxOpeningCutscene() {
   const cutscene = document.createElement('div');
   cutscene.className = 'box-cutscene';
