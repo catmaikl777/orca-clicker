@@ -2,10 +2,10 @@
   "name": "orca-clicker-api",
   "version": "1.0.0",
   "description": "ORCA Clicker API Server",
-  "main": "server.js",
+  "main": "websocket-server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node websocket-server.js",
+    "dev": "nodemon websocket-server.js",
     "admin": "node admin-api.js",
     "start-all": "node start.js",
     "backup": "node scripts/backup-db.js",
