@@ -12,6 +12,8 @@ app.use(express.static('public'));
 // Админский пароль (замените на свой!)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
+console.log("\n\n\n");
+
 // Middleware для проверки админки
 function checkAdmin(req, res, next) {
   const auth = req.headers.authorization;
