@@ -2661,6 +2661,7 @@ function openBox(boxId) {
   
   const boxIndex = pendingBoxes.indexOf(boxId);
   if (boxIndex === -1) {
+    console.error('❌ Бокс не найден в массиве!', { boxId, pendingBoxes });
     showNotification('⚠️ Бокс не найден');
     return;
   }
@@ -2673,6 +2674,7 @@ function openBox(boxId) {
   
   // Отправляем на сервер ПЕРВЫМ делом
   isOpeningBox = true;
+  console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
   ws.send(JSON.stringify({ type: 'openBox', boxId }));
   
   // Показываем катсцену сразу для отзывчивости UI
@@ -2680,7 +2682,7 @@ function openBox(boxId) {
     // Если сервер не ответил за 5 секунд - возвращаем бокс
     setTimeout(() => {
       if (isOpeningBox) {
-        console.error('⚠️ Тайм-аут открытия бокса!');
+        console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
         isOpeningBox = false;
         pendingBoxes.splice(boxIndex, 0, boxId);
         renderBoxes();
@@ -2702,6 +2704,7 @@ function openFishBox(boxId) {
   
   const boxIndex = pendingFishBoxes.indexOf(boxId);
   if (boxIndex === -1) {
+    console.error('❌ Рыбный бокс не найден в массиве!', { boxId, pendingFishBoxes });
     showNotification('⚠️ Рыбный бокс не найден');
     return;
   }
@@ -2714,6 +2717,7 @@ function openFishBox(boxId) {
   
   // Отправляем на сервер ПЕРВЫМ делом
   isOpeningFishBox = true;
+  console.log('📤 Отправка openFishBox на сервер:', { boxId, boxIndex });
   ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
   
   // Показываем катсцену сразу для отзывчивости UI
@@ -2721,7 +2725,7 @@ function openFishBox(boxId) {
     // Если сервер не ответил за 5 секунд - возвращаем бокс
     setTimeout(() => {
       if (isOpeningFishBox) {
-        console.error('⚠️ Тайм-аут открытия рыбного бокса!');
+        console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
         isOpeningFishBox = false;
         pendingFishBoxes.splice(boxIndex, 0, boxId);
         renderBoxes();

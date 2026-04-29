@@ -2264,7 +2264,10 @@ function handleBuyBox(ws) {
 
 function handleOpenBox(ws, boxId) {
   const id = ws.accountId || ws.playerId;
+  console.log('📥 Сервер получил openBox:', { id, boxId });
+  
   if (!id || !db.players[id]) {
+    console.error('❌ Игрок не найден:', id);
     ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
     return;
   }
@@ -2272,9 +2275,13 @@ function handleOpenBox(ws, boxId) {
   const playerDB = db.players[id];
   const playerMem = players.get(id);
   const pendingBoxes = playerDB.pendingBoxes || [];
+  console.log('📦 Текущие боксы игрока:', pendingBoxes);
+  
   const boxIndex = pendingBoxes.indexOf(boxId);
+  console.log('🔍 Поиск бокса:', { boxId, boxIndex });
   
   if (boxIndex === -1) {
+    console.error('❌ Бокс не найден в массиве!', { boxId, pendingBoxes });
     ws.send(JSON.stringify({ type: 'error', message: 'Бокс не найден' }));
     return;
   }
@@ -2381,7 +2388,10 @@ function handleBuyFishBox(ws) {
 
 function handleOpenFishBox(ws, boxId) {
   const id = ws.accountId || ws.playerId;
+  console.log('📥 Сервер получил openFishBox:', { id, boxId });
+  
   if (!id || !db.players[id]) {
+    console.error('❌ Игрок не найден:', id);
     ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
     return;
   }
@@ -2389,9 +2399,13 @@ function handleOpenFishBox(ws, boxId) {
   const playerDB = db.players[id];
   const playerMem = players.get(id);
   const pendingFishBoxes = playerDB.pendingFishBoxes || [];
+  console.log('🐟 Текущие рыбные боксы игрока:', pendingFishBoxes);
+  
   const boxIndex = pendingFishBoxes.indexOf(boxId);
+  console.log('🔍 Поиск рыбного бокса:', { boxId, boxIndex });
   
   if (boxIndex === -1) {
+    console.error('❌ Рыбный бокс не найден в массиве!', { boxId, pendingFishBoxes });
     ws.send(JSON.stringify({ type: 'error', message: 'Рыбный бокс не найден' }));
     return;
   }
