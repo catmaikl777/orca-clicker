@@ -170,7 +170,8 @@
     }
 
     // API Helper
-    async function apiRequest(url, method = 'GET', body = null) {
+    async function apiRequest(endpoint, method = 'GET', body = null) {
+      const url = `/api/admin${endpoint}`;
       const options = {
         method,
         headers: {
