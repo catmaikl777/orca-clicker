@@ -937,11 +937,14 @@ function handleServerMessage(data) {
       break;
     case 'fishBoxOpened':
       showFishBoxReward(data.reward);
-      if (data.reward.type === 'effect' && data.reward.effectId) {
-        // Активируем временный эффект
-        activateTemporaryEffect(data.reward.effectId, data.reward.duration);
-      } else if (data.reward.type === 'multiplier' && data.reward.mult) {
-        // Активируем временный множитель
+      if (data.reward.type === 'visualEffect' && data.reward.effectId) {
+        // Получаем визуальный эффект НАВСЕГДА
+        if (!game.effects) game.effects = {};
+        game.effects[data.reward.effectId] = true;
+        showNotification(`✨ Получен эффект: ${data.reward.effectName}!`);
+        applyEffects();
+      } else if (data.reward.type === 'tempBuff' && data.reward.mult) {
+        // Получаем временный бафф
         activateTemporaryMultiplier(data.reward.mult, data.reward.duration);
       }
       if (data.pendingFishBoxes !== undefined) {
@@ -1566,7 +1569,7 @@ function renderBoxes() {
       </svg>
     </div>
     <h4>Рыбный Бокс</h4>
-    <p>Временные баффы и эффекты!</p>
+    <p>Эффекты навсегда + временные баффы!</p>
     <div class="box-price">🐋 ${formatNumber(2500)}</div>
     <button class="box-buy-btn" onclick="buyFishBox()">Купить</button>
     <div class="box-inventory">
@@ -1923,8 +1926,9 @@ function renderEffects() {
   
   container.innerHTML = `
     <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;">
-      <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты доступны только из Рыбного бокса!</p>
-      <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс в разделе "Боксы" чтобы получить временные эффекты и баффы.</p>
+      <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты получаются из Рыбного бокса!</p>
+      <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс чтобы получить визуальные эффекты навсегда.</p>
+      <p style="font-size: 13px; opacity: 0.7; margin-top: 10px;">Также могут выпасть временные баффы (множители X2-X5 на 20-30 секунд).</p>
     </div>
   `;
   
@@ -2817,22 +2821,6 @@ function updateFishBoxUI() {
   }
 }
 
-function activateTemporaryEffect(effectId, duration) {
-  const effectName = getEffectName(effectId);
-  showNotification(`✨ ВРЕМЕННЫЙ ЭФФЕКТ: ${effectName} на ${duration} сек!`);
-  playSound('bonusSound');
-  
-  // Применяем визуальный эффект
-  applyEffects();
-  
-  // Устанавливаем таймер отключения
-  setTimeout(() => {
-    localStorage.setItem(`effect_${effectId}_enabled`, 'false');
-    showNotification(`⏰ Эффект ${effectName} закончился`);
-    applyEffects();
-  }, duration * 1000);
-}
-
 function activateTemporaryMultiplier(mult, duration) {
   showNotification(`⭐ ВРЕМЕННЫЙ МНОЖИТЕЛЬ X${mult} на ${duration} сек!`);
   playSound('bonusSound');
@@ -2843,6 +2831,8 @@ function activateTemporaryMultiplier(mult, duration) {
   
   if (clicker) clicker.classList.add('x2-active');
   if (timerEl) timerEl.classList.remove('hidden');
+  
+  updateUI();  // Обновляем UI сразу чтобы показать множитель
   
   // Таймер обратного отсчета
   let timeLeft = duration;
@@ -2891,13 +2881,13 @@ function showFishBoxReward(reward) {
   let title = '';
   let value = '';
   
-  if (reward.type === 'effect') {
+  if (reward.type === 'visualEffect') {
     icon = '✨';
-    title = 'Временный эффект!';
-    value = `${getEffectName(reward.effectId)} на ${reward.duration} сек`;
-  } else if (reward.type === 'multiplier') {
+    title = 'Визуальный эффект!';
+    value = `${getEffectName(reward.effectId)} (навсегда)`;
+  } else if (reward.type === 'tempBuff') {
     icon = '⭐';
-    title = 'Временный множитель!';
+    title = 'Временный бафф!';
     value = `X${reward.mult} на ${reward.duration} сек`;
   }
   

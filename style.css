@@ -11,9 +11,12 @@
   --dark: #2F1B14; /* Темный оранжевый */
   --glass: rgba(255, 140, 0, 0.7); /* Прозрачный оранжевый */
   --glass-border: rgba(138, 43, 226, 0.3); /* Прозрачный фиолетовый */
-  --neon-cyan: #FF8C00; /* Оранжевый */
-  --neon-pink: #8A2BE2; /* Фиолетовый */
-  --neon-purple: #8A2BE2; /* Фиолетовый */
+  --neon-cyan: #00ffff; /* Неоновый голубой */
+  --neon-pink: #ff00ff; /* Неоновый розовый */
+  --neon-purple: #bf00ff; /* Неоновый фиолетовый */
+  --neon-green: #39ff14; /* Неоновый зелёный */
+  --neon-yellow: #fff01f; /* Неоновый жёлтый */
+  --neon-red: #ff3131; /* Неоновый красный */
 }
 
 body {
@@ -402,6 +405,10 @@ body::before {
   background-image: url('bg_dark.jpg');
   background-color: #0a1628;
 }
+.bg-neon { 
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #0a1a2e 100%);
+  background-color: #0a0a0a;
+}
 
 /* Активный фон должен быть виден */
 body.bg-sunny .bg-sunny { 
@@ -415,6 +422,32 @@ body.bg-white .bg-white {
 body.bg-dark .bg-dark { 
   opacity: 1; 
   z-index: 0;
+}
+body.bg-neon .bg-neon { 
+  opacity: 1;
+  z-index: 0;
+}
+
+/* Неоновый фон - анимированные неоновые линии */
+body.bg-neon::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(0deg, transparent 24%, rgba(0, 255, 255, 0.1) 25%, rgba(0, 255, 255, 0.1) 26%, transparent 27%, transparent 74%, rgba(255, 0, 255, 0.1) 75%, rgba(255, 0, 255, 0.1) 76%, transparent 77%, transparent),
+    linear-gradient(90deg, transparent 24%, rgba(255, 0, 255, 0.1) 25%, rgba(255, 0, 255, 0.1) 26%, transparent 27%, transparent 74%, rgba(0, 255, 255, 0.1) 75%, rgba(0, 255, 255, 0.1) 76%, transparent 77%, transparent);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: -1;
+  animation: neonGrid 8s linear infinite;
+}
+
+@keyframes neonGrid {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(50px); }
 }
 
 /* Убедимся что body имеет фон */
@@ -724,6 +757,52 @@ body {
 .clicker.skin-hiding img { opacity: 0.75; }
 .clicker.skin-interesting img { filter: drop-shadow(0 15px 30px rgba(200,100,255,0.6)); }
 
+/* Неоновые эффекты для скинов */
+.clicker.effect-gold img {
+  filter: drop-shadow(0 0 30px gold) drop-shadow(0 0 60px rgba(255,215,0,0.8));
+}
+
+.clicker.effect-neon img {
+  filter: drop-shadow(0 0 20px var(--neon-cyan)) drop-shadow(0 0 40px var(--neon-cyan)) drop-shadow(0 0 60px var(--neon-cyan));
+  animation: neonPulse 2s ease-in-out infinite;
+}
+
+@keyframes neonPulse {
+  0%, 100% { 
+    filter: drop-shadow(0 0 20px var(--neon-cyan)) drop-shadow(0 0 40px var(--neon-cyan));
+  }
+  50% { 
+    filter: drop-shadow(0 0 30px var(--neon-cyan)) drop-shadow(0 0 60px var(--neon-cyan)) drop-shadow(0 0 80px var(--neon-cyan));
+  }
+}
+
+.clicker.effect-rainbow img {
+  animation: rainbowGlow 3s linear infinite;
+}
+
+@keyframes rainbowGlow {
+  0% { filter: drop-shadow(0 0 20px var(--neon-red)); }
+  20% { filter: drop-shadow(0 0 20px var(--neon-yellow)); }
+  40% { filter: drop-shadow(0 0 20px var(--neon-green)); }
+  60% { filter: drop-shadow(0 0 20px var(--neon-cyan)); }
+  80% { filter: drop-shadow(0 0 20px var(--neon-pink)); }
+  100% { filter: drop-shadow(0 0 20px var(--neon-purple)); }
+}
+
+.clicker.effect-fire img {
+  filter: drop-shadow(0 0 30px var(--neon-red)) drop-shadow(0 0 60px rgba(255,50,50,0.8));
+  animation: fireGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes fireGlow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 20px var(--neon-red)) drop-shadow(0 0 40px rgba(255,50,50,0.6));
+  }
+  50% { 
+    filter: drop-shadow(0 0 40px var(--neon-red)) drop-shadow(0 0 80px rgba(255,50,50,0.9));
+  }
+}
+
 #orcaEmoji {
   font-size: 220px;
   display: flex;
@@ -774,6 +853,25 @@ body {
   animation: floatUpX2 1.3s ease-out forwards;
 }
 
+/* Неоновые эффекты клика */
+.click-effect.neon {
+  color: var(--neon-cyan);
+  text-shadow: 
+    0 0 10px var(--neon-cyan),
+    0 0 20px var(--neon-cyan),
+    0 0 40px var(--neon-cyan),
+    0 0 80px var(--neon-cyan);
+}
+
+.click-effect.neon-pink {
+  color: var(--neon-pink);
+  text-shadow: 
+    0 0 10px var(--neon-pink),
+    0 0 20px var(--neon-pink),
+    0 0 40px var(--neon-pink),
+    0 0 80px var(--neon-pink);
+}
+
 @keyframes floatUp {
   0% { 
     opacity: 1; 
@@ -821,7 +919,7 @@ body {
     transform: translate(var(--tx), var(--ty)) scale(0);
   }
 }
-
+  
 /* === БОНУСЫ === */
 .bonus {
   position: fixed;
@@ -1026,7 +1124,7 @@ body {
     opacity: 0;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
-
+  
   .modal.active {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
@@ -2564,11 +2662,31 @@ body {
 
 /* === НАСТРОЙКИ === */
 .settings-section {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 16px;
+  background: linear-gradient(145deg, rgba(32,178,170,0.12), rgba(72,209,204,0.08));
+  border: 1px solid rgba(32,178,170,0.2);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.settings-section h3 {
+  font-size: 16px;
+  color: var(--primary);
   margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(32,178,170,0.6);
+}
+
+/* Неоновая рамка для секции настроек */
+.settings-section.neon-style {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0,255,255,0.2);
+}
+
+.settings-section.neon-style h3 {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 15px var(--neon-cyan);
 }
 
 .settings-section h3 {
@@ -2683,22 +2801,46 @@ body {
     padding: 9px 12px;
   }
 }
-
+  
 .bg-options {
   display: flex;
   gap: 8px;
 }
 
 .bg-btn {
-  flex: 1;
-  padding: 10px;
+  padding: 12px 16px;
   border: 1px solid rgba(32,178,170,0.3);
   border-radius: 12px;
   background: rgba(32,178,170,0.1);
   color: #fff;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  margin: 4px;
+}
+
+.bg-btn:hover {
+  background: linear-gradient(145deg, rgba(32,178,170,0.3), rgba(72,209,204,0.2));
+  border-color: rgba(32,178,170,0.6);
+  transform: translateY(-2px);
+}
+
+.bg-btn.active {
+  background: linear-gradient(145deg, rgba(32,178,170,0.4), rgba(72,209,204,0.3));
+  border-color: rgba(32,178,170,0.8);
+  box-shadow: 0 4px 15px rgba(32,178,170,0.4);
+}
+
+/* Неоновая активная кнопка */
+.bg-btn.active[data-bg="neon"],
+body.bg-neon .bg-btn[onclick*="bg-neon"] {
+  background: linear-gradient(145deg, rgba(0,255,255,0.3), rgba(255,0,255,0.2));
+  border-color: var(--neon-cyan);
+  box-shadow: 
+    0 0 20px var(--neon-cyan),
+    0 0 40px var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-cyan);
 }
 
 .bg-btn.active,

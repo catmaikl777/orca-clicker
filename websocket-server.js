@@ -2195,20 +2195,20 @@ const boxRewards = {
   ]
 };
 
-// Награды Рыбного бокса - временные баффы и эффекты
+// Награды Рыбного бокса - визуальные эффекты и временные баффы
 const fishBoxRewards = {
-  effects: [
-    { id: 'e1', name: 'Золотой клик', weight: 20, duration: 60, rarity: 'rare' },
-    { id: 'e2', name: 'Неоновый свет', weight: 18, duration: 60, rarity: 'rare' },
-    { id: 'e3', name: 'Радужный след', weight: 12, duration: 45, rarity: 'epic' },
-    { id: 'e4', name: 'Частицы звёзд', weight: 10, duration: 45, rarity: 'epic' },
-    { id: 'e5', name: 'Эффект волны', weight: 8, duration: 30, rarity: 'epic' },
-    { id: 'e6', name: 'Огненное сияние', weight: 5, duration: 30, rarity: 'legendary' }
+  visualEffects: [
+    { id: 'e1', name: 'Золотой клик', weight: 20, rarity: 'rare' },
+    { id: 'e2', name: 'Неоновый свет', weight: 18, rarity: 'rare' },
+    { id: 'e3', name: 'Радужный след', weight: 12, rarity: 'epic' },
+    { id: 'e4', name: 'Частицы звёзд', weight: 10, rarity: 'epic' },
+    { id: 'e5', name: 'Волновой эффект', weight: 8, rarity: 'epic' },
+    { id: 'e6', name: 'Огненное сияние', weight: 5, rarity: 'legendary' }
   ],
-  multipliers: [
-    { mult: 2, weight: 25, duration: 30, rarity: 'rare' },
-    { mult: 3, weight: 15, duration: 25, rarity: 'epic' },
-    { mult: 5, weight: 8, duration: 20, rarity: 'legendary' }
+  tempBuff: [
+    { type: 'multiplier', mult: 2, weight: 25, duration: 30, rarity: 'rare' },
+    { type: 'multiplier', mult: 3, weight: 15, duration: 25, rarity: 'epic' },
+    { type: 'multiplier', mult: 5, weight: 8, duration: 20, rarity: 'legendary' }
   ]
 };
 
@@ -2403,38 +2403,38 @@ function handleOpenFishBox(ws, boxId) {
     playerMem.pendingFishBoxes = [...pendingFishBoxes];
   }
   
-  // 60% шанс на эффект, 40% на множитель
-  const isEffect = Math.random() < 0.6;
+  // 50% шанс на визуальный эффект, 50% на временный бафф
+  const isVisualEffect = Math.random() < 0.5;
   let reward = {};
   
-  if (isEffect) {
-    const totalWeight = fishBoxRewards.effects.reduce((sum, e) => sum + e.weight, 0);
+  if (isVisualEffect) {
+    const totalWeight = fishBoxRewards.visualEffects.reduce((sum, e) => sum + e.weight, 0);
     let random = Math.random() * totalWeight;
-    let selectedEffect = fishBoxRewards.effects[0];
-    for (const effect of fishBoxRewards.effects) {
+    let selectedEffect = fishBoxRewards.visualEffects[0];
+    for (const effect of fishBoxRewards.visualEffects) {
       random -= effect.weight;
       if (random <= 0) { selectedEffect = effect; break; }
     }
     reward = {
-      type: 'effect',
+      type: 'visualEffect',
       effectId: selectedEffect.id,
       effectName: selectedEffect.name,
-      duration: selectedEffect.duration,
       rarity: selectedEffect.rarity
     };
   } else {
-    const totalWeight = fishBoxRewards.multipliers.reduce((sum, m) => sum + m.weight, 0);
+    const totalWeight = fishBoxRewards.tempBuff.reduce((sum, b) => sum + b.weight, 0);
     let random = Math.random() * totalWeight;
-    let selectedMult = fishBoxRewards.multipliers[0];
-    for (const mult of fishBoxRewards.multipliers) {
-      random -= mult.weight;
-      if (random <= 0) { selectedMult = mult; break; }
+    let selectedBuff = fishBoxRewards.tempBuff[0];
+    for (const buff of fishBoxRewards.tempBuff) {
+      random -= buff.weight;
+      if (random <= 0) { selectedBuff = buff; break; }
     }
     reward = {
-      type: 'multiplier',
-      mult: selectedMult.mult,
-      duration: selectedMult.duration,
-      rarity: selectedMult.rarity
+      type: 'tempBuff',
+      buffType: selectedBuff.type,
+      mult: selectedBuff.mult,
+      duration: selectedBuff.duration,
+      rarity: selectedBuff.rarity
     };
   }
   
