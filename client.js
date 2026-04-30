@@ -2023,19 +2023,37 @@ function syncEffectsTogglesUI() {
 
   ids.forEach(id => {
     const enabled = isEffectEnabled(id);
-    const onBtn = document.querySelector(`.effect-toggle-btn[data-effect-id="${id}"][data-effect-enabled="true"]`);
-    const offBtn = document.querySelector(`.effect-toggle-btn[data-effect-id="${id}"][data-effect-enabled="false"]`);
-    if (onBtn) onBtn.classList.toggle('is-active', enabled);
-    if (offBtn) offBtn.classList.toggle('is-active', !enabled);
+    
+    // Синхронизируем кнопки в ОБЕИХ секциях (настройки и отдельное модальное окно)
+    const settingsOnBtn = document.querySelector('#settings .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="true"]');
+    const settingsOffBtn = document.querySelector('#settings .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="false"]');
+    const modalOnBtn = document.querySelector('#effectsModal .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="true"]');
+    const modalOffBtn = document.querySelector('#effectsModal .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="false"]');
+    
+    if (settingsOnBtn) settingsOnBtn.classList.toggle('is-active', enabled);
+    if (settingsOffBtn) settingsOffBtn.classList.toggle('is-active', !enabled);
+    if (modalOnBtn) modalOnBtn.classList.toggle('is-active', enabled);
+    if (modalOffBtn) modalOffBtn.classList.toggle('is-active', !enabled);
   });
 
-  const master = document.getElementById('effectsToggle');
-  if (master) {
+  // Синхронизируем мастер-чекбокс в ОБЕИХ секциях
+  const settingsMaster = document.querySelector('#settings #effectsToggle');
+  const modalMaster = document.querySelector('#effectsModal #effectsToggle');
+  
+  if (settingsMaster || modalMaster) {
     const states = ids.map(id => isEffectEnabled(id));
     const allOn = states.every(Boolean);
     const allOff = states.every(v => !v);
-    master.indeterminate = !allOn && !allOff;
-    master.checked = allOn;
+    const indeterminate = !allOn && !allOff;
+    
+    if (settingsMaster) {
+      settingsMaster.indeterminate = indeterminate;
+      settingsMaster.checked = allOn;
+    }
+    if (modalMaster) {
+      modalMaster.indeterminate = indeterminate;
+      modalMaster.checked = allOn;
+    }
   }
 }
 
@@ -2057,6 +2075,13 @@ function toggleEffectsSettings() {
   ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'e10'].forEach(id => {
     localStorage.setItem(`effect_${id}_enabled`, enabled ? 'true' : 'false');
   });
+  
+  // Синхронизируем ОБА модальных окна (если оба открыты)
+  const settingsEffectsToggle = document.querySelector('#settings #effectsToggle');
+  const effectsModalToggle = document.querySelector('#effectsModal #effectsToggle');
+  
+  if (settingsEffectsToggle) settingsEffectsToggle.checked = enabled;
+  if (effectsModalToggle) effectsModalToggle.checked = enabled;
   
   syncEffectsTogglesUI();
   applyEffects();

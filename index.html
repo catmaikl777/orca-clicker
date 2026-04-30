@@ -141,7 +141,8 @@
       <button class="menu-btn" onclick="showModal('battle')">⚔️ PvP</button>
       <button class="menu-btn" onclick="showModal('clans')">👥 Кланы</button>
       <button class="menu-btn" onclick="openEventModal()">🎉 Ивент</button>
-    <button class="menu-btn" onclick="showModal('settings')">⚙️ Настройки</button>
+      <button class="menu-btn" onclick="showModal('effectsModal')">✨ Эффекты</button>
+      <button class="menu-btn" onclick="showModal('settings')">⚙️ Настройки</button>
     <p id="saveStatus" style="font-size:11px;color:#888;margin-top:5px;">💾 Автосохранение включено</p>
   </nav>
   </div>
@@ -399,7 +400,33 @@
         </label>
       </div>
       <div class="settings-section">
-        <h3>✨ Визуальные эффекты</h3>
+        <h3>🖼️ Фон</h3>
+        <div class="bg-options">
+          <button class="bg-btn" onclick="setBg('bg-sunny', this)">☀️ Солнечный</button>
+          <button class="bg-btn" onclick="setBg('bg-white', this)">⚪ Светлый</button>
+          <button class="bg-btn" onclick="setBg('bg-dark', this)">🌙 Тёмный</button>
+          <button class="bg-btn" onclick="setBg('bg-neon', this)">🌃 Неон</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>💾 Сохранение</h3>
+        <button class="action-btn" style="background:linear-gradient(145deg,rgba(0,212,255,0.4),rgba(0,153,204,0.3))" onclick="forceSave()">💾 Сохранить прогресс</button>
+        <p id="saveStatus" style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px;text-align:center;">💾 Автосохранение включено</p>
+      </div>
+      <div class="settings-section">
+        <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="resetGame()">🗑️ Сбросить прогресс</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Эффекты (отдельное модальное окно) -->
+  <div id="effectsModal" class="modal">
+    <div class="modal-header">
+      <h2>✨ Визуальные эффекты</h2>
+      <button class="close-btn" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-content">
+      <div class="settings-section">
         <label class="toggle">
           <input type="checkbox" id="effectsToggle" checked onchange="toggleEffectsSettings()">
           <span>🎨 Включить все эффекты</span>
@@ -451,23 +478,6 @@
             </div>
           </div>
         </div>
-      </div>
-      <div class="settings-section">
-        <h3>🖼️ Фон</h3>
-        <div class="bg-options">
-          <button class="bg-btn" onclick="setBg('bg-sunny', this)">☀️ Солнечный</button>
-          <button class="bg-btn" onclick="setBg('bg-white', this)">⚪ Светлый</button>
-          <button class="bg-btn" onclick="setBg('bg-dark', this)">🌙 Тёмный</button>
-          <button class="bg-btn" onclick="setBg('bg-neon', this)">🌃 Неон</button>
-        </div>
-      </div>
-      <div class="settings-section">
-        <h3>💾 Сохранение</h3>
-        <button class="action-btn" style="background:linear-gradient(145deg,rgba(0,212,255,0.4),rgba(0,153,204,0.3))" onclick="forceSave()">💾 Сохранить прогресс</button>
-        <p id="saveStatus" style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px;text-align:center;">💾 Автосохранение включено</p>
-      </div>
-      <div class="settings-section">
-        <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="resetGame()">🗑️ Сбросить прогресс</button>
       </div>
     </div>
   </div>

@@ -2931,8 +2931,9 @@ body {
 }
   
 .bg-options {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
 .bg-btn {
