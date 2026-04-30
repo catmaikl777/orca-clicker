@@ -3320,6 +3320,40 @@ body.bg-neon .bg-btn[onclick*="bg-neon"] {
   opacity: 0.55;
 }
 
+/* Скрытый скин (Richi) */
+.skin-item.hidden-skin {
+  cursor: default;
+  pointer-events: none;
+}
+
+.hidden-skin-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0,0,0,0.3);
+  border: 2px dashed rgba(255,255,255,0.2);
+  border-radius: 12px;
+  height: 100%;
+}
+
+.hidden-skin-placeholder span {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.hidden-skin-placeholder p {
+  margin: 5px 0;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+
+.hidden-skin-placeholder p:last-child {
+  color: rgba(255,215,0,0.6);
+  font-size: 12px;
+}
+
 .skin-item.active {
   border-color: rgba(32,178,170,0.8);
   background: linear-gradient(145deg, rgba(32,178,170,0.25), rgba(72,209,204,0.15));

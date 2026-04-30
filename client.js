@@ -1777,21 +1777,34 @@ function renderSkins() {
   header.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 20px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;';
   header.innerHTML = `
     <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🎁 Все скины получаются из Тайного бокса!</p>
-    <p style="font-size: 14px; opacity: 0.8;">Откройте Тайный бокс чтобы получить новые скины навсегда. Скин Ричи выдаётся отдельно за достижения.</p>
+    <p style="font-size: 14px; opacity: 0.8;">Откройте Тайный бокс чтобы получить новые скины навсегда.</p>
   `;
   container.appendChild(header);
   
   skinsData.forEach(skin => {
-    const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
-    const statusText = unlocked ? '✅' : skin.secret ? '🔒 Секретный' : '🎁 Из бокса';
+    const unlocked = game.skins[skin.id] || skin.cost === 0;
     const div = document.createElement('div');
-    div.className = `skin-item ${game.currentSkin === skin.id ? 'active' : ''} ${!unlocked ? 'locked-skin' : ''}`;
-    div.innerHTML = `
-      <img src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">
-      <p>${skin.name}</p>
-      <p>${statusText}</p>
-    `;
-    div.onclick = () => buyOrEquipSkin(skin);
+    
+    // Скрываем Richi пока не получен
+    if (skin.id === 'richi' && !unlocked) {
+      div.className = 'skin-item locked-skin hidden-skin';
+      div.innerHTML = `
+        <div class="hidden-skin-placeholder">
+          <span style="font-size: 40px;">❓</span>
+          <p>???</p>
+          <p>🎁 Из бокса</p>
+        </div>
+      `;
+    } else {
+      div.className = `skin-item ${game.currentSkin === skin.id ? 'active' : ''} ${!unlocked ? 'locked-skin' : ''}`;
+      div.innerHTML = `
+        <img src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">
+        <p>${skin.name}</p>
+        <p>${unlocked ? '✅' : '🎁 Из бокса'}</p>
+      `;
+      div.onclick = () => buyOrEquipSkin(skin);
+    }
+    
     container.appendChild(div);
   });
 }
@@ -1818,7 +1831,7 @@ function buyOrEquipSkin(skin) {
     showNotification('🎁 Скины можно получить только из Тайного бокса!');
   }
 }
-  
+    
 // ==================== КВЕСТЫ ====================
 function getCurrentDateString() {
   const d = new Date();
