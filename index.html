@@ -251,7 +251,7 @@
     <div class="modal-content">
       <!-- Лобби -->
       <div id="battleLobbyView" class="battle-lobby-view">
-        <!-- Форма создания лобби -->
+<!-- Форма создания лобби -->
         <div class="lobby-controls">
           <div class="lobby-create-form">
             <label>🏠 Создать лобби:</label>
@@ -265,7 +265,12 @@
             </div>
             <button class="action-btn" onclick="createBattleLobby()">✅ Создать</button>
           </div>
-          <button class="action-btn" onclick="refreshBattleLobbies()">🔄 Обновить</button>
+          <div class="lobby-join-form" style="margin-top:15px;">
+            <label>🔑 Вступить по коду:</label>
+            <input type="text" id="lobbyJoinCode" placeholder="Введите код лобби" style="padding:8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#fff;width:120px;text-align:center;">
+            <button class="action-btn" onclick="joinLobbyByCode()">Вступить</button>
+          </div>
+          <button class="action-btn" onclick="refreshBattleLobbies()" style="margin-top:10px;">🔄 Обновить</button>
         </div>
         
         <!-- Список лобби -->

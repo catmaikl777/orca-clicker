@@ -1325,6 +1325,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-bottom: 20px;
 }
 
 .shop-item {
@@ -1339,9 +1342,12 @@ body {
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
+  overflow-y: auto;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   min-height: 75px;
+  max-height: 120px;
+  box-sizing: border-box;
 }
 
 .shop-item::before {
@@ -2789,12 +2795,21 @@ body {
 /* Неоновая рамка для секции настроек */
 .settings-section.neon-style {
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 20px rgba(0,255,255,0.2);
+  box-shadow: 
+    0 0 20px rgba(0,255,255,0.2),
+    0 0 40px rgba(255,0,255,0.1),
+    inset 0 0 20px rgba(0,255,255,0.05);
+  animation: neonBorderPulse 3s ease-in-out infinite;
 }
 
 .settings-section.neon-style h3 {
   color: var(--neon-cyan);
   text-shadow: 0 0 15px var(--neon-cyan);
+}
+
+@keyframes neonBorderPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0,255,255,0.2), 0 0 40px rgba(255,0,255,0.1); }
+  50% { box-shadow: 0 0 30px rgba(0,255,255,0.4), 0 0 60px rgba(255,0,255,0.2); }
 }
 
 .settings-section h3 {
@@ -3563,18 +3578,20 @@ body.bg-neon .bg-btn[onclick*="bg-neon"] {
   .bonus img { width: 60px; height: 60px; }
   .bonus.x2-bonus img { width: 75px; height: 75px; }
 
-  .shop-item {
-    padding: 16px;
+.shop-item {
+    padding: 14px 12px;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     text-align: center;
+    min-height: 70px;
   }
   .shop-item-info {
     flex-direction: column;
     width: 100%;
   }
   .shop-item-price {
-    font-size: 18px;
+    font-size: 16px;
+    padding: 8px 12px;
   }
 
   .leaderboard-table {

@@ -901,14 +901,20 @@ function handleServerMessage(data) {
     case 'battleLobbies':
       updateBattleLobbiesUI(data.lobbies);
       break;
-    case 'lobbyCreated':
-      showNotification('🏠 Лобби создано! Ожидание соперника...');
+case 'lobbyCreated':
+      // Показываем код лобби если оно закрыто
+      const lobbyMsg = data.lobbyCode 
+        ? `🏠 Лобби создано! Код: ${data.lobbyCode}` 
+        : '🏠 Лобби создано! Ожидание соперника...';
+      showNotification(lobbyMsg);
       // Обновляем UI моего лобби
       updateMyLobbyUI({
         id: data.lobbyId,
         ownerName: data.ownerName,
         hasOpponent: false,
-        opponentName: null
+        opponentName: null,
+        lobbyCode: data.lobbyCode || null,
+        isOpen: data.isOpen
       });
       break;
     case 'joinedLobby':
@@ -2292,14 +2298,30 @@ function createBattleLobby() {
   ws.send(JSON.stringify({ type: 'createBattleLobby', isOpen }));
 }
 
-// Присоединение к лобби
-function joinBattleLobby(lobbyId) {
+// Присоединение к лобби (поддерживает ID или код для закрытых лоби)
+function joinBattleLobby(lobbyIdOrCode, code = null) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
+  
+  // Если передан код - используем его для поиска лобби
+  if (code) {
+    ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: lobbyIdOrCode, code: code }));
+  } else {
+    ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: lobbyIdOrCode }));
+  }
+}
 
-  ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId }));
+// Вступление по коду лобби (из UI)
+function joinLobbyByCode() {
+  const codeInput = document.getElementById('lobbyJoinCode');
+  const code = codeInput?.value?.trim();
+  if (!code) {
+    showNotification('⚠️ Введите код лобби');
+    return;
+  }
+  joinBattleLobby(null, code);
 }
 
 // Выход из моего лобби
@@ -2403,6 +2425,15 @@ function updateMyLobbyUI(lobby) {
   document.getElementById('myLobbyOpponent').textContent = lobby.hasOpponent 
     ? escapeHtml(lobby.opponentName) 
     : 'Ожидание соперника...';
+  
+  // Показываем код лобби если оно закрыто (для закрытого - только владельцу)
+  const codeEl = document.getElementById('myLobbyCode');
+  if (codeEl && lobby.lobbyCode) {
+    codeEl.textContent = `Код для входа: ${lobby.lobbyCode}`;
+    codeEl.style.display = lobby.isOpen === false ? 'block' : 'none';
+  } else if (codeEl) {
+    codeEl.style.display = 'none';
+  }
   
   // Блокируем кнопку запуска если нет соперника
   const startBtn = document.getElementById('startBattleBtn');
@@ -2834,6 +2865,12 @@ function openBox(boxId) {
     return;
   }
 
+  // Дополнительная проверка - не открываем если нет соединения
+  if (ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
   isOpeningBox = true;
   const openingBoxId = boxId;
   const openingBoxIndex = boxIndex;
@@ -2851,18 +2888,23 @@ function openBox(boxId) {
   if (currentBoxOpenTimeout) {
     clearTimeout(currentBoxOpenTimeout);
   }
+  
+  // Увеличенный таймаут до 10 секунд для медленных соединений
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
       console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
+      
+      // Возвращаем бокс в инвентарь
       isOpeningBox = false;
       currentBoxOpenTimeout = null;
       removeActiveCutscene('box');
       pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
       renderBoxes();
       updateBoxUI();
+      
       showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
     }
-  }, 5000);
+  }, 10000); // Увеличено с 5000 до 10000
 }
   
 function buyFishBox() {
@@ -2887,6 +2929,12 @@ function openFishBox(boxId) {
     return;
   }
 
+  // Дополнительная проверка - не открываем если нет соединения
+  if (ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
   isOpeningFishBox = true;
   const openingFishBoxId = boxId;
   const openingFishBoxIndex = boxIndex;
@@ -2903,18 +2951,23 @@ function openFishBox(boxId) {
   if (currentFishBoxOpenTimeout) {
     clearTimeout(currentFishBoxOpenTimeout);
   }
+  
+  // Увеличенный таймаут до 10 секунд для медленных соединений
   currentFishBoxOpenTimeout = setTimeout(() => {
     if (isOpeningFishBox) {
       console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
+      
+      // Возвращаем бокс в инвентарь
       isOpeningFishBox = false;
       currentFishBoxOpenTimeout = null;
       removeActiveCutscene('fish');
       pendingFishBoxes.splice(openingFishBoxIndex, 0, openingFishBoxId);
       renderBoxes();
       updateFishBoxUI();
+      
       showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
     }
-  }, 5000);
+  }, 10000); // Увеличено с 5000 до 10000
 }
   
 function openFishBoxUI() {

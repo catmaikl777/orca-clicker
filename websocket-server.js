@@ -693,8 +693,8 @@ function handleMessage(ws, data) {
     case 'click': handleClick(ws, data); break;
     case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
-    case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
-    case 'joinBattleLobby': handleJoinBattleLobby(ws, data.lobbyId); break;
+case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
+    case 'joinBattleLobby': handleJoinBattleLobby(ws, data); break;
     case 'leaveBattleLobby': handleLeaveBattleLobby(ws); break;
     case 'getBattleLobbies': handleGetBattleLobbies(ws); break;
     case 'battleClick': handleBattleClick(ws, data.battleId, data.clicks, data.cps); break;
@@ -1303,6 +1303,11 @@ function addEventCoins(playerId, amount) {
   }
 }
 
+// Генерация кода для лобби (4 цифры)
+function generateLobbyCode() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
 // Создание лобби для батла
 function handleCreateBattleLobby(ws, isOpen = true) {
   const id = ws.accountId || ws.playerId;
@@ -1324,6 +1329,8 @@ function handleCreateBattleLobby(ws, isOpen = true) {
   }
   
   const lobbyId = generateId();
+  const lobbyCode = generateLobbyCode();
+  
   battleLobbies.set(lobbyId, {
     id: lobbyId,
     owner: id,
@@ -1332,6 +1339,7 @@ function handleCreateBattleLobby(ws, isOpen = true) {
     opponentName: null,
     status: 'waiting', // waiting, ready, started
     isOpen: isOpen !== false, // По умолчанию открытое
+    code: lobbyCode, // Код для закрытого лобби
     createdAt: Date.now()
   });
   
@@ -1339,15 +1347,20 @@ function handleCreateBattleLobby(ws, isOpen = true) {
     type: 'lobbyCreated', 
     lobbyId,
     ownerName: player.name,
-    isOpen: isOpen !== false
+    isOpen: isOpen !== false,
+    code: lobbyCode // Отправляем код владельцу
   }));
   
   // Отправляем обновление списка лобби всем
   broadcastBattleLobbies();
 }
 
-// Присоединение к лобби
-function handleJoinBattleLobby(ws, lobbyId) {
+// Присоединение к лобби (по ID или коду)
+function handleJoinBattleLobby(ws, data) {
+  // Поддерживаем как { lobbyId } так и { lobbyId, code } для закрытых лоби
+  const lobbyId = data.lobbyId || data;
+  const code = data.code;
+  
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
   if (!player) return;
@@ -1358,10 +1371,12 @@ function handleJoinBattleLobby(ws, lobbyId) {
     return;
   }
   
-  // Проверка: лобби закрыто?
+  // Проверка: лобби закрыто - нужен код
   if (!lobby.isOpen) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Лобби закрыто' }));
-    return;
+    if (!code || lobby.code !== code) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Нужен код для вступления в закрытое лобби' }));
+      return;
+    }
   }
   
   // Проверка: лобби уже заполнено?
