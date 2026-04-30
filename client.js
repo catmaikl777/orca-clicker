@@ -109,15 +109,7 @@ const skinsData = [
   { id: 'richi', name: 'Ричи', cost: 0, image: 'richi.png', secret: true },
   { id: 'cute', name: 'Милашка', cost: 0, image: 'cute.png' },
   { id: 'bugeyed', name: 'Глазастая', cost: 0, image: 'bug-eyed.png' },
-  { id: 'abitchonky', name: 'Пухляшка', cost: 0, image: 'a-bit-chonky.png' },
-  { id: 'gold', name: 'Золотая', cost: 0, image: 'gold.png' },
-  { id: 'diamond', name: 'Алмазная', cost: 0, image: 'diamond.png' },
-  { id: 'shadow', name: 'Теневая', cost: 0, image: 'shadow.png' },
-  { id: 'cosmic', name: 'Космическая', cost: 0, image: 'cosmic.png' },
-  { id: 'neon', name: 'Неоновая', cost: 0, image: 'neon.png' },
-  { id: 'fire', name: 'Огненная', cost: 0, image: 'fire.png' },
-  { id: 'ice', name: 'Ледяная', cost: 0, image: 'ice.png' },
-  { id: 'rainbow', name: 'Радужная', cost: 0, image: 'rainbow.png' }
+  { id: 'abitchonky', name: 'Пухляшка', cost: 0, image: 'a-bit-chonky.png' }
 ];
 
 const richiSecretAchievementThreshold = 1;

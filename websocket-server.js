@@ -2189,17 +2189,7 @@ const boxRewards = {
     { id: 'cyberpunk', weight: 8, name: 'Киберпанк' },
     { id: 'cute', weight: 5, name: 'Милашка' },
     { id: 'bugeyed', weight: 4, name: 'Глазастая' },
-    { id: 'abitchonky', weight: 4, name: 'Пухляшка' },
-    // Эпические скины
-    { id: 'neon', weight: 3, name: 'Неоновая' },
-    { id: 'shadow', weight: 2.5, name: 'Теневая' },
-    { id: 'ice', weight: 2.5, name: 'Ледяная' },
-    { id: 'fire', weight: 2, name: 'Огненная' },
-    // Легендарные скины
-    { id: 'gold', weight: 1.5, name: 'Золотая' },
-    { id: 'diamond', weight: 1, name: 'Алмазная' },
-    { id: 'cosmic', weight: 0.8, name: 'Космическая' },
-    { id: 'rainbow', weight: 0.5, name: 'Радужная' }
+    { id: 'abitchonky', weight: 4, name: 'Пухляшка' }
   ],
   coins: [
     { amount: 500, weight: 40 },
