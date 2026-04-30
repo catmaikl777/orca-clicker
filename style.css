@@ -1345,7 +1345,7 @@ body {
   overflow-y: auto;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  min-height: 75px;
+  min-height: 110px;
   max-height: 120px;
   box-sizing: border-box;
 }
@@ -1684,7 +1684,7 @@ body {
 
 .shop-tab {
   flex: 1;
-  padding: 10px;
+  padding: 8px 10px;
   border: 1px solid rgba(32,178,170,0.3);
   border-radius: 12px;
   background: rgba(32,178,170,0.1);
@@ -1693,6 +1693,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  box-sizing: border-box;
 }
 
 .shop-tab.active,
@@ -1962,21 +1963,25 @@ body {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  overflow-y: auto;
+  max-height: 100%;
+  box-sizing: border-box;
 }
 
 .effect-item {
   background: linear-gradient(145deg, rgba(255,215,0,0.15), rgba(255,150,0,0.1));
   border: 1px solid rgba(255,215,0,0.3);
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
   transition: all 0.3s;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  min-height: 75px;
+  min-height: 60px;
+  box-sizing: border-box;
 }
 
 .effect-item:hover:not(.bought):not(.locked) {
@@ -2931,7 +2936,7 @@ body {
 }
 
 .bg-btn {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border: 1px solid rgba(32,178,170,0.3);
   border-radius: 12px;
   background: rgba(32,178,170,0.1);
@@ -2941,6 +2946,7 @@ body {
   cursor: pointer;
   transition: all 0.3s;
   margin: 4px;
+  box-sizing: border-box;
 }
 
 .bg-btn:hover {
