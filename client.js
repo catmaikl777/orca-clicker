@@ -1018,8 +1018,13 @@ function handleServerMessage(data) {
       saveGame();
       break;
     case 'boxOpened':
+      if (currentBoxOpenTimeout) {
+        clearTimeout(currentBoxOpenTimeout);
+        currentBoxOpenTimeout = null;
+      }
+      removeActiveCutscene('box');
+      isOpeningBox = false;
       showBoxReward(data.reward);
-      isOpeningBox = false;  // Сбрасываем флаг
       if (data.reward.type === 'skin') {
         game.skins[data.reward.skinId] = true;
       } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
@@ -1029,7 +1034,6 @@ function handleServerMessage(data) {
         console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
       if (data.pendingBoxes !== undefined) {
-        // Обновляем количество боксов, сохраняя массив пустым (ID не нужны)
         pendingBoxes = new Array(data.pendingBoxes).fill('box');
       }
       updateUI();
@@ -1038,8 +1042,13 @@ function handleServerMessage(data) {
       saveGame();
       break;
     case 'fishBoxOpened':
+      if (currentFishBoxOpenTimeout) {
+        clearTimeout(currentFishBoxOpenTimeout);
+        currentFishBoxOpenTimeout = null;
+      }
+      removeActiveCutscene('fish');
+      isOpeningFishBox = false;
       showFishBoxReward(data.reward);
-      isOpeningFishBox = false;  // Сбрасываем флаг
       if (data.reward.type === 'visualEffect' && data.reward.effectId) {
         // Получаем визуальный эффект НАВСЕГДА
         if (!game.effects) game.effects = {};
@@ -2808,6 +2817,10 @@ let pendingBoxes = [];
 let pendingFishBoxes = [];
 let isOpeningBox = false;
 let isOpeningFishBox = false;
+let currentBoxOpenTimeout = null;
+let currentFishBoxOpenTimeout = null;
+let activeBoxCutscene = null;
+let activeFishBoxCutscene = null;
 
 function buyBox() {
   if (isOpeningBox) return;
@@ -2826,30 +2839,40 @@ function openBox(boxId) {
     return;
   }
 
-  // Проверяем подключение
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
-  // Отправляем на сервер ПЕРВЫМ делом
+
   isOpeningBox = true;
+  const openingBoxId = boxId;
+  const openingBoxIndex = boxIndex;
+
+  // Убираем бокс из UI сразу — он в процессе открытия
+  pendingBoxes.splice(boxIndex, 1);
+  renderBoxes();
+  updateBoxUI();
+
   console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
   ws.send(JSON.stringify({ type: 'openBox', boxId }));
-  
-  // Показываем катсцену сразу для отзывчивости UI
-  showBoxOpeningCutscene(() => {
-    // Если сервер не ответил за 5 секунд - возвращаем бокс
-    setTimeout(() => {
-      if (isOpeningBox) {
-        console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
-        isOpeningBox = false;
-        pendingBoxes.splice(boxIndex, 0, boxId);
-        renderBoxes();
-        showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
-      }
-    }, 5000);
-  });
+
+  showBoxOpeningCutscene('box');
+
+  if (currentBoxOpenTimeout) {
+    clearTimeout(currentBoxOpenTimeout);
+  }
+  currentBoxOpenTimeout = setTimeout(() => {
+    if (isOpeningBox) {
+      console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
+      isOpeningBox = false;
+      currentBoxOpenTimeout = null;
+      removeActiveCutscene('box');
+      pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+      renderBoxes();
+      updateBoxUI();
+      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+    }
+  }, 5000);
 }
   
 function buyFishBox() {
@@ -2869,30 +2892,39 @@ function openFishBox(boxId) {
     return;
   }
 
-  // Проверяем подключение
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
-  // Отправляем на сервер ПЕРВЫМ делом
+
   isOpeningFishBox = true;
+  const openingFishBoxId = boxId;
+  const openingFishBoxIndex = boxIndex;
+
+  pendingFishBoxes.splice(boxIndex, 1);
+  renderBoxes();
+  updateFishBoxUI();
+
   console.log('📤 Отправка openFishBox на сервер:', { boxId, boxIndex });
   ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
-  
-  // Показываем катсцену сразу для отзывчивости UI
-  showBoxOpeningCutscene(() => {
-    // Если сервер не ответил за 5 секунд - возвращаем бокс
-    setTimeout(() => {
-      if (isOpeningFishBox) {
-        console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
-        isOpeningFishBox = false;
-        pendingFishBoxes.splice(boxIndex, 0, boxId);
-        renderBoxes();
-        showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
-      }
-    }, 5000);
-  });
+
+  showBoxOpeningCutscene('fish');
+
+  if (currentFishBoxOpenTimeout) {
+    clearTimeout(currentFishBoxOpenTimeout);
+  }
+  currentFishBoxOpenTimeout = setTimeout(() => {
+    if (isOpeningFishBox) {
+      console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
+      isOpeningFishBox = false;
+      currentFishBoxOpenTimeout = null;
+      removeActiveCutscene('fish');
+      pendingFishBoxes.splice(openingFishBoxIndex, 0, openingFishBoxId);
+      renderBoxes();
+      updateFishBoxUI();
+      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+    }
+  }, 5000);
 }
   
 function openFishBoxUI() {
@@ -2901,7 +2933,7 @@ function openFishBoxUI() {
   }
 }
   
-function showBoxOpeningCutscene(onComplete) {
+function showBoxOpeningCutscene(type) {
   const cutscene = document.createElement('div');
   cutscene.className = 'box-cutscene';
   cutscene.innerHTML = `
@@ -2921,8 +2953,13 @@ function showBoxOpeningCutscene(onComplete) {
     <div class="box-particles"></div>
   `;
   document.body.appendChild(cutscene);
+
+  if (type === 'box') {
+    activeBoxCutscene = cutscene;
+  } else if (type === 'fish') {
+    activeFishBoxCutscene = cutscene;
+  }
   
-  // Анимация тряски
   setTimeout(() => {
     cutscene.classList.add('shaking');
     playSound('clickSound');
@@ -2939,9 +2976,20 @@ function showBoxOpeningCutscene(onComplete) {
   
   setTimeout(() => {
     cutscene.remove();
-    // НЕ сбрасываем isOpeningBox здесь - это делает обработчик ответа от сервера
-    if (onComplete) onComplete();
+    if (type === 'box') activeBoxCutscene = null;
+    if (type === 'fish') activeFishBoxCutscene = null;
   }, 3500);
+}
+
+function removeActiveCutscene(type) {
+  if (type === 'box' && activeBoxCutscene) {
+    activeBoxCutscene.remove();
+    activeBoxCutscene = null;
+  }
+  if (type === 'fish' && activeFishBoxCutscene) {
+    activeFishBoxCutscene.remove();
+    activeFishBoxCutscene = null;
+  }
 }
 
 function showBoxReward(reward) {
@@ -2965,14 +3013,18 @@ function showBoxReward(reward) {
   const icon = reward.type === 'skin' ? '🎨' : '🐋';
   const title = reward.type === 'skin' ? 'Новый скин!' : 'Косатки!';
   const value = reward.type === 'skin' ? reward.skinName : `+${formatNumber(reward.amount)}`;
+  const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
+  const isRichi = reward.type === 'skin' && reward.skinId === 'richi';
   
   rewardModal.innerHTML = `
     <div class="reward-overlay"></div>
-    <div class="reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
+    <div class="reward-content ${isRichi ? 'richi-reward' : ''}" style="box-shadow: ${rarityGlow[reward.rarity]}">
       <div class="reward-icon" style="background: ${rarityColors[reward.rarity]}">${icon}</div>
       <h2 class="reward-title ${reward.rarity}">${title}</h2>
+      ${isRichi ? `<div class="richi-badge">✨ Ричи ✨</div>` : ''}
       <p class="reward-value">${value}</p>
       <p class="reward-rarity ${reward.rarity}">${reward.rarity === 'legendary' ? 'ЛЕГЕНДАРНО' : reward.rarity === 'epic' ? 'ЭПИЧЕСКИЙ' : 'РЕДКИЙ'}</p>
+      ${skin ? `<img class="reward-skin-image" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
       <button class="reward-btn" onclick="this.closest('.box-reward-modal').remove()">Забрать</button>
     </div>
   `;
