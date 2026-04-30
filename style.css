@@ -803,6 +803,74 @@ body {
   }
 }
 
+/* Ледяной мороз (e7) */
+.clicker.effect-ice img {
+  filter: drop-shadow(0 0 25px cyan) drop-shadow(0 0 50px rgba(0,255,255,0.8));
+  animation: iceGlow 2s ease-in-out infinite;
+}
+
+@keyframes iceGlow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 15px cyan) drop-shadow(0 0 30px rgba(0,255,255,0.6));
+  }
+  50% { 
+    filter: drop-shadow(0 0 30px cyan) drop-shadow(0 0 60px rgba(0,255,255,0.9));
+  }
+}
+
+/* Темная материя (e8) */
+.clicker.effect-shadow img {
+  filter: drop-shadow(0 0 20px var(--neon-purple)) drop-shadow(0 0 40px rgba(191,0,255,0.7));
+  animation: shadowPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes shadowPulse {
+  0%, 100% { 
+    filter: drop-shadow(0 0 15px var(--neon-purple)) drop-shadow(0 0 30px rgba(191,0,255,0.5));
+  }
+  50% { 
+    filter: drop-shadow(0 0 30px var(--neon-purple)) drop-shadow(0 0 60px rgba(191,0,255,0.8));
+  }
+}
+
+/* Электрический шторм (e9) */
+.clicker.effect-electric img {
+  filter: drop-shadow(0 0 20px yellow) drop-shadow(0 0 40px rgba(255,255,0,0.8));
+  animation: electricFlash 1.2s ease-in-out infinite;
+}
+
+@keyframes electricFlash {
+  0%, 100% { 
+    filter: drop-shadow(0 0 15px yellow) drop-shadow(0 0 30px rgba(255,255,0,0.6));
+  }
+  25% { 
+    filter: drop-shadow(0 0 25px yellow) drop-shadow(0 0 50px rgba(255,255,0,0.9));
+  }
+  50% { 
+    filter: drop-shadow(0 0 10px yellow) drop-shadow(0 0 20px rgba(255,255,0,0.4));
+  }
+  75% { 
+    filter: drop-shadow(0 0 30px yellow) drop-shadow(0 0 60px rgba(255,255,0,1));
+  }
+}
+
+/* Призрачное сияние (e10) */
+.clicker.effect-ghost img {
+  filter: drop-shadow(0 0 25px lime) drop-shadow(0 0 50px rgba(57,255,20,0.7));
+  animation: ghostFloat 3s ease-in-out infinite;
+}
+
+@keyframes ghostFloat {
+  0%, 100% { 
+    filter: drop-shadow(0 0 15px lime) drop-shadow(0 0 30px rgba(57,255,20,0.5));
+    opacity: 0.9;
+  }
+  50% { 
+    filter: drop-shadow(0 0 35px lime) drop-shadow(0 0 70px rgba(57,255,20,0.9));
+    opacity: 1;
+  }
+}
+
 #orcaEmoji {
   font-size: 220px;
   display: flex;

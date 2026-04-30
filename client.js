@@ -95,16 +95,42 @@ const SHOP_CATALOG = [
   { id: 'auto5', baseCost: 100000 }
 ];
 
-// Скины с изображениями
+// Скины с изображениями - ВСЕ ТОЛЬКО ИЗ БОКСОВ!
 const skinsData = [
   { id: 'normal', name: 'Обычная', cost: 0, image: 'normal.png' },
-  { id: 'chillcat', name: 'Чилл', cost: 2000, image: 'CHILLCAT.png' },
-  { id: 'hiding', name: 'Прячущаяся', cost: 1500, image: 'cat_hiding.png' },
-  { id: 'beauty', name: 'Красавица', cost: 3000, image: 'beauty_cat.png' },
-  { id: 'wild', name: 'Дикая', cost: 4000, image: 'wild_cat.png' },
-  { id: 'cyberpunk', name: 'Киберпанк', cost: 7500, image: 'skin_cyberpunk.png' },
-  { id: 'interesting', name: 'Интересная', cost: 5000, image: 'interesting.png' }
+  { id: 'chillcat', name: 'Чилл', cost: 0, image: 'CHILLCAT.png' },
+  { id: 'hiding', name: 'Прячущаяся', cost: 0, image: 'cat_hiding.png' },
+  { id: 'beauty', name: 'Красавица', cost: 0, image: 'beauty_cat.png' },
+  { id: 'wild', name: 'Дикая', cost: 0, image: 'wild_cat.png' },
+  { id: 'cyberpunk', name: 'Киберпанк', cost: 0, image: 'skin_cyberpunk.png' },
+  { id: 'interesting', name: 'Интересная', cost: 0, image: 'interesting.png' },
+  
+  // ДОПОЛНИТЕЛЬНЫЕ СКИНЫ - только из боксов!
+  { id: 'richi', name: 'Ричи', cost: 0, image: 'richi.png', secret: true },
+  { id: 'cute', name: 'Милашка', cost: 0, image: 'cute.png' },
+  { id: 'bugeyed', name: 'Глазастая', cost: 0, image: 'bug-eyed.png' },
+  { id: 'abitchonky', name: 'Пухляшка', cost: 0, image: 'a-bit-chonky.png' },
+  { id: 'gold', name: 'Золотая', cost: 0, image: 'gold.png' },
+  { id: 'diamond', name: 'Алмазная', cost: 0, image: 'diamond.png' },
+  { id: 'shadow', name: 'Теневая', cost: 0, image: 'shadow.png' },
+  { id: 'cosmic', name: 'Космическая', cost: 0, image: 'cosmic.png' },
+  { id: 'neon', name: 'Неоновая', cost: 0, image: 'neon.png' },
+  { id: 'fire', name: 'Огненная', cost: 0, image: 'fire.png' },
+  { id: 'ice', name: 'Ледяная', cost: 0, image: 'ice.png' },
+  { id: 'rainbow', name: 'Радужная', cost: 0, image: 'rainbow.png' }
 ];
+
+const richiSecretAchievementThreshold = 1;
+
+function unlockSecretRichiSkin() {
+  if (!game.skins.richi && game.achievements.length >= richiSecretAchievementThreshold) {
+    game.skins.richi = true;
+    showNotification(`✨ Секретный скин "Ричи" получен за ${richiSecretAchievementThreshold} достижения!`);
+    playSound('bonusSound');
+    renderSkins();
+    saveGame();
+  }
+}
 
 // Квесты
 const questsData = [
@@ -139,7 +165,23 @@ const questsData = [
   // Новые квесты - время
   { id: 'q19', name: 'Новичок', desc: 'Проведите в игре 10 минут', target: 600, type: 'playTime', reward: 500 },
   { id: 'q20', name: 'Ветеран', desc: 'Проведите в игре 1 час', target: 3600, type: 'playTime', reward: 2000 },
-  { id: 'q21', name: 'Постоянный клиент', desc: 'Проведите в игре 5 часов', target: 18000, type: 'playTime', reward: 10000 }
+  { id: 'q21', name: 'Постоянный клиент', desc: 'Проведите в игре 5 часов', target: 18000, type: 'playTime', reward: 10000 },
+  
+  // ДОПОЛНИТЕЛЬНЫЕ КВЕСТЫ - новые!
+  { id: 'q22', name: 'Бустер', desc: 'Достигните 50,000/сек', target: 50000, type: 'perSecond', reward: 50000 },
+  { id: 'q23', name: 'Магнат', desc: 'Достигните 100,000 за клик', target: 100000, type: 'perClick', reward: 100000 },
+  { id: 'q24', name: 'Исследователь', desc: 'Проведите в игре 10 часов', target: 36000, type: 'playTime', reward: 25000 },
+  { id: 'q25', name: 'Вселенский', desc: 'Накопите 1 квадриллион косаток', target: 1000000000000000, type: 'totalCoins', reward: 500000 },
+  { id: 'q26', name: 'Коллекционер боксов', desc: 'Откройте 100 боксов', target: 100, type: 'boxesOpened', reward: 50000 },
+  { id: 'q27', name: 'Мастер батлов', desc: 'Выиграйте 50 батлов', target: 50, type: 'battlesWon', reward: 75000 },
+  { id: 'q28', name: 'Щедрый', desc: 'Пожертвуйте 10,000 косаток в клан', target: 10000, type: 'clanDonations', reward: 15000 },
+  { id: 'q29', name: 'Лидер', desc: 'Создайте клан', target: 1, type: 'clanCreated', reward: 10000 },
+  { id: 'q30', name: 'Командный игрок', desc: 'Вступите в 5 разных кланов', target: 5, type: 'clanJoins', reward: 8000 },
+  
+  // Ежедневные квесты (генерируются каждый день)
+  { id: 'daily1', name: 'Утренняя зарядка', desc: 'Сделайте 500 кликов за день', target: 500, type: 'clicks', reward: 2000 },
+  { id: 'daily2', name: 'Деньги любят счёт', desc: 'Заработайте 10,000 косаток за день', target: 10000, type: 'coins', reward: 3000 },
+  { id: 'daily3', name: 'Онлайн марафон', desc: 'Проведите 2 часа в игре сегодня', target: 7200, type: 'playTime', reward: 1500 }
 ];
 
 // Достижения
@@ -186,17 +228,39 @@ const achievementsData = [
   
   // Новые достижения - квесты
   { id: 'a25', name: 'Исполнитель', desc: 'Выполните 5 квестов', icon: '✅' },
-  { id: 'a26', name: 'Мастер квестов', desc: 'Выполните все квесты', icon: '🎯' }
+  { id: 'a26', name: 'Мастер квестов', desc: 'Выполните все квесты', icon: '🎯' },
+  
+  // ДОПОЛНИТЕЛЬНЫЕ ДОСТИЖЕНИЯ - новые!
+  { id: 'a27', name: 'Богоподобный', desc: 'Накопите 1 кватриллион косаток', icon: '🔥' },
+  { id: 'a28', name: 'Кликер-бог', desc: 'Достигните 1,000,000 за клик', icon: '💥' },
+  { id: 'a29', name: 'Авто-машина', desc: 'Достигните 1,000,000/сек', icon: '🤖' },
+  { id: 'a30', name: 'Вечный', desc: 'Проведите в игре 100 часов', icon: '⚡' },
+  { id: 'a31', name: 'Скин-коллекционер', desc: 'Откройте все скины из боксов', icon: '🎭' },
+  { id: 'a32', name: 'Эффектный', desc: 'Купите 3 эффекта', icon: '🌟' },
+  { id: 'a33', name: 'Бокс-хантер', desc: 'Откройте 50 боксов', icon: '📦' },
+  { id: 'a34', name: 'Рыболов', desc: 'Откройте 25 рыбных боксов', icon: '🐟' },
+  { id: 'a35', name: 'Вождь племени', desc: 'Создайте клан и наберите 10 участников', icon: '👑' },
+  { id: 'a36', name: 'Дипломат', desc: 'Вступите в 3 клана', icon: '🤝' },
+  { id: 'a37', name: 'Батл-рокстер', desc: 'Выиграйте 100 батлов подряд без поражений', icon: '🎸' },
+  { id: 'a38', name: 'Миллионер кликов', desc: 'Сделайте 1,000,000 кликов', icon: '🖱️' },
+  { id: 'a39', name: 'Генератор', desc: 'Накопите 100 миллиардов косаток', icon: '🏭' },
+  { id: 'a40', name: 'Космический', desc: 'Достигните 50 уровня', icon: '🚀' }
 ];
 
-// Эффекты (визуальные изменения + бонусы) - сохраняются как в магазине
+// Эффекты (визуальные изменения + бонусы) - ВСЕ ТОЛЬКО ИЗ РЫБНЫХ БОКСОВ!
 const effectsData = [
-  { id: 'e1', name: 'Золотой клик', desc: 'Золотое свечение при клике', cost: 1000, icon: '✨', bonus: { type: 'click', mult: 2 } },
-  { id: 'e2', name: 'Неоновый свет', desc: 'Неоновое свечение', cost: 2000, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
-  { id: 'e3', name: 'Радужный след', desc: 'Радужный эффект при клике', cost: 4000, icon: '🌈', bonus: { type: 'click', mult: 3 } },
-  { id: 'e4', name: 'Частицы звёзд', desc: 'Звёздные частицы', cost: 6000, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
-  { id: 'e5', name: 'Эффект волны', desc: 'Волновая анимация при клике', cost: 3000, icon: '🌊', bonus: { type: 'click', mult: 5 } },
-  { id: 'e6', name: 'Огненное сияние', desc: 'Огненное свечение при клике', cost: 5000, icon: '🔥', bonus: { type: 'click', mult: 10 } }
+  { id: 'e1', name: 'Золотой клик', desc: 'Золотое свечение при клике', cost: 0, icon: '✨', bonus: { type: 'click', mult: 2 } },
+  { id: 'e2', name: 'Неоновый свет', desc: 'Неоновое свечение', cost: 0, icon: '💡', bonus: { type: 'auto', mult: 1.5 } },
+  { id: 'e3', name: 'Радужный след', desc: 'Радужный эффект при клике', cost: 0, icon: '🌈', bonus: { type: 'click', mult: 3 } },
+  { id: 'e4', name: 'Частицы звёзд', desc: 'Звёздные частицы', cost: 0, icon: '⭐', bonus: { type: 'auto', mult: 2 } },
+  { id: 'e5', name: 'Эффект волны', desc: 'Волновая анимация при клике', cost: 0, icon: '🌊', bonus: { type: 'click', mult: 5 } },
+  { id: 'e6', name: 'Огненное сияние', desc: 'Огненное свечение при клике', cost: 0, icon: '🔥', bonus: { type: 'click', mult: 10 } },
+  
+  // ДОПОЛНИТЕЛЬНЫЕ ЭФФЕКТЫ - только из Рыбных боксов!
+  { id: 'e7', name: 'Ледяной мороз', desc: 'Холодное голубое свечение', cost: 0, icon: '❄️', bonus: { type: 'auto', mult: 2.5 } },
+  { id: 'e8', name: 'Темная материя', desc: 'Мрачный фиолетовый ореол', cost: 0, icon: '🌌', bonus: { type: 'click', mult: 8 } },
+  { id: 'e9', name: 'Электрический шторм', desc: 'Молнии вокруг курсора', cost: 0, icon: '⚡', bonus: { type: 'click', mult: 6, type2: 'auto', mult2: 1.8 } },
+  { id: 'e10', name: 'Призрачное сияние', desc: 'Мистический зелёный свет', cost: 0, icon: '👻', bonus: { type: 'auto', mult: 3 } }
 ];
 
 // Расчет perClick (без навыков - только апгрейды из магазина)
@@ -1594,7 +1658,7 @@ function renderBoxes() {
     </div>
     <h4>Тайный Бокс</h4>
     <p>Скин или косатки!</p>
-    <div class="box-price">🐋 ${formatNumber(1700)}</div>
+    <div class="box-price">🐋 ${formatNumber(8500)}</div>
     <button class="box-buy-btn" onclick="buyBox()">Купить</button>
     <div class="box-inventory">
       <p>У вас есть: <strong id="boxCount">${pendingBoxes.length}</strong> бокс(ов)</p>
@@ -1618,7 +1682,7 @@ function renderBoxes() {
     </div>
     <h4>Рыбный Бокс</h4>
     <p>Эффекты навсегда + временные баффы!</p>
-    <div class="box-price">🐋 ${formatNumber(2500)}</div>
+    <div class="box-price">🐋 ${formatNumber(12500)}</div>
     <button class="box-buy-btn" onclick="buyFishBox()">Купить</button>
     <div class="box-inventory">
       <p>У вас есть: <strong id="fishBoxCount">${pendingFishBoxes.length}</strong> бокс(ов)</p>
@@ -1671,14 +1735,24 @@ function renderSkins() {
   
   container.innerHTML = '';
   
+  // Добавляем заголовок
+  const header = document.createElement('div');
+  header.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 20px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;';
+  header.innerHTML = `
+    <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🎁 Все скины получаются из Тайного бокса!</p>
+    <p style="font-size: 14px; opacity: 0.8;">Откройте Тайный бокс чтобы получить новые скины навсегда. Скин Ричи выдаётся отдельно за достижения.</p>
+  `;
+  container.appendChild(header);
+  
   skinsData.forEach(skin => {
-    const unlocked = game.skins[skin.id] || skin.cost === 0;
+    const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
+    const statusText = unlocked ? '✅' : skin.secret ? '🔒 Секретный' : '🎁 Из бокса';
     const div = document.createElement('div');
     div.className = `skin-item ${game.currentSkin === skin.id ? 'active' : ''} ${!unlocked ? 'locked-skin' : ''}`;
     div.innerHTML = `
       <img src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">
       <p>${skin.name}</p>
-      <p>${skin.cost === 0 ? '✅' : formatNumber(skin.cost)}</p>
+      <p>${statusText}</p>
     `;
     div.onclick = () => buyOrEquipSkin(skin);
     container.appendChild(div);
@@ -1686,7 +1760,7 @@ function renderSkins() {
 }
 
 function buyOrEquipSkin(skin) {
-  const unlocked = game.skins[skin.id] || skin.cost === 0;
+  const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
   
   if (unlocked) {
     // Просто выбираем скин (сохранение на сервере)
@@ -1703,11 +1777,11 @@ function buyOrEquipSkin(skin) {
       saveGame();
     }
   } else {
-    // Скины теперь только из ящиков
-    showNotification('🎁 Скины можно получить только из ящика');
+    // Скины ТОЛЬКО из боксов!
+    showNotification('🎁 Скины можно получить только из Тайного бокса!');
   }
 }
-
+  
 // ==================== КВЕСТЫ ====================
 function getCurrentDateString() {
   const d = new Date();
@@ -1790,7 +1864,7 @@ function renderQuests() {
     container.appendChild(div);
   });
 }
-
+  
 function getQuestProgress(quest) {
   // Для ежедневных квестов - используем dailyProgress, для постоянных - общую статистику
   const isDaily = game.dailyQuestIds && game.dailyQuestIds.includes(quest.id);
@@ -1843,7 +1917,7 @@ function applyEffects() {
   if (!clicker || !game.effects) return;
   
   // Сброс всех эффектов
-  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire');
+  clicker.classList.remove('effect-gold', 'effect-neon', 'effect-fire', 'effect-ice', 'effect-shadow', 'effect-electric', 'effect-ghost');
   clicker.style.removeProperty('--rainbow-gradient');
   
   // Золотой клик (e1)
@@ -1865,6 +1939,26 @@ function applyEffects() {
   if (game.effects['e6'] && isEffectEnabled('e6')) {
     clicker.classList.add('effect-fire');
   }
+  
+  // Ледяной мороз (e7)
+  if (game.effects['e7'] && isEffectEnabled('e7')) {
+    clicker.classList.add('effect-ice');
+  }
+  
+  // Темная материя (e8)
+  if (game.effects['e8'] && isEffectEnabled('e8')) {
+    clicker.classList.add('effect-shadow');
+  }
+  
+  // Электрический шторм (e9)
+  if (game.effects['e9'] && isEffectEnabled('e9')) {
+    clicker.classList.add('effect-electric');
+  }
+  
+  // Призрачное сияние (e10)
+  if (game.effects['e10'] && isEffectEnabled('e10')) {
+    clicker.classList.add('effect-ghost');
+  }
 }
 
 function getEffectName(effectId) {
@@ -1874,7 +1968,11 @@ function getEffectName(effectId) {
     e3: 'Радужный след',
     e4: 'Частицы звёзд',
     e5: 'Волновой эффект',
-    e6: 'Огненное сияние'
+    e6: 'Огненное сияние',
+    e7: 'Ледяной мороз',
+    e8: 'Темная материя',
+    e9: 'Электрический шторм',
+    e10: 'Призрачное сияние'
   };
   return effectNames[effectId] || effectId;
 }
@@ -1884,7 +1982,7 @@ function isEffectEnabled(effectId) {
 }
 
 function syncEffectsTogglesUI() {
-  const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+  const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'e10'];
 
   ids.forEach(id => {
     const enabled = isEffectEnabled(id);
@@ -1919,7 +2017,7 @@ function toggleEffectsSettings() {
   
   // Включаем/выключаем все эффекты сразу
   const enabled = toggle.checked;
-  ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].forEach(id => {
+  ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'e10'].forEach(id => {
     localStorage.setItem(`effect_${id}_enabled`, enabled ? 'true' : 'false');
   });
   
@@ -1973,7 +2071,7 @@ function renderEffects() {
   }
   
   container.innerHTML = `
-    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;">
+    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(32,178,170,0.1); border: 2px solid rgba(32,178,170,0.3); border-radius: 16px; margin-bottom: 20px;">
       <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты получаются из Рыбного бокса!</p>
       <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс чтобы получить визуальные эффекты навсегда.</p>
       <p style="font-size: 13px; opacity: 0.7; margin-top: 10px;">Также могут выпасть временные баффы (множители X2-X5 на 20-30 секунд).</p>
@@ -2066,19 +2164,43 @@ function checkAchievements() {
     
     // Новые достижения - квесты
     { id: 'a25', check: () => game.quests.filter(q => q.completed).length >= 5 },
-    { id: 'a26', check: () => game.quests.every(q => q.completed) }
+    { id: 'a26', check: () => game.quests.every(q => q.completed) },
+    
+    // ДОПОЛНИТЕЛЬНЫЕ ДОСТИЖЕНИЯ - новые!
+    { id: 'a27', check: () => game.coins >= 1000000000000000 },
+    { id: 'a28', check: () => getPerClick() >= 1000000 },
+    { id: 'a29', check: () => getPerSecond() >= 1000000 },
+    { id: 'a30', check: () => game.playTime >= 360000 },
+    { id: 'a31', check: () => Object.keys(game.skins || {}).length >= 7 },
+    { id: 'a32', check: () => Object.keys(game.effects || {}).length >= 3 },
+    { id: 'a33', check: () => game.clicks >= 10000 }, // Placeholder для боксов
+    { id: 'a34', check: () => game.clicks >= 5000 },  // Placeholder для рыбных боксов
+    { id: 'a35', check: () => game.clan !== null },
+    { id: 'a36', check: () => game.clicks >= 3000 },  // Placeholder для кланов
+    { id: 'a37', check: () => game.clicks >= 100000 }, // Placeholder для батлов
+    { id: 'a38', check: () => game.clicks >= 1000000 },
+    { id: 'a39', check: () => game.coins >= 100000000000 },
+    { id: 'a40', check: () => game.level >= 50 }
   ];
   
+  let anyNewAchievement = false;
+
   checks.forEach(({ id, check }) => {
     if (!game.achievements.includes(id) && check()) {
       game.achievements.push(id);
+      anyNewAchievement = true;
       const ach = achievementsData.find(a => a.id === id);
       showNotification(`🏆 Достижение: ${ach.name}!`);
       playSound('bonusSound');
-      renderAchievements();
-      saveGame();
     }
   });
+
+  if (anyNewAchievement) {
+    renderAchievements();
+    saveGame();
+  }
+
+  unlockSecretRichiSkin();
 }
 
 // ==================== ЛИДЕРБОРД ====================

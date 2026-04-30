@@ -2115,8 +2115,8 @@ function handleEquipSkin(ws, skinId) {
 }
 
 // Боксы
-const boxPrice = 1700;
-const fishBoxPrice = 2500;
+const boxPrice = 8500;  // Было 1700, увеличено в 5 раз
+const fishBoxPrice = 12500;  // Было 2500, увеличено в 5 раз
 
 // ==================== ЗАЩИТА ОТ БОТОВ (умная) ====================
 // Отличает людей от ботов по паттернам кликов
@@ -2179,12 +2179,27 @@ function analyzeClickPattern(accountId, clickTime) {
 }
 const boxRewards = {
   skins: [
-    { id: 'chillcat', weight: 15, name: 'Чилл' },
+    // Базовые скины (чаще)
+    { id: 'chillcat', weight: 20, name: 'Чилл' },
     { id: 'hiding', weight: 20, name: 'Прячущаяся' },
-    { id: 'beauty', weight: 12, name: 'Красавица' },
-    { id: 'wild', weight: 10, name: 'Дикая' },
-    { id: 'cyberpunk', weight: 5, name: 'Киберпанк' },
-    { id: 'interesting', weight: 8, name: 'Интересная' }
+    { id: 'beauty', weight: 18, name: 'Красавица' },
+    { id: 'wild', weight: 15, name: 'Дикая' },
+    { id: 'interesting', weight: 12, name: 'Интересная' },
+    // Редкие скины
+    { id: 'cyberpunk', weight: 8, name: 'Киберпанк' },
+    { id: 'cute', weight: 5, name: 'Милашка' },
+    { id: 'bugeyed', weight: 4, name: 'Глазастая' },
+    { id: 'abitchonky', weight: 4, name: 'Пухляшка' },
+    // Эпические скины
+    { id: 'neon', weight: 3, name: 'Неоновая' },
+    { id: 'shadow', weight: 2.5, name: 'Теневая' },
+    { id: 'ice', weight: 2.5, name: 'Ледяная' },
+    { id: 'fire', weight: 2, name: 'Огненная' },
+    // Легендарные скины
+    { id: 'gold', weight: 1.5, name: 'Золотая' },
+    { id: 'diamond', weight: 1, name: 'Алмазная' },
+    { id: 'cosmic', weight: 0.8, name: 'Космическая' },
+    { id: 'rainbow', weight: 0.5, name: 'Радужная' }
   ],
   coins: [
     { amount: 500, weight: 40 },
@@ -2198,17 +2213,25 @@ const boxRewards = {
 // Награды Рыбного бокса - визуальные эффекты и временные баффы
 const fishBoxRewards = {
   visualEffects: [
-    { id: 'e1', name: 'Золотой клик', weight: 20, rarity: 'rare' },
-    { id: 'e2', name: 'Неоновый свет', weight: 18, rarity: 'rare' },
+    // Базовые эффекты (чаще)
+    { id: 'e1', name: 'Золотой клик', weight: 25, rarity: 'rare' },
+    { id: 'e2', name: 'Неоновый свет', weight: 22, rarity: 'rare' },
+    { id: 'e5', name: 'Волновой эффект', weight: 18, rarity: 'rare' },
+    // Редкие эффекты
     { id: 'e3', name: 'Радужный след', weight: 12, rarity: 'epic' },
     { id: 'e4', name: 'Частицы звёзд', weight: 10, rarity: 'epic' },
-    { id: 'e5', name: 'Волновой эффект', weight: 8, rarity: 'epic' },
-    { id: 'e6', name: 'Огненное сияние', weight: 5, rarity: 'legendary' }
+    { id: 'e6', name: 'Огненное сияние', weight: 8, rarity: 'epic' },
+    // Эпические эффекты
+    { id: 'e7', name: 'Ледяной мороз', weight: 5, rarity: 'epic' },
+    { id: 'e10', name: 'Призрачное сияние', weight: 4, rarity: 'epic' },
+    // Легендарные эффекты
+    { id: 'e8', name: 'Темная материя', weight: 2, rarity: 'legendary' },
+    { id: 'e9', name: 'Электрический шторм', weight: 1.5, rarity: 'legendary' }
   ],
   tempBuff: [
-    { type: 'multiplier', mult: 2, weight: 25, duration: 30, rarity: 'rare' },
-    { type: 'multiplier', mult: 3, weight: 15, duration: 25, rarity: 'epic' },
-    { type: 'multiplier', mult: 5, weight: 8, duration: 20, rarity: 'legendary' }
+    { type: 'multiplier', mult: 2, weight: 30, duration: 30, rarity: 'rare' },
+    { type: 'multiplier', mult: 3, weight: 20, duration: 25, rarity: 'epic' },
+    { type: 'multiplier', mult: 5, weight: 10, duration: 20, rarity: 'legendary' }
   ]
 };
 
