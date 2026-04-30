@@ -1338,9 +1338,9 @@ function handleCreateBattleLobby(ws, isOpen = true) {
     ownerName: player.name,
     opponent: null,
     opponentName: null,
-    status: 'waiting', // waiting, ready, started
-    isOpen: isOpen !== false, // По умолчанию открытое
-    code: lobbyCode, // Код для закрытого лобби
+    status: 'waiting',
+    isOpen: isOpen !== false,
+    lobbyCode: lobbyCode,
     createdAt: Date.now()
   });
   
@@ -1349,7 +1349,7 @@ function handleCreateBattleLobby(ws, isOpen = true) {
     lobbyId,
     ownerName: player.name,
     isOpen: isOpen !== false,
-    code: lobbyCode // Отправляем код владельцу
+    lobbyCode: lobbyCode
   }));
   
   // Отправляем обновление списка лобби всем
@@ -1358,7 +1358,6 @@ function handleCreateBattleLobby(ws, isOpen = true) {
 
 // Присоединение к лобби (по ID или коду)
 function handleJoinBattleLobby(ws, data) {
-  // Поддерживаем как { lobbyId } так и { lobbyId, code } для закрытых лоби
   const lobbyId = data.lobbyId || data;
   const code = data.code;
   
@@ -1370,6 +1369,13 @@ function handleJoinBattleLobby(ws, data) {
   if (!lobby) {
     ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
     return;
+  }
+  
+  if (!lobby.isOpen) {
+    if (!code || lobby.lobbyCode !== code) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Нужен код для вступления в закрытое лобби' }));
+      return;
+    }
   }
   
   // Проверка: лобби закрыто - нужен код
@@ -1421,7 +1427,7 @@ function handleJoinBattleLobby(ws, data) {
       opponentName: player.name
     }));
   }
-  
+    
   // Обновляем список лобби
   broadcastBattleLobbies();
 }
@@ -1562,7 +1568,8 @@ function broadcastBattleLobbies() {
       ownerName: lobby.ownerName,
       opponentName: lobby.opponentName,
       hasOpponent: !!lobby.opponent,
-      isOpen: lobby.isOpen !== false, // Показываем статус (открытое/закрытое)
+      isOpen: lobby.isOpen !== false,
+      lobbyCode: lobby.lobbyCode,
       createdAt: lobby.createdAt
     }));
     
