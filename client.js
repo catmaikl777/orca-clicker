@@ -2107,33 +2107,6 @@ function renderEffects() {
   // Инициализация если нет
   if (!game.effects) game.effects = {};
   
-  // Используем контейнер магазина
-  const container = document.getElementById('shopEffects');
-  if (container) {
-    container.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(32,178,170,0.1); border: 2px solid rgba(32,178,170,0.3); border-radius: 16px; margin-bottom: 20px;">
-        <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты получаются из Рыбного бокса!</p>
-        <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс чтобы получить визуальные эффекты навсегда.</p>
-        <p style="font-size: 13px; opacity: 0.7; margin-top: 10px;">Также могут выпасть временные баффы (множители X2-X5 на 20-30 секунд).</p>
-      </div>
-    `;
-    
-    effectsData.forEach(effect => {
-      const bought = !!game.effects[effect.id];
-      const div = document.createElement('div');
-      div.className = `effect-item ${bought ? 'bought' : 'locked'}`;
-      div.innerHTML = `
-        <div class="effect-icon">${effect.icon}</div>
-        <div class="effect-info">
-          <h4>${effect.name}</h4>
-          <p>${effect.desc}</p>
-        </div>
-        <div class="effect-price">🐟 Только из бокса</div>
-      `;
-      container.appendChild(div);
-    });
-  }
-  
   // Рендер в отдельном модальном окне Effects
   const effectsModalContainer = document.getElementById('effectsList');
   if (effectsModalContainer) {
@@ -3236,6 +3209,7 @@ function showModal(id) {
     updateEventUI();
     renderEventLeaderboard();
   }
+  if (id === 'effectsModal') renderEffects();
 }
 
 function closeAllModals() {
@@ -3244,36 +3218,28 @@ function closeAllModals() {
 }
 
 function switchShopTab(tab, btn) {
-  const tabs = document.querySelectorAll('.shop-tab');
-  tabs.forEach(t => t.classList.remove('active'));
-  const activeBtn = btn || tabs[0];
-  if (activeBtn) activeBtn.classList.add('active');
+  // Скрываем все вкладки
+  document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
   
+  // Скрываем все панели
+  document.getElementById('shopUpgrades').style.display = 'none';
+  document.getElementById('shopSkins').style.display = 'none';
+  document.getElementById('shopBoxes').style.display = 'none';
+  
+  // Показываем нужную
   if (tab === 'upgrades') {
-    document.getElementById('shopUpgrades').style.display = 'flex';
-    document.getElementById('shopSkins').style.display = 'none';
-    document.getElementById('shopBoxes').style.display = 'none';
-    document.getElementById('shopEffects').style.display = 'none';
+    document.getElementById('shopUpgrades').style.display = 'block';
+    renderShop();
   } else if (tab === 'skins') {
-    document.getElementById('shopUpgrades').style.display = 'none';
-    document.getElementById('shopSkins').style.display = 'grid';
-    document.getElementById('shopBoxes').style.display = 'none';
-    document.getElementById('shopEffects').style.display = 'none';
+    document.getElementById('shopSkins').style.display = 'block';
     renderSkins();
   } else if (tab === 'boxes') {
-    document.getElementById('shopUpgrades').style.display = 'none';
-    document.getElementById('shopSkins').style.display = 'none';
-    document.getElementById('shopBoxes').style.display = 'flex';
-    document.getElementById('shopEffects').style.display = 'none';
+    document.getElementById('shopBoxes').style.display = 'block';
     renderBoxes();
-  } else if (tab === 'effects') {
-    document.getElementById('shopUpgrades').style.display = 'none';
-    document.getElementById('shopSkins').style.display = 'none';
-    document.getElementById('shopBoxes').style.display = 'none';
-    document.getElementById('shopEffects').style.display = 'grid';
-    renderEffects();
   }
 }
+
 
 // ==================== СТАТИСТИКА ====================
 function updateStats() {
