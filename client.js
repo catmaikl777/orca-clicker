@@ -117,11 +117,42 @@ const richiSecretAchievementThreshold = 1;
 function unlockSecretRichiSkin() {
   if (!game.skins.richi && game.achievements.length >= richiSecretAchievementThreshold) {
     game.skins.richi = true;
-    showNotification(`✨ Секретный скин "Ричи" получен за ${richiSecretAchievementThreshold} достижения!`);
-    playSound('bonusSound');
+    showRichiUnlockAnimation();
     renderSkins();
     saveGame();
   }
+}
+
+function showRichiUnlockAnimation() {
+  const animationModal = document.createElement('div');
+  animationModal.className = 'richi-unlock-modal';
+  animationModal.innerHTML = `
+    <div class="richi-unlock-overlay"></div>
+    <div class="richi-unlock-content">
+      <div class="richi-sparkles"></div>
+      <div class="richi-glow"></div>
+      <div class="richi-image-container">
+        <img src="richi.png" alt="Ричи" class="richi-unlock-image" onerror="this.style.display='none'">
+      </div>
+      <h1 class="richi-unlock-title">✨ СЕКРЕТНЫЙ СКИН РАЗБЛОКИРОВАН! ✨</h1>
+      <p class="richi-unlock-subtitle">Ричи получен за ${richiSecretAchievementThreshold} достижения!</p>
+      <button class="richi-unlock-btn" onclick="this.closest('.richi-unlock-modal').remove()">Принять</button>
+    </div>
+  `;
+
+  document.body.appendChild(animationModal);
+
+  setTimeout(() => {
+    animationModal.classList.add('show');
+    playSound('levelSound');
+  }, 100);
+
+  // Автоматическое закрытие через 8 секунд
+  setTimeout(() => {
+    if (animationModal.parentNode) {
+      animationModal.remove();
+    }
+  }, 8000);
 }
 
 // Квесты
@@ -3014,14 +3045,12 @@ function showBoxReward(reward) {
   const title = reward.type === 'skin' ? 'Новый скин!' : 'Косатки!';
   const value = reward.type === 'skin' ? reward.skinName : `+${formatNumber(reward.amount)}`;
   const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
-  const isRichi = reward.type === 'skin' && reward.skinId === 'richi';
   
   rewardModal.innerHTML = `
     <div class="reward-overlay"></div>
-    <div class="reward-content ${isRichi ? 'richi-reward' : ''}" style="box-shadow: ${rarityGlow[reward.rarity]}">
+    <div class="reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
       <div class="reward-icon" style="background: ${rarityColors[reward.rarity]}">${icon}</div>
       <h2 class="reward-title ${reward.rarity}">${title}</h2>
-      ${isRichi ? `<div class="richi-badge">✨ Ричи ✨</div>` : ''}
       <p class="reward-value">${value}</p>
       <p class="reward-rarity ${reward.rarity}">${reward.rarity === 'legendary' ? 'ЛЕГЕНДАРНО' : reward.rarity === 'epic' ? 'ЭПИЧЕСКИЙ' : 'РЕДКИЙ'}</p>
       ${skin ? `<img class="reward-skin-image" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
