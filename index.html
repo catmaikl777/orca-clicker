@@ -249,23 +249,22 @@
       <button class="close-btn" onclick="closeAllModals()">×</button>
     </div>
     <div class="modal-content">
-      <!-- Вкладки -->
-      <div class="battle-tabs">
-        <button class="battle-tab active" onclick="switchBattleTab('quick', this)">⚡ Быстрый</button>
-        <button class="battle-tab" onclick="switchBattleTab('lobby', this)">🏠 Лобби</button>
-      </div>
-      
-      <!-- Быстрый поиск -->
-      <div id="battleQuickSearch" class="battle-search active">
-        <button class="action-btn" onclick="findBattle()">🔍 Найти соперника</button>
-        <p id="battleStatus">Нажмите кнопку для поиска соперника</p>
-      </div>
-      
       <!-- Лобби -->
-      <div id="battleLobbyView" class="battle-lobby-view hidden">
-        <!-- Кнопки управления лобби -->
+      <div id="battleLobbyView" class="battle-lobby-view">
+        <!-- Форма создания лобби -->
         <div class="lobby-controls">
-          <button class="action-btn" onclick="createBattleLobby()">🏠 Создать лобби</button>
+          <div class="lobby-create-form">
+            <label>🏠 Создать лобби:</label>
+            <div class="lobby-options">
+              <label class="lobby-option-label">
+                <input type="radio" name="lobbyType" value="open" checked class="lobby-radio"> 🔓 Открытое
+              </label>
+              <label class="lobby-option-label">
+                <input type="radio" name="lobbyType" value="closed" class="lobby-radio"> 🔒 Закрытое
+              </label>
+            </div>
+            <button class="action-btn" onclick="createBattleLobby()">✅ Создать</button>
+          </div>
           <button class="action-btn" onclick="refreshBattleLobbies()">🔄 Обновить</button>
         </div>
         

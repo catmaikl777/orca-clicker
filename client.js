@@ -860,7 +860,6 @@ function handleServerMessage(data) {
         showNotification(`⚠️ ${data.message}`);
         // Возвращаемся к UI лобби если была ошибка
         if (currentLobbyId) {
-          document.getElementById('battleQuickSearch').classList.remove('hidden');
           document.getElementById('battleLobbyView').classList.remove('hidden');
         }
       }
@@ -2275,35 +2274,6 @@ let myBattleCPS = 0;
 let battleClickTimer = null;
 let currentLobbyId = null;
 
-// Переключение вкладок батла
-function switchBattleTab(tab, btn) {
-  document.querySelectorAll('.battle-tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  
-  if (tab === 'quick') {
-    document.getElementById('battleQuickSearch').classList.remove('hidden');
-    document.getElementById('battleQuickSearch').classList.add('active');
-    document.getElementById('battleLobbyView').classList.add('hidden');
-    document.getElementById('battleLobbyView').classList.remove('active');
-  } else if (tab === 'lobby') {
-    document.getElementById('battleQuickSearch').classList.add('hidden');
-    document.getElementById('battleQuickSearch').classList.remove('active');
-    document.getElementById('battleLobbyView').classList.remove('hidden');
-    document.getElementById('battleLobbyView').classList.add('active');
-    // Запрашиваем список лобби с небольшой задержкой
-    setTimeout(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
-        console.log('📤 Запрос списка лобби отправлен');
-      } else {
-        console.warn('⚠️ WebSocket не подключён, ждём подключения');
-        document.getElementById('battleLobbyList').innerHTML = 
-          '<p style="text-align:center;padding:20px;color:#ffd700">⏳ Подключение к серверу...</p>';
-      }
-    }, 50);
-  }
-}
-
 // Создание лобби
 function createBattleLobby() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -2315,7 +2285,11 @@ function createBattleLobby() {
     return;
   }
   
-  ws.send(JSON.stringify({ type: 'createBattleLobby' }));
+  // Получаем выбранный тип лобби
+  const lobbyTypeRadio = document.querySelector('input[name="lobbyType"]:checked');
+  const isOpen = lobbyTypeRadio ? lobbyTypeRadio.value === 'open' : true;
+  
+  ws.send(JSON.stringify({ type: 'createBattleLobby', isOpen }));
 }
 
 // Присоединение к лобби
@@ -2385,22 +2359,25 @@ function updateBattleLobbiesUI(lobbies) {
     const div = document.createElement('div');
     div.className = 'lobby-item';
     
+    const lockIcon = lobby.isOpen ? '🔓' : '🔒';
+    const statusText = lobby.isOpen ? 'Открытое' : 'Закрытое';
+    
     if (lobby.hasOpponent) {
       div.classList.add('full');
       div.innerHTML = `
         <div class="lobby-info">
           <p><strong>${escapeHtml(lobby.ownerName)}</strong> и <strong>${escapeHtml(lobby.opponentName)}</strong></p>
-          <small>Лобби заполнено</small>
+          <small>${statusText} лобби</small>
         </div>
-        <span style="color:#ff6b6b;font-weight:600">🔒</span>
+        <span style="color:#ffd700;font-weight:600">${lockIcon}</span>
       `;
     } else {
       div.innerHTML = `
         <div class="lobby-info">
           <p><strong>${escapeHtml(lobby.ownerName)}</strong> ищет соперника</p>
-          <small>Создано ${new Date(lobby.createdAt).toLocaleTimeString()}</small>
+          <small>${statusText} • Создано ${new Date(lobby.createdAt).toLocaleTimeString()}</small>
         </div>
-        <button class="action-btn" onclick="joinBattleLobby('${lobby.id}')" style="margin-bottom:0">Вступить</button>
+        ${lobby.isOpen ? `<button class="action-btn" onclick="joinBattleLobby('${lobby.id}')" style="margin-bottom:0">Вступить</button>` : `<span style="color:#666;font-size:12px">Закрыто</span>`}
       `;
     }
     
@@ -2435,18 +2412,6 @@ function updateMyLobbyUI(lobby) {
   }
 }
 
-function findBattle() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    document.getElementById('battleStatus').textContent = 'Сервер недоступен';
-    return;
-  }
-
-  ws.send(JSON.stringify({ type: 'findBattle' }));
-  document.getElementById('battleLobby').classList.add('hidden');
-  document.getElementById('battleStatus').textContent = 'Поиск соперника...';
-}
-
 function startBattleUI(data) {
   battleId = data.battleId;
   myBattleClicks = 0;
@@ -2454,13 +2419,11 @@ function startBattleUI(data) {
   currentLobbyId = data.lobbyId || null;
   
   // Скрываем все UI лобби (с проверками)
-  const battleQuickSearch = document.getElementById('battleQuickSearch');
   const battleLobbyView = document.getElementById('battleLobbyView');
   const myBattleLobby = document.getElementById('myBattleLobby');
   const battleLobby = document.getElementById('battleLobby');
   const battleArena = document.getElementById('battleArena');
   
-  if (battleQuickSearch) battleQuickSearch.classList.add('hidden');
   if (battleLobbyView) battleLobbyView.classList.add('hidden');
   if (myBattleLobby) myBattleLobby.classList.add('hidden');
   if (battleLobby) battleLobby.classList.add('hidden');
@@ -2605,20 +2568,16 @@ function endBattleUI(data) {
   setTimeout(() => {
     // Скрываем арену и все UI лобби (с проверками)
     const battleArena = document.getElementById('battleArena');
-    const battleQuickSearch = document.getElementById('battleQuickSearch');
     const battleLobbyView = document.getElementById('battleLobbyView');
     const myBattleLobby = document.getElementById('myBattleLobby');
     const battleLobby = document.getElementById('battleLobby');
-    const battleStatus = document.getElementById('battleStatus');
     const btn = document.getElementById('battleClickBtn');
     
     if (battleArena) battleArena.classList.add('hidden');
-    if (battleQuickSearch) battleQuickSearch.classList.remove('hidden');
     if (battleLobbyView) battleLobbyView.classList.add('hidden');
     if (myBattleLobby) myBattleLobby.classList.add('hidden');
     if (battleLobby) battleLobby.classList.remove('hidden');
     
-    if (battleStatus) battleStatus.textContent = 'Нажмите кнопку для поиска соперника';
     if (btn) btn.onclick = null;
     
     battleId = null;
@@ -3180,10 +3139,8 @@ function showModal(id) {
   if (id === 'leaderboard' && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getLeaderboard' }));
   if (id === 'battle') {
     // Сброс UI лобби при открытии
-    document.getElementById('battleQuickSearch').classList.remove('hidden');
-    document.getElementById('battleQuickSearch').classList.add('active');
-    document.getElementById('battleLobbyView').classList.add('hidden');
-    document.getElementById('battleLobbyView').classList.remove('active');
+    document.getElementById('battleLobbyView').classList.remove('hidden');
+    document.getElementById('battleLobbyView').classList.add('active');
     document.getElementById('myBattleLobby').classList.add('hidden');
     // Запросить список лобби (без проверки readyState - отправим при подключении)
     setTimeout(() => {

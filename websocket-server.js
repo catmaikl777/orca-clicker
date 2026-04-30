@@ -189,7 +189,6 @@ const saveSnapshots = new Map(); // playerId -> { t, clicks }
 // Хранилище в памяти (только для онлайн игроков)
 const players = new Map();
 const battles = new Map();
-const waitingPlayers = [];
 
 // Данные игроков (загружаются из PostgreSQL при необходимости)
 const now = Date.now();
@@ -671,8 +670,6 @@ ws.on('message', (message) => {
     for (const [battleId, battle] of battles) {
       if (battle.players.includes(playerId)) endBattle(battleId, playerId);
     }
-    const idx = waitingPlayers.indexOf(playerId);
-    if (idx > -1) waitingPlayers.splice(idx, 1);
     
     // Обновляем список лобби
     broadcastBattleLobbies();
@@ -696,8 +693,7 @@ function handleMessage(ws, data) {
     case 'click': handleClick(ws, data); break;
     case 'addEventCoins': addEventCoins(ws.accountId || ws.playerId, data.amount); break;
     case 'getEventInfo': sendEventInfo(ws); break;
-    case 'findBattle': handleFindBattle(ws); break;
-    case 'createBattleLobby': handleCreateBattleLobby(ws); break;
+    case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'joinBattleLobby': handleJoinBattleLobby(ws, data.lobbyId); break;
     case 'leaveBattleLobby': handleLeaveBattleLobby(ws); break;
     case 'getBattleLobbies': handleGetBattleLobbies(ws); break;
@@ -1307,43 +1303,8 @@ function addEventCoins(playerId, amount) {
   }
 }
 
-function handleFindBattle(ws) {
-  const id = ws.accountId || ws.playerId;
-  const player = players.get(id);
-  if (!player) return;
-  
-  // Не позволяем одному игроку быть в очереди дважды
-  if (waitingPlayers.includes(id)) {
-    ws.send(JSON.stringify({ type: 'waitingForBattle' }));
-    return;
-  }
-  
-  // Если уже есть игрок в очереди - начинаем батл
-  if (waitingPlayers.length > 0) {
-    const opponentId = waitingPlayers.shift();
-    // Проверяем что opponentId не равен текущему игроку
-    if (opponentId !== id) {
-      startBattle(id, opponentId);
-      return;
-    } else {
-      // Если вдруг это тот же игрок, добавляем обратно
-      waitingPlayers.push(opponentId);
-    }
-  }
-  
-  // Если никого нет в очереди - добавляем текущего игрока
-  // Ограничиваем очередь максимум 1 игроком (чтобы третий не подключился)
-  if (waitingPlayers.length >= 1) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Лобби заполнено. Подождите...' }));
-    return;
-  }
-  
-  waitingPlayers.push(id);
-  ws.send(JSON.stringify({ type: 'waitingForBattle' }));
-}
-
 // Создание лобби для батла
-function handleCreateBattleLobby(ws) {
+function handleCreateBattleLobby(ws, isOpen = true) {
   const id = ws.accountId || ws.playerId;
   const player = players.get(id);
   if (!player) return;
@@ -1370,13 +1331,15 @@ function handleCreateBattleLobby(ws) {
     opponent: null,
     opponentName: null,
     status: 'waiting', // waiting, ready, started
+    isOpen: isOpen !== false, // По умолчанию открытое
     createdAt: Date.now()
   });
   
   ws.send(JSON.stringify({ 
     type: 'lobbyCreated', 
     lobbyId,
-    ownerName: player.name
+    ownerName: player.name,
+    isOpen: isOpen !== false
   }));
   
   // Отправляем обновление списка лобби всем
@@ -1392,6 +1355,12 @@ function handleJoinBattleLobby(ws, lobbyId) {
   const lobby = battleLobbies.get(lobbyId);
   if (!lobby) {
     ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  // Проверка: лобби закрыто?
+  if (!lobby.isOpen) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби закрыто' }));
     return;
   }
   
@@ -1491,6 +1460,7 @@ function handleGetBattleLobbies(ws) {
       ownerName: lobby.ownerName,
       opponentName: lobby.opponentName,
       hasOpponent: !!lobby.opponent,
+      isOpen: lobby.isOpen !== false, // По умолчанию открытое
       createdAt: lobby.createdAt
     }));
   
@@ -1535,6 +1505,7 @@ function broadcastBattleLobbies() {
       ownerName: lobby.ownerName,
       opponentName: lobby.opponentName,
       hasOpponent: !!lobby.opponent,
+      isOpen: lobby.isOpen !== false, // Показываем статус (открытое/закрытое)
       createdAt: lobby.createdAt
     }));
     
@@ -1593,12 +1564,6 @@ function startBattle(player1Id, player2Id, lobbyId = null) {
     battleLobbies.delete(lobbyId);
     broadcastBattleLobbies();
   }
-  
-  // Удаляем из очереди если были
-  const idx1 = waitingPlayers.indexOf(player1Id);
-  if (idx1 > -1) waitingPlayers.splice(idx1, 1);
-  const idx2 = waitingPlayers.indexOf(player2Id);
-  if (idx2 > -1) waitingPlayers.splice(idx2, 1);
   
   setTimeout(() => endBattle(battleId), 30000);
 }

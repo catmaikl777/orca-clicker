@@ -2615,11 +2615,51 @@ body {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .lobby-controls .action-btn {
   flex: 1;
   margin-bottom: 0;
+  min-width: 100px;
+}
+
+.lobby-create-form {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 200px;
+}
+
+.lobby-create-form label {
+  color: #FFD700;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.lobby-options {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.lobby-option-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #fff;
+  user-select: none;
+}
+
+.lobby-radio {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #FF8C00;
 }
 
 .battle-lobby-list {
