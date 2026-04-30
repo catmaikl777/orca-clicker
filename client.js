@@ -112,7 +112,7 @@ const skinsData = [
   { id: 'abitchonky', name: 'Пухляшка', cost: 0, image: 'a-bit-chonky.png' }
 ];
 
-const richiSecretAchievementThreshold = 1;
+const richiSecretAchievementThreshold = 40;
 
 function unlockSecretRichiSkin() {
   if (!game.skins.richi && game.achievements.length >= richiSecretAchievementThreshold) {
@@ -135,7 +135,7 @@ function showRichiUnlockAnimation() {
         <img src="richi.png" alt="Ричи" class="richi-unlock-image" onerror="this.style.display='none'">
       </div>
       <h1 class="richi-unlock-title">✨ СЕКРЕТНЫЙ СКИН РАЗБЛОКИРОВАН! ✨</h1>
-      <p class="richi-unlock-subtitle">Ричи получен за ${richiSecretAchievementThreshold} достижения!</p>
+      <p class="richi-unlock-subtitle">Ричи получен за ВСЕ достижения!</p>
       <button class="richi-unlock-btn" onclick="this.closest('.richi-unlock-modal').remove()">Принять</button>
     </div>
   `;
