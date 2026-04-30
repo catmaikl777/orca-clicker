@@ -2024,36 +2024,25 @@ function syncEffectsTogglesUI() {
   ids.forEach(id => {
     const enabled = isEffectEnabled(id);
     
-    // Синхронизируем кнопки в ОБЕИХ секциях (настройки и отдельное модальное окно)
+    // Синхронизируем кнопки в Настройках
     const settingsOnBtn = document.querySelector('#settings .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="true"]');
     const settingsOffBtn = document.querySelector('#settings .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="false"]');
-    const modalOnBtn = document.querySelector('#effectsModal .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="true"]');
-    const modalOffBtn = document.querySelector('#effectsModal .effect-toggle-btn[data-effect-id="' + id + '"][data-effect-enabled="false"]');
     
     if (settingsOnBtn) settingsOnBtn.classList.toggle('is-active', enabled);
     if (settingsOffBtn) settingsOffBtn.classList.toggle('is-active', !enabled);
-    if (modalOnBtn) modalOnBtn.classList.toggle('is-active', enabled);
-    if (modalOffBtn) modalOffBtn.classList.toggle('is-active', !enabled);
   });
 
-  // Синхронизируем мастер-чекбокс в ОБЕИХ секциях
+  // Синхронизируем мастер-чекбокс в Настройках
   const settingsMaster = document.querySelector('#settings #effectsToggle');
-  const modalMaster = document.querySelector('#effectsModal #effectsToggle');
   
-  if (settingsMaster || modalMaster) {
+  if (settingsMaster) {
     const states = ids.map(id => isEffectEnabled(id));
     const allOn = states.every(Boolean);
     const allOff = states.every(v => !v);
     const indeterminate = !allOn && !allOff;
     
-    if (settingsMaster) {
-      settingsMaster.indeterminate = indeterminate;
-      settingsMaster.checked = allOn;
-    }
-    if (modalMaster) {
-      modalMaster.indeterminate = indeterminate;
-      modalMaster.checked = allOn;
-    }
+    settingsMaster.indeterminate = indeterminate;
+    settingsMaster.checked = allOn;
   }
 }
 
@@ -2075,13 +2064,6 @@ function toggleEffectsSettings() {
   ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'e10'].forEach(id => {
     localStorage.setItem(`effect_${id}_enabled`, enabled ? 'true' : 'false');
   });
-  
-  // Синхронизируем ОБА модальных окна (если оба открыты)
-  const settingsEffectsToggle = document.querySelector('#settings #effectsToggle');
-  const effectsModalToggle = document.querySelector('#effectsModal #effectsToggle');
-  
-  if (settingsEffectsToggle) settingsEffectsToggle.checked = enabled;
-  if (effectsModalToggle) effectsModalToggle.checked = enabled;
   
   syncEffectsTogglesUI();
   applyEffects();
@@ -2127,33 +2109,51 @@ function renderEffects() {
   
   // Используем контейнер магазина
   const container = document.getElementById('shopEffects');
-  if (!container) {
-    console.error('Контейнер #shopEffects не найден!');
-    return;
+  if (container) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(32,178,170,0.1); border: 2px solid rgba(32,178,170,0.3); border-radius: 16px; margin-bottom: 20px;">
+        <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты получаются из Рыбного бокса!</p>
+        <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс чтобы получить визуальные эффекты навсегда.</p>
+        <p style="font-size: 13px; opacity: 0.7; margin-top: 10px;">Также могут выпасть временные баффы (множители X2-X5 на 20-30 секунд).</p>
+      </div>
+    `;
+    
+    effectsData.forEach(effect => {
+      const bought = !!game.effects[effect.id];
+      const div = document.createElement('div');
+      div.className = `effect-item ${bought ? 'bought' : 'locked'}`;
+      div.innerHTML = `
+        <div class="effect-icon">${effect.icon}</div>
+        <div class="effect-info">
+          <h4>${effect.name}</h4>
+          <p>${effect.desc}</p>
+        </div>
+        <div class="effect-price">🐟 Только из бокса</div>
+      `;
+      container.appendChild(div);
+    });
   }
   
-  container.innerHTML = `
-    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; background: rgba(32,178,170,0.1); border: 2px solid rgba(32,178,170,0.3); border-radius: 16px; margin-bottom: 20px;">
-      <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🐟 Эффекты получаются из Рыбного бокса!</p>
-      <p style="font-size: 14px; opacity: 0.8;">Откройте Рыбный бокс чтобы получить визуальные эффекты навсегда.</p>
-      <p style="font-size: 13px; opacity: 0.7; margin-top: 10px;">Также могут выпасть временные баффы (множители X2-X5 на 20-30 секунд).</p>
-    </div>
-  `;
-  
-  effectsData.forEach(effect => {
-    const bought = !!game.effects[effect.id];
-    const div = document.createElement('div');
-    div.className = `effect-item ${bought ? 'bought' : 'locked'}`;
-    div.innerHTML = `
-      <div class="effect-icon">${effect.icon}</div>
-      <div class="effect-info">
-        <h4>${effect.name}</h4>
-        <p>${effect.desc}</p>
-      </div>
-      <div class="effect-price">🐟 Только из бокса</div>
-    `;
-    container.appendChild(div);
-  });
+  // Рендер в отдельном модальном окне Effects
+  const effectsModalContainer = document.getElementById('effectsList');
+  if (effectsModalContainer) {
+    effectsModalContainer.innerHTML = '';
+    
+    effectsData.forEach(effect => {
+      const bought = !!game.effects[effect.id];
+      const div = document.createElement('div');
+      div.className = `effect-item ${bought ? 'bought' : 'locked'}`;
+      div.innerHTML = `
+        <div class="effect-icon">${effect.icon}</div>
+        <div class="effect-info">
+          <h4>${effect.name}</h4>
+          <p>${effect.desc}</p>
+        </div>
+        <div class="effect-price">${bought ? '✅ Получен' : '🐟 Из бокса'}</div>
+      `;
+      effectsModalContainer.appendChild(div);
+    });
+  }
 }
 
 function buyEffect(effect) {
@@ -2181,7 +2181,7 @@ function renderAchievements() {
     container.appendChild(div);
   });
 }
-
+  
 function checkAchievements() {
   const checks = [
     // Базовые
@@ -2276,7 +2276,7 @@ function updateLeaderboardUI(data) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Пока нет игроков</td></tr>';
     return;
   }
-  
+
   data.slice(0, 100).forEach((player, i) => {
     const row = document.createElement('tr');
     // Валидация coins - защита от переполнения
@@ -2315,7 +2315,7 @@ function createBattleLobby() {
     }
     return;
   }
-  
+
   // Получаем выбранный тип лобби
   const lobbyTypeRadio = document.querySelector('input[name="lobbyType"]:checked');
   const isOpen = lobbyTypeRadio ? lobbyTypeRadio.value === 'open' : true;
@@ -2329,7 +2329,7 @@ function joinBattleLobby(lobbyIdOrCode, code = null) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
+
   // Если передан код - используем его для поиска лобби
   if (code) {
     ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: lobbyIdOrCode, code: code }));
@@ -2348,14 +2348,14 @@ function joinLobbyByCode() {
   }
   joinBattleLobby(null, code);
 }
-
+  
 // Выход из моего лобби
 function leaveMyLobby() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'leaveBattleLobby' }));
 }
 
@@ -2370,7 +2370,7 @@ function refreshBattleLobbies() {
     }
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
   showNotification('🔄 Обновление...');
 }

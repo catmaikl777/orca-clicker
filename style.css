@@ -1959,13 +1959,14 @@ body {
 }
 
 /* === ЭФФЕКТЫ === */
+.effects-view {
+  padding: 10px;
+}
+
 .effects-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  overflow-y: auto;
-  max-height: 100%;
-  box-sizing: border-box;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
 }
 
 .effect-item {
@@ -2929,7 +2930,7 @@ body {
     padding: 9px 12px;
   }
 }
-  
+
 .bg-options {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
