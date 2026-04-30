@@ -2345,6 +2345,18 @@ function leaveMyLobby() {
   ws.send(JSON.stringify({ type: 'leaveBattleLobby' }));
 }
 
+// Удаление моего лобби (только владелец)
+function deleteMyLobby() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  if (confirm('Вы уверены что хотите УДАЛИТЬ это лобби? Соперник будет отключён!')) {
+    ws.send(JSON.stringify({ type: 'deleteBattleLobby' }));
+  }
+}
+
 // Обновление списка лобби
 function refreshBattleLobbies() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -2356,7 +2368,7 @@ function refreshBattleLobbies() {
     }
     return;
   }
-
+  
   ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
   showNotification('🔄 Обновление...');
 }
@@ -2375,7 +2387,7 @@ function startBattleFromLobby() {
 
   ws.send(JSON.stringify({ type: 'startBattleFromLobby', lobbyId: currentLobbyId }));
 }
-  
+
 // Обновление UI списка лобби
 function updateBattleLobbiesUI(lobbies) {
   const container = document.getElementById('battleLobbyList');
@@ -2387,7 +2399,7 @@ function updateBattleLobbiesUI(lobbies) {
     container.innerHTML = '<p style="text-align:center;padding:20px;color:#888">🏠 Нет активных лобби. Создайте первое!</p>';
     return;
   }
-  
+
   lobbies.forEach(lobby => {
     const div = document.createElement('div');
     div.className = 'lobby-item';
@@ -2417,7 +2429,7 @@ function updateBattleLobbiesUI(lobbies) {
     container.appendChild(div);
   });
 }
-
+  
 // Обновление UI моего лобби
 function updateMyLobbyUI(lobby) {
   const myLobbyEl = document.getElementById('myBattleLobby');
@@ -2437,13 +2449,20 @@ function updateMyLobbyUI(lobby) {
     ? escapeHtml(lobby.opponentName) 
     : 'Ожидание соперника...';
   
-  // Показываем код лобби если оно закрыто (для закрытого - только владельцу)
+  // Показываем код лобби если оно закрытое
   const codeEl = document.getElementById('myLobbyCode');
-  if (codeEl && lobby.lobbyCode) {
-    codeEl.textContent = `Код для входа: ${lobby.lobbyCode}`;
+  const codeValueEl = document.getElementById('lobbyCodeValue');
+  if (codeEl && codeValueEl && lobby.lobbyCode) {
+    codeValueEl.textContent = lobby.lobbyCode;
     codeEl.style.display = lobby.isOpen === false ? 'block' : 'none';
   } else if (codeEl) {
     codeEl.style.display = 'none';
+  }
+  
+  // Показываем кнопку удаления только для закрытого лобби
+  const deleteBtn = document.getElementById('deleteLobbyBtn');
+  if (deleteBtn) {
+    deleteBtn.style.display = lobby.isOpen === false ? 'inline-block' : 'none';
   }
   
   // Блокируем кнопку запуска если нет соперника

@@ -284,10 +284,12 @@
           <div class="lobby-info">
             <p><strong>Владелец:</strong> <span id="myLobbyOwner">Вы</span></p>
             <p><strong>Соперник:</strong> <span id="myLobbyOpponent">Ожидание...</span></p>
+            <p id="myLobbyCode" style="display:none;margin-top:10px;padding:10px;background:rgba(32,178,170,0.2);border:1px solid rgba(32,178,170,0.4);border-radius:8px;font-size:14px;color:#20b2aa;"><strong>🔑 Код лобби:</strong> <span id="lobbyCodeValue" style="font-weight:bold;font-size:16px;"></span></p>
           </div>
           <div class="lobby-actions">
             <button id="startBattleBtn" class="action-btn" onclick="startBattleFromLobby()" disabled>⚔️ Начать батл</button>
             <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="leaveMyLobby()">🚪 Выйти</button>
+            <button class="action-btn" id="deleteLobbyBtn" style="background:linear-gradient(145deg,#9c27b0,#7b1fa2);display:none" onclick="deleteMyLobby()">🗑️ Удалить лобби</button>
           </div>
         </div>
       </div>

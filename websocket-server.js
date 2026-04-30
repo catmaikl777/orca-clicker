@@ -696,6 +696,7 @@ function handleMessage(ws, data) {
 case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'joinBattleLobby': handleJoinBattleLobby(ws, data); break;
     case 'leaveBattleLobby': handleLeaveBattleLobby(ws); break;
+    case 'deleteBattleLobby': handleDeleteBattleLobby(ws); break;
     case 'getBattleLobbies': handleGetBattleLobbies(ws); break;
     case 'battleClick': handleBattleClick(ws, data.battleId, data.clicks, data.cps); break;
     case 'getLeaderboard': sendLeaderboard(ws); break;
@@ -1466,6 +1467,47 @@ function handleLeaveBattleLobby(ws) {
   ws.send(JSON.stringify({ type: 'leftLobby', lobbyId }));
 }
 
+// Удаление лобби (только владелец)
+function handleDeleteBattleLobby(ws) {
+  const id = ws.accountId || ws.playerId;
+  
+  // Ищем лобби игрока
+  let lobbyId = null;
+  for (const [lid, lobby] of battleLobbies) {
+    if (lobby.owner === id) {
+      lobbyId = lid;
+      break;
+    }
+  }
+  
+  if (!lobbyId) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  const lobby = battleLobbies.get(lobbyId);
+  if (!lobby) return;
+  
+  // Если есть соперник, уведомляем его
+  if (lobby.opponent) {
+    const opponentWs = players.get(lobby.opponent)?.ws;
+    if (opponentWs && opponentWs.readyState === WebSocket.OPEN) {
+      opponentWs.send(JSON.stringify({
+        type: 'lobbyDeleted',
+        lobbyId,
+        message: 'Владелец удалил лобби'
+      }));
+    }
+  }
+  
+  // Удаляем лобби
+  battleLobbies.delete(lobbyId);
+  broadcastBattleLobbies();
+  
+  ws.send(JSON.stringify({ type: 'lobbyDeleted', lobbyId }));
+  console.log(`🗑️ Лобби ${lobbyId} удалено владельцем ${id}`);
+}
+
 // Получение списка лобби
 function handleGetBattleLobbies(ws) {
   const lobbies = Array.from(battleLobbies.values())
@@ -1478,7 +1520,7 @@ function handleGetBattleLobbies(ws) {
       isOpen: lobby.isOpen !== false, // По умолчанию открытое
       createdAt: lobby.createdAt
     }));
-  
+    
   ws.send(JSON.stringify({ 
     type: 'battleLobbies', 
     lobbies 
