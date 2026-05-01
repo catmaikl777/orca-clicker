@@ -2511,12 +2511,15 @@ function updateMyLobbyUI(lobby) {
     ? escapeHtml(lobby.opponentName) 
     : 'Ожидание соперника...';
   
-  // Показываем код лобби если оно закрытое
+  // Показываем код лобби если оно закрытое (только владельцу)
   const codeEl = document.getElementById('myLobbyCode');
   const codeValueEl = document.getElementById('lobbyCodeValue');
+  const currentUserId = ws.accountId || ws.playerId;
+  
   if (codeEl && codeValueEl && lobby.lobbyCode) {
     codeValueEl.textContent = lobby.lobbyCode;
-    codeEl.style.display = lobby.isOpen === false ? 'block' : 'none';
+    // Показываем код только владельцу закрытого лобби
+    codeEl.style.display = (lobby.owner === currentUserId && lobby.isOpen === false) ? 'block' : 'none';
   } else if (codeEl) {
     codeEl.style.display = 'none';
   }
