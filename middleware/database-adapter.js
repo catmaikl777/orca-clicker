@@ -91,6 +91,7 @@ class DatabaseAdapter {
         achievements JSONB DEFAULT '[]',
         skins JSONB DEFAULT '{"normal": true}',
         current_skin VARCHAR(50) DEFAULT 'normal',
+        effects JSONB DEFAULT '{}',
         clan VARCHAR(50) DEFAULT NULL,
         event_rewards BIGINT DEFAULT 0,
         pending_boxes JSONB DEFAULT '[]',
@@ -129,6 +130,9 @@ class DatabaseAdapter {
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_progress JSONB DEFAULT '{"clicks": 0, "coins": 0, "playTime": 0}'`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_date VARCHAR(20)`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_ids JSONB DEFAULT '[]'`,
+      
+      // Добавить поле effects для визуальных эффектов
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS effects JSONB DEFAULT '{}'`,
       
       // Обновить внешний ключ если таблица уже существует (для миграции)
       `DO $$ 
@@ -352,6 +356,14 @@ class DatabaseAdapter {
       dailyQuestIds = '[]';
     }
     
+    let effects;
+    try {
+      effects = typeof player.effects === 'string' ? player.effects : JSON.stringify(player.effects || {});
+    } catch (e) {
+      console.error('Ошибка сериализации effects:', e.message, player.effects);
+      effects = '{}';
+    }
+    
     const dailyQuestDate = player.dailyQuestDate || null;
     
     // accountId может быть null для гостей
@@ -367,11 +379,11 @@ class DatabaseAdapter {
     await this.pool.query(
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
-        clicks, level, skills, achievements, skins, current_skin,
+        clicks, level, skills, achievements, skins, current_skin, effects,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
         banned_at, ban_reason, pending_event_clicks, last_processed_clicks
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -383,6 +395,7 @@ class DatabaseAdapter {
         achievements = EXCLUDED.achievements,
         skins = EXCLUDED.skins,
         current_skin = EXCLUDED.current_skin,
+        effects = EXCLUDED.effects,
         clan = EXCLUDED.clan,
         event_rewards = EXCLUDED.event_rewards,
         pending_boxes = EXCLUDED.pending_boxes,
@@ -399,7 +412,7 @@ class DatabaseAdapter {
       [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
-        skills, achievements, skins, player.currentSkin || 'normal',
+        skills, achievements, skins, player.currentSkin || 'normal', effects,
         clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
         dailyQuestDate, dailyQuestIds, createdAt, lastLogin, new Date(),
         bannedAt, banReason, pendingEventClicks, lastProcessedClicks

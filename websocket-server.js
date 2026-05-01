@@ -507,8 +507,9 @@ httpServer.listen(PORT, () => {
               level: row.level || 1,
               skills: safeParseJSON(row.skills, {}),
               achievements: safeParseJSON(row.achievements, []),
-              skins: safeParseJSON(row.skins, { normal: true }),
+skins: safeParseJSON(row.skins, { normal: true }),
               currentSkin: row.current_skin || 'normal',
+              effects: safeParseJSON(row.effects, {}),
               clan: row.clan || null,
               eventRewards: row.event_rewards || 0,
               pendingBoxes: safeParseJSON(row.pending_boxes, []),
@@ -893,7 +894,7 @@ function handleSaveGame(ws, data) {
     saveSnapshots.set(id, { t: Date.now(), clicks: data.clicks });
   }
 
-  p.coins = data.coins ?? p.coins;
+p.coins = data.coins ?? p.coins;
   p.totalCoins = data.totalCoins ?? p.totalCoins;
   p.perClick = data.perClick ?? p.perClick;
   p.perSecond = data.perSecond ?? p.perSecond;
@@ -903,6 +904,7 @@ function handleSaveGame(ws, data) {
   p.skins = data.skins || p.skins;
   p.currentSkin = data.currentSkin || p.currentSkin;
   p.achievements = data.achievements || p.achievements;
+  p.effects = data.effects || p.effects || {};
   p.pendingBoxes = data.pendingBoxes || p.pendingBoxes || [];
   p.playTime = data.playTime ?? p.playTime;
   p.shopItems = data.shopItems || p.shopItems;
@@ -1090,10 +1092,11 @@ async function handleRestoreSession(ws, data) {
         currentSkin: dbPlayer.current_skin || 'normal',
         pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
         questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
-        dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
+dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
         dailyQuestDate: dbPlayer.daily_quest_date,
         dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
         clan: dbPlayer.clan || null,
+        effects: typeof dbPlayer.effects === 'string' ? JSON.parse(dbPlayer.effects) : dbPlayer.effects || {},
         eventRewards: Number(dbPlayer.event_rewards) || 0,
         createdAt: dbPlayer.created_at || Date.now(),
         lastLogin: dbPlayer.last_login || Date.now(),
