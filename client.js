@@ -63,6 +63,11 @@ function initDOM() {
 }
 
 // Утилита для экранирования HTML
+// ==================== УТИЛИТЫ ====================
+function generateId() {
+  return Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 4);
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -1027,32 +1032,40 @@ case 'lobbyCreated':
       // Сервер подтвердил покупку - обновляем данные
       if (data.boxId) {
         pendingBoxes.push(data.boxId);
-      } else {
-        // Если сервер не вернул ID, используем заглушку
-        pendingBoxes.push('box');
       }
       if (data.coins !== undefined) {
-        game.coins = data.coins;
+        if (Number.isFinite(data.coins) && data.coins >= 0) {
+          game.coins = data.coins;
+        } else {
+          console.warn(`WARNING: Invalid coins from server: ${data.coins}`);
+        }
       }
-      updateBoxUI();
+      if (data.pendingBoxes !== undefined) {
+        pendingBoxes = new Array(data.pendingBoxes).fill(null).map((_, i) => `box_${i}`);
+      }
       updateUI();
-      showNotification('📦 Бокс куплен! Откройте в магазине');
+      updateBoxUI();
+      renderBoxes();
       saveGame();
       break;
     case 'fishBoxBought':
       // Сервер подтвердил покупку Рыбного бокса
       if (data.boxId) {
         pendingFishBoxes.push(data.boxId);
-      } else {
-        // Если сервер не вернул ID, используем заглушку
-        pendingFishBoxes.push('fishbox');
       }
       if (data.coins !== undefined) {
-        game.coins = data.coins;
+        if (Number.isFinite(data.coins) && data.coins >= 0) {
+          game.coins = data.coins;
+        } else {
+          console.warn(`WARNING: Invalid coins from server: ${data.coins}`);
+        }
       }
-      updateFishBoxUI();
+      if (data.pendingFishBoxes !== undefined) {
+        pendingFishBoxes = new Array(data.pendingFishBoxes).fill(null).map((_, i) => `fishbox_${i}`);
+      }
       updateUI();
-      showNotification('🐟 Рыбный бокс куплен! Откройте для баффов!');
+      updateFishBoxUI();
+      renderBoxes();
       saveGame();
       break;
     case 'boxOpened':
@@ -1160,7 +1173,7 @@ case 'lobbyCreated':
       break;
   }
 }
-
+  
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
   const audioElements = document.querySelectorAll('audio');
@@ -1170,7 +1183,7 @@ function unlockAudio() {
     audio.currentTime = 0;
   });
 }
-
+  
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
@@ -1794,7 +1807,7 @@ function renderSkins() {
         <div class="hidden-skin-placeholder">
           <span style="font-size: 40px;">❓</span>
           <p>???</p>
-          <p>🎁 Из бокса</p>
+          <p>???</p>
         </div>
       `;
     } else if (!unlocked && skin.id !== 'normal') {
@@ -1817,7 +1830,7 @@ function renderSkins() {
       `;
       div.onclick = () => buyOrEquipSkin(skin);
     }
-    
+  
     container.appendChild(div);
   });
 }
@@ -2976,7 +2989,8 @@ function openBox(boxId) {
   updateBoxUI();
 
   console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
-  ws.send(JSON.stringify({ type: 'openBox', boxId }));
+  // Отправляем РЕАЛЬНЫЙ ID бокса из массива pendingBoxes
+  ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
 
   showBoxOpeningCutscene('box');
 

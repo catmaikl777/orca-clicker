@@ -1698,39 +1698,53 @@ function endBattle(battleId, disconnectedPlayer = null) {
   const player1 = players.get(p1);
   const player2 = players.get(p2);
   
-  let winner = null, prize = 0;
+  // Получаем уровни игроков
+  const level1 = player1?.level || 1;
+  const level2 = player2?.level || 1;
+  
+  let winner = null;
   if (disconnectedPlayer) {
     winner = disconnectedPlayer === p1 ? p2 : p1;
-    prize = 50;
   } else if (battle.scores[p1] > battle.scores[p2]) {
-    winner = p1; prize = 100;
+    winner = p1;
   } else if (battle.scores[p2] > battle.scores[p1]) {
-    winner = p2; prize = 100;
+    winner = p2;
   }
   
   const winnerName = winner ? players.get(winner)?.name : 'Ничья';
   const isDraw = !winner;
   
+  // Расчет призов based on level:
+  // Победа: 100 * уровень
+  // Поражение: 20 * уровень
+  // Ничья: 50 * уровень (половина от победы)
   if (player1) {
-    const reward = isDraw ? 25 : (p1 === winner ? prize : 10);
+    const reward = isDraw ? 50 * level1 : (p1 === winner ? 100 * level1 : 20 * level1);
     player1.coins += reward;
     db.players[p1].coins = player1.coins;
   }
   if (player2) {
-    const reward = isDraw ? 25 : (p2 === winner ? prize : 10);
+    const reward = isDraw ? 50 * level2 : (p2 === winner ? 100 * level2 : 20 * level2);
     player2.coins += reward;
     db.players[p2].coins = player2.coins;
   }
   
   db.stats.totalBattles++;
   
-  const result = { type: 'battleEnd', winner: winnerName, isDraw, prize: isDraw ? 25 : (winner ? prize : 10) };
+  const result = { 
+    type: 'battleEnd', 
+    winner: winnerName, 
+    isDraw, 
+    prize: isDraw ? 50 : (winner ? 100 : 20)
+  };
   
   if (player1) {
     result.yourScore = battle.scores[p1];
     result.opponentScore = battle.scores[p2];
     result.yourCPS = battle.cps[p1] || 0;
     result.opponentCPS = battle.cps[p2] || 0;
+    result.prize = isDraw ? 50 * level1 : (p1 === winner ? 100 * level1 : 20 * level1);
+    result.yourLevel = level1;
     player1.ws.send(JSON.stringify(result));
   }
   if (player2) {
@@ -1738,6 +1752,8 @@ function endBattle(battleId, disconnectedPlayer = null) {
     result.opponentScore = battle.scores[p1];
     result.yourCPS = battle.cps[p2] || 0;
     result.opponentCPS = battle.cps[p1] || 0;
+    result.prize = isDraw ? 50 * level2 : (p2 === winner ? 100 * level2 : 20 * level2);
+    result.yourLevel = level2;
     player2.ws.send(JSON.stringify(result));
   }
   
@@ -1746,6 +1762,8 @@ function endBattle(battleId, disconnectedPlayer = null) {
   clearBattleBuffer(p2);
   
   battles.delete(battleId);
+  
+  console.log(`⚔️ Battle ${battleId} ended: winner=${winnerName}, p1(prize=${isDraw ? 50 * level1 : (p1 === winner ? 100 * level1 : 20 * level1)}), p2(prize=${isDraw ? 50 * level2 : (p2 === winner ? 100 * level2 : 20 * level2)})`);
 }
 
 function updateLeaderboard(player) {
@@ -2312,7 +2330,15 @@ function handleOpenBox(ws, boxId) {
   const pendingBoxes = playerDB.pendingBoxes || [];
   console.log('📦 Текущие боксы игрока:', pendingBoxes);
   
-  const boxIndex = pendingBoxes.indexOf(boxId);
+  // Ищем бокс - сначала по точному совпадению ID, потом по шаблону 'box_*'
+  let boxIndex = pendingBoxes.indexOf(boxId);
+  
+  // Если не нашли и ID начинается с 'box_' или 'fishbox_', ищем по индексу
+  if (boxIndex === -1 && (boxId === 'box' || boxId.startsWith('box_'))) {
+    const idx = parseInt(boxId.split('_')[1]) || 0;
+    boxIndex = idx < pendingBoxes.length ? idx : -1;
+  }
+  
   console.log('🔍 Поиск бокса:', { boxId, boxIndex });
   
   if (boxIndex === -1) {
@@ -2320,6 +2346,9 @@ function handleOpenBox(ws, boxId) {
     ws.send(JSON.stringify({ type: 'error', message: 'Бокс не найден' }));
     return;
   }
+  
+  // Получаем реальный ID бокса
+  const realBoxId = pendingBoxes[boxIndex];
   
   // Удаляем бокс
   pendingBoxes.splice(boxIndex, 1);
@@ -2374,7 +2403,7 @@ function handleOpenBox(ws, boxId) {
     pendingBoxes: playerDB.pendingBoxes.length
   }));
   
-  console.log(`🎁 Игрок ${id} открыл бокс. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`🎁 Игрок ${id} открыл бокс ${realBoxId}. Награда: ${reward.type}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 function handleBuyFishBox(ws) {
@@ -2436,7 +2465,15 @@ function handleOpenFishBox(ws, boxId) {
   const pendingFishBoxes = playerDB.pendingFishBoxes || [];
   console.log('🐟 Текущие рыбные боксы игрока:', pendingFishBoxes);
   
-  const boxIndex = pendingFishBoxes.indexOf(boxId);
+  // Ищем бокс - сначала по точному совпадению ID, потом по шаблону 'fishbox_*'
+  let boxIndex = pendingFishBoxes.indexOf(boxId);
+  
+  // Если не нашли и ID начинается с 'fishbox_', ищем по индексу
+  if (boxIndex === -1 && (boxId === 'fishbox' || boxId.startsWith('fishbox_'))) {
+    const idx = parseInt(boxId.split('_')[1]) || 0;
+    boxIndex = idx < pendingFishBoxes.length ? idx : -1;
+  }
+  
   console.log('🔍 Поиск рыбного бокса:', { boxId, boxIndex });
   
   if (boxIndex === -1) {
@@ -2444,6 +2481,8 @@ function handleOpenFishBox(ws, boxId) {
     ws.send(JSON.stringify({ type: 'error', message: 'Рыбный бокс не найден' }));
     return;
   }
+  
+  const realBoxId = pendingFishBoxes[boxIndex];
   
   pendingFishBoxes.splice(boxIndex, 1);
   playerDB.pendingFishBoxes = pendingFishBoxes;
@@ -2495,7 +2534,7 @@ function handleOpenFishBox(ws, boxId) {
     pendingFishBoxes: playerDB.pendingFishBoxes.length
   }));
   
-  console.log(`🐟 Игрок ${id} открыл Рыбный бокс. Награда: ${reward.type}. Всего рыбных боксов: ${playerDB.pendingFishBoxes.length}`);
+  console.log(`🐟 Игрок ${id} открыл Рыбный бокс ${realBoxId}. Награда: ${reward.type}. Всего рыбных боксов: ${playerDB.pendingFishBoxes.length}`);
 }
 
 process.on('SIGINT', () => {
