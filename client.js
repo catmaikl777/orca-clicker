@@ -18,7 +18,10 @@ const game = {
   dailyQuestDate: null,
   dailyQuestIds: [],
   dailyProgress: { clicks: 0, coins: 0, playTime: 0 },
-  clan: null
+  clan: null,
+  // Отслеживание кланов для достижений
+  clansJoinedHistory: [],
+  ownedClanMemberCount: 0
 };
 
 // Глобальные переменные для кланов
@@ -563,12 +566,66 @@ function handleServerMessage(data) {
       game.level = Number.isFinite(d.level) && d.level > 0 ? d.level : 1;
       game.basePerClick = Number.isFinite(d.basePerClick ?? d.perClick) ? (d.basePerClick ?? d.perClick) : 0;
       game.basePerSecond = Number.isFinite(d.basePerSecond ?? d.perSecond) ? (d.basePerSecond ?? d.perSecond) : 0;
-      game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
+game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       game.effects = d.effects || {};
       game.achievements = d.achievements || [];
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
+      
+// Загружаем данные для отслеживания кланов (для достижений)
+      // Из skills._clanTracking загружаем историю вступлений и количество участников
+      if (d.skills && d.skills._clanTracking) {
+        game.skills = game.skills || {};
+        game.skills._clanTracking = d.skills._clanTracking;
+        console.log(`🏰 Загружен _clanTracking:`, d.skills._clanTracking);
+        
+        // Также загружаем clansJoinedHistory из _clanTracking в game.clansJoinedHistory
+        if (d.skills._clanTracking.clansJoinedHistory && Array.isArray(d.skills._clanTracking.clansJoinedHistory)) {
+          game.clansJoinedHistory = d.skills._clanTracking.clansJoinedHistory;
+        }
+        
+        // Загружаем createdClanId если есть
+        if (d.skills._clanTracking.createdClanId) {
+          // Восстанавливаем данные созданного клана
+        }
+      } else if (d.skills && typeof d.skills === 'object') {
+        // Если skills это объект - используем напрямую
+        game.skills = d.skills;
+        game.skills._clanTracking = game.skills._clanTracking || {};
+      }
+      
+      // Также поддерживаем прямую загрузку clansJoinedHistory (для обратной совместимости)
+      if (d.clansJoinedHistory && Array.isArray(d.clansJoinedHistory)) {
+        // Если clansJoinedHistory пришёл напрямую - используем его
+        game.clansJoinedHistory = d.clansJoinedHistory;
+        // Синхронизируем в _clanTracking если ещё не установлено
+        if (!game.skills._clanTracking) game.skills._clanTracking = {};
+        if (!game.skills._clanTracking.clansJoinedHistory) {
+          game.skills._clanTracking.clansJoinedHistory = [...d.clansJoinedHistory];
+        }
+      }
+      
+      // Если clansJoinedHistory всё ещё пустой - инициализируем пустым массивом
+      if (!game.clansJoinedHistory || !Array.isArray(game.clansJoinedHistory)) {
+        game.clansJoinedHistory = [];
+      }
+      
+      // Также инициализируем ownedClanMemberCount если его нет
+      if (d.ownedClanMemberCount !== undefined) {
+        game.ownedClanMemberCount = d.ownedClanMemberCount;
+      } else {
+        game.ownedClanMemberCount = 0;
+      }
+      
+      // Загружаем количество участников созданного клана
+      if (d.ownedClanMemberCount !== undefined) {
+        game.ownedClanMemberCount = d.ownedClanMemberCount;
+      }
+      
+      // Лог для отладки
+      console.log(`🏰 authSuccess - clansJoinedHistory:`, game.clansJoinedHistory);
+      console.log(`🏰 authSuccess - skills._clanTracking:`, game.skills._clanTracking);
       // Обработка clan - может быть null, строкой (ID) или объектом
       if (d.clan) {
         if (typeof d.clan === 'string') {
@@ -967,10 +1024,16 @@ case 'lobbyCreated':
       showNotification('🚪 Вы покинули лобби');
       updateMyLobbyUI(null);
       break;
-    case 'clanCreated':
+case 'clanCreated':
       showNotification(`🏰 Клан "${data.name}" создан!`);
       console.log(`🏰 Клан создан: ${data.clanId}, name: ${data.name}`);
       game.clan = data.clanId;
+      // Отслеживание для достижений
+      game.skills = game.skills || {};
+      game.skills._clanTracking = game.skills._clanTracking || {};
+      game.skills._clanTracking.createdClanId = data.clanId;
+      // НЕ добавляем созданный клан в clansJoinedHistory - это не "вступление"!
+      // Достижение "Дипломат" считается только по вступлению в чужие кланы
       saveGame();
       updateClansUI();
       // Обновляем список кланов и участников
@@ -981,10 +1044,20 @@ case 'lobbyCreated':
         }
       }, 200);
       break;
-    case 'joinedClan':
+case 'joinedClan':
       showNotification(`👥 Вы вступили в клан "${data.name}"!`);
       console.log(`👥 Вступил в клан: ${data.clanId}, name: ${data.name}`);
       game.clan = data.clanId;
+      // Отслеживание для достижений (добавляем в историю если новый клан)
+      if (!game.clansJoinedHistory.includes(data.clanId)) {
+        game.clansJoinedHistory.push(data.clanId);
+      }
+      game.skills = game.skills || {};
+      game.skills._clanTracking = game.skills._clanTracking || {};
+      if (!game.skills._clanTracking.clansJoinedHistory?.includes(data.clanId)) {
+        game.skills._clanTracking.clansJoinedHistory = game.skills._clanTracking.clansJoinedHistory || [];
+        game.skills._clanTracking.clansJoinedHistory.push(data.clanId);
+      }
       saveGame();
       updateClansUI();
       // Обновляем список кланов и участников
@@ -2249,8 +2322,19 @@ function checkAchievements() {
     { id: 'a32', check: () => Object.keys(game.effects || {}).length >= 3 },
     { id: 'a33', check: () => game.clicks >= 10000 }, // Placeholder для боксов
     { id: 'a34', check: () => game.clicks >= 5000 },  // Placeholder для рыбных боксов
-    { id: 'a35', check: () => game.clan !== null },
-    { id: 'a36', check: () => game.clicks >= 3000 },  // Placeholder для кланов
+// Достижения кланов - правильные проверки
+    { id: 'a35', check: () => {
+      // Вождь племени: создал клан И в клане >= 10 участников
+      const tracking = game.skills?._clanTracking || {};
+      const createdClanId = tracking.createdClanId;
+      const myClanId = typeof game.clan === 'object' ? game.clan?.id : game.clan;
+      return createdClanId && myClanId === createdClanId && game.ownedClanMemberCount >= 10;
+    } },
+    { id: 'a36', check: () => {
+      // Дипломат: вступил в 3 разных клана
+      const history = game.skills?._clanTracking?.clansJoinedHistory || game.clansJoinedHistory || [];
+      return history.length >= 3;
+    } },
     { id: 'a37', check: () => game.clicks >= 100000 }, // Placeholder для батлов
     { id: 'a38', check: () => game.clicks >= 1000000 },
     { id: 'a39', check: () => game.coins >= 100000000000 },
@@ -2873,6 +2957,24 @@ window.updateClanMembersUI = function(members) {
     return;
   }
 
+  // Обновляем ownedClanMemberCount для достижения "Вождь племени"
+  // Только если игрок владелец своего клана
+  const myClanId = typeof game.clan === 'object' ? game.clan?.id : game.clan;
+  const tracking = game.skills?._clanTracking || {};
+  const createdClanId = tracking.createdClanId;
+  
+  if (myClanId === createdClanId) {
+    // Игрок владелец созданного клана - обновляем количество участников
+    const newCount = members.length;
+    if (game.ownedClanMemberCount !== newCount) {
+      game.ownedClanMemberCount = newCount;
+      console.log(`👥 Обновлено ownedClanMemberCount: ${newCount}`);
+      saveGame();
+      // Проверяем достижения после обновления
+      checkAchievements();
+    }
+  }
+
   members.forEach(member => {
     const div = document.createElement('div');
     div.className = 'clan-member';
@@ -3469,7 +3571,11 @@ function saveGameToServer() {
       questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
       dailyQuestDate: game.dailyQuestDate,
       dailyQuestIds: game.dailyQuestIds || [],
-      clan: game.clan || null
+      clan: game.clan || null,
+      // Добавляем поля для отслеживания кланов
+      clansJoinedHistory: game.clansJoinedHistory || [],
+      ownedClanMemberCount: game.ownedClanMemberCount || 0,
+      skills: game.skills || {}
     }
   }));
 }
