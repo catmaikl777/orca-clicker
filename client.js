@@ -2337,43 +2337,67 @@ function joinBattleLobby(lobbyIdOrCode, code = null) {
   }
 }
 
-// Вступление по коду лобби (из UI)
-function joinLobbyByCode() {
-  const codeInput = document.getElementById('lobbyJoinCode');
+// Вступление по коду лобби (показывает модальное окно со списком закрытых лобби)
+function showClosedLobbiesModal() {
+  const modal = document.getElementById('closedLobbiesModal');
+  if (!modal) return;
+  
+  // Получаем список закрытых лобби из кэша
+  const lobbies = JSON.parse(localStorage.getItem('battleLobbiesCache') || '[]');
+  const closedLobbies = lobbies.filter(l => !l.isOpen && !l.hasOpponent);
+  
+  const listContainer = document.getElementById('closedLobbiesList');
+  if (!listContainer) return;
+  
+  if (closedLobbies.length === 0) {
+    listContainer.innerHTML = '<p style="text-align:center;padding:20px;color:#888">Нет доступных закрытых лобби</p>';
+  } else {
+    listContainer.innerHTML = closedLobbies.map(lobby => `
+      <div class="lobby-item" style="margin-bottom:15px;border:2px solid rgba(255,215,0,0.3);">
+        <div class="lobby-info">
+          <p><strong>${escapeHtml(lobby.ownerName)}</strong> создаёт лобби</p>
+          <small>Создано ${new Date(lobby.createdAt).toLocaleTimeString()}</small>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+          <input type="text" id="code-${lobby.id}" placeholder="Код" style="flex:1;padding:8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#fff;text-align:center;">
+          <button class="action-btn" onclick="joinClosedLobby('${lobby.id}')">Вступить</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  
+  modal.classList.add('active');
+}
+
+// Вступление в конкретное закрытое лобби (из списка лобби)
+function joinClosedLobby(lobbyId) {
+  const codeInput = document.getElementById(`code-${lobbyId}`);
   const code = codeInput?.value?.trim();
+  
   if (!code) {
     showNotification('⚠️ Введите код лобби');
     return;
   }
-  
+
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
 
-  // Сначала обновляем список лобби
-  ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
-  
-  // Получаем первый открытый или закрытый лобби без соперника
-  // Сервер сам проверит код при joinBattleLobby
-  const lobbies = JSON.parse(localStorage.getItem('battleLobbiesCache') || '[]');
-  const targetLobby = lobbies.find(l => l.isOpen === false && !l.hasOpponent);
-  
-  if (targetLobby) {
-    ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: targetLobby.id, code: code }));
-    showNotification('🔑 Попытка вступления...');
-  } else {
-    showNotification('⚠️ Нет доступных закрытых лобби');
-  }
+  // Отправляем запрос на вступление с кодом
+  ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: lobbyId, code: code }));
+  showNotification('🔑 Попытка вступления в лобби...');
 }
-  
+
+// Вступление по коду лобби (показывает модальное окно со списком закрытых лобби)
+
 // Выход из моего лобби
 function leaveMyLobby() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'leaveBattleLobby' }));
 }
 
@@ -2383,12 +2407,12 @@ function deleteMyLobby() {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-
+  
   if (confirm('Вы уверены что хотите УДАЛИТЬ это лобби? Соперник будет отключён!')) {
     ws.send(JSON.stringify({ type: 'deleteBattleLobby' }));
   }
 }
-
+  
 // Обновление списка лобби
 function refreshBattleLobbies() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -2411,7 +2435,7 @@ function startBattleFromLobby() {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-  
+
   if (!currentLobbyId) {
     showNotification('⚠️ Лобби не найдено');
     return;
@@ -2454,14 +2478,20 @@ function updateBattleLobbiesUI(lobbies) {
           <p><strong>${escapeHtml(lobby.ownerName)}</strong> ищет соперника</p>
           <small>${statusText} • Создано ${new Date(lobby.createdAt).toLocaleTimeString()}</small>
         </div>
-        ${lobby.isOpen ? `<button class="action-btn" onclick="joinBattleLobby('${lobby.id}')" style="margin-bottom:0">Вступить</button>` : `<span style="color:#666;font-size:12px">Закрыто</span>`}
+        ${lobby.isOpen ? 
+          `<button class="action-btn" onclick="joinBattleLobby('${lobby.id}')" style="margin-bottom:0">Вступить</button>` : 
+          `<div style="margin-bottom:0;display:flex;gap:8px;">
+            <input type="text" id="code-${lobby.id}" placeholder="Код" style="flex:1;padding:8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#fff;text-align:center;">
+            <button class="action-btn" onclick="joinClosedLobby('${lobby.id}')">Вступить</button>
+          </div>`
+        }
       `;
     }
     
     container.appendChild(div);
   });
 }
-  
+
 // Обновление UI моего лобби
 function updateMyLobbyUI(lobby) {
   const myLobbyEl = document.getElementById('myBattleLobby');

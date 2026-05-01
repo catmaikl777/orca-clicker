@@ -1000,6 +1000,55 @@ body {
   display: none !important;
 }
 
+/* === ЗАКРЫТЫЕ ЛОББИ - МОДАЛЬНОЕ ОКНО === */
+#closedLobbiesModal .lobby-item {
+  background: linear-gradient(145deg, rgba(32,178,170,0.15), rgba(72,209,204,0.10));
+  border: 1px solid rgba(32,178,170,0.3);
+  border-radius: 16px;
+  padding: 16px;
+  transition: all 0.3s;
+}
+
+#closedLobbiesModal .lobby-item:hover {
+  background: linear-gradient(145deg, rgba(32,178,170,0.25), rgba(72,209,204,0.15));
+  border-color: rgba(32,178,170,0.6);
+  box-shadow: 0 8px 25px rgba(32,178,170,0.3);
+  transform: translateY(-2px);
+}
+
+#closedLobbiesModal input[type="text"] {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(32,178,170,0.3);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+}
+
+#closedLobbiesModal input[type="text"]:focus {
+  outline: none;
+  border-color: rgba(32,178,170,0.7);
+  background: rgba(255,255,255,0.15);
+  box-shadow: 0 0 20px rgba(32,178,170,0.3);
+}
+
+#closedLobbiesModal .lobby-info {
+  margin-bottom: 12px;
+}
+
+#closedLobbiesModal .lobby-info p {
+  margin: 0;
+  font-size: 14px;
+}
+
+#closedLobbiesModal .lobby-info small {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
 .bonus img {
   width: 75px;
   height: 75px;
@@ -1192,7 +1241,7 @@ body {
     opacity: 0;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .modal.active {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
@@ -1210,7 +1259,7 @@ body {
     padding: 14px 20px;
     font-size: 16px;
   }
-  
+
   /* Увеличиваем отступы для удобства нажатия */
   .modal-header {
     padding: 20px;
@@ -1630,7 +1679,7 @@ body {
   .stats {
     grid-template-columns: 1fr;
   }
-  
+
   .menu {
     grid-template-columns: 1fr;
   }

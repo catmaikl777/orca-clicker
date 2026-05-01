@@ -1371,17 +1371,10 @@ function handleJoinBattleLobby(ws, data) {
     return;
   }
   
-  if (!lobby.isOpen) {
-    if (!code || lobby.lobbyCode !== code) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Нужен код для вступления в закрытое лобби' }));
-      return;
-    }
-  }
-  
   // Проверка: лобби закрыто - нужен код
   if (!lobby.isOpen) {
-    if (!code || lobby.code !== code) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Нужен код для вступления в закрытое лобби' }));
+    if (!code || lobby.lobbyCode !== code) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Неверный код для вступления в закрытое лобби' }));
       return;
     }
   }
