@@ -121,6 +121,9 @@ class DatabaseAdapter {
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS ban_reason VARCHAR(255)`,
       
+      // Добавить поле updated_at если нет
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+      
       // Добавить поля квестов в players (для совместимости)
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS quest_progress JSONB DEFAULT '[]'`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS daily_quest_progress JSONB DEFAULT '{"clicks": 0, "coins": 0, "playTime": 0}'`,
@@ -358,14 +361,17 @@ class DatabaseAdapter {
     const bannedAt = player.antiCheat?.bannedAt || null;
     const banReason = player.antiCheat?.banReason || null;
     
+    // Отладочный лог
+    console.log(`💾 savePlayer: id=${player.id}, coins=${player.coins}, clan=${clan}`);
+    
     await this.pool.query(
       `INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
         clicks, level, skills, achievements, skins, current_skin,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
-        daily_quest_date, daily_quest_ids, created_at, last_login,
+        daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
         banned_at, ban_reason, pending_event_clicks, last_processed_clicks
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -395,7 +401,7 @@ class DatabaseAdapter {
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal',
         clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
-        dailyQuestDate, dailyQuestIds, createdAt, lastLogin,
+        dailyQuestDate, dailyQuestIds, createdAt, lastLogin, new Date(),
         bannedAt, banReason, pendingEventClicks, lastProcessedClicks
       ]
     );

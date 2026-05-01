@@ -899,6 +899,8 @@ function handleServerMessage(data) {
       updateClansUI();
       break;
     case 'battleLobbies':
+      // Кэшируем лобби для поиска по коду
+      localStorage.setItem('battleLobbiesCache', JSON.stringify(data.lobbies || []));
       updateBattleLobbiesUI(data.lobbies);
       break;
 case 'lobbyCreated':
@@ -1782,7 +1784,7 @@ function renderSkins() {
   container.appendChild(header);
   
   skinsData.forEach(skin => {
-    const unlocked = game.skins[skin.id] || skin.cost === 0;
+    const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
     const div = document.createElement('div');
     
     // Скрываем Richi пока не получен
@@ -1795,12 +1797,23 @@ function renderSkins() {
           <p>🎁 Из бокса</p>
         </div>
       `;
+    } else if (!unlocked && skin.id !== 'normal') {
+      // Закрытый скин (не richi) - показываем заглушку без названия и картинки
+      div.className = 'skin-item locked-skin';
+      div.innerHTML = `
+        <div class="hidden-skin-placeholder">
+          <span style="font-size: 40px;">🔒</span>
+          <p>???</p>
+          <p>🎁 Из бокса</p>
+        </div>
+      `;
     } else {
-      div.className = `skin-item ${game.currentSkin === skin.id ? 'active' : ''} ${!unlocked ? 'locked-skin' : ''}`;
+      // Открытый скин
+      div.className = `skin-item ${game.currentSkin === skin.id ? 'active' : ''}`;
       div.innerHTML = `
         <img src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">
         <p>${skin.name}</p>
-        <p>${unlocked ? '✅' : '🎁 Из бокса'}</p>
+        <p>✅</p>
       `;
       div.onclick = () => buyOrEquipSkin(skin);
     }
@@ -1808,7 +1821,7 @@ function renderSkins() {
     container.appendChild(div);
   });
 }
-
+  
 function buyOrEquipSkin(skin) {
   const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
   
@@ -2332,7 +2345,26 @@ function joinLobbyByCode() {
     showNotification('⚠️ Введите код лобби');
     return;
   }
-  joinBattleLobby(null, code);
+  
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  // Сначала обновляем список лобби
+  ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+  
+  // Получаем первый открытый или закрытый лобби без соперника
+  // Сервер сам проверит код при joinBattleLobby
+  const lobbies = JSON.parse(localStorage.getItem('battleLobbiesCache') || '[]');
+  const targetLobby = lobbies.find(l => l.isOpen === false && !l.hasOpponent);
+  
+  if (targetLobby) {
+    ws.send(JSON.stringify({ type: 'joinBattleLobby', lobbyId: targetLobby.id, code: code }));
+    showNotification('🔑 Попытка вступления...');
+  } else {
+    showNotification('⚠️ Нет доступных закрытых лобби');
+  }
 }
   
 // Выход из моего лобби
@@ -2341,7 +2373,7 @@ function leaveMyLobby() {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-
+  
   ws.send(JSON.stringify({ type: 'leaveBattleLobby' }));
 }
 
@@ -2368,11 +2400,11 @@ function refreshBattleLobbies() {
     }
     return;
   }
-  
+
   ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
   showNotification('🔄 Обновление...');
 }
-
+  
 // Запуск батла из лобби
 function startBattleFromLobby() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
