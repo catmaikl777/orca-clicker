@@ -1127,17 +1127,32 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
     }
     db.players[accountId] = playerData;
     playerData._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
-    
-    // Преобразуем coins в число (PostgreSQL возвращает их как строки из BIGINT)
-    playerData.coins = Number(playerData.coins) || 0;
-    playerData.totalCoins = Number(playerData.totalCoins) || 0;
-    playerData.eventRewards = Number(playerData.eventRewards) || 0;
-    
-    // Сохраняем pendingEventClicks в БД если не было сохранено
-    if (!playerData._lastProcessedClicks || playerData.clicks > playerData._lastProcessedClicks) {
-      playerData._lastProcessedClicks = playerData.clicks || 0;
-      playerData._pendingEventClicks = 0;
-      savePlayerToDB(accountId);
+  } else {
+    // Игрок уже есть в памяти - ВСЁ РАВНО проверяем БД для свежих данных!
+    console.log(`ℹ️ Игрок ${accountId} уже в памяти, проверяем актуальность данных из БД...`);
+    try {
+      const dbPlayer = await dbAdapter.getPlayer(accountId);
+      if (dbPlayer) {
+        const dbCoins = Number(dbPlayer.coins) || 0;
+        const memCoins = Number(playerData.coins) || 0;
+        if (dbCoins !== memCoins) {
+          console.log(`⚠️ ДАННЫЕ РАСХОДЯТСЯ! БД: ${dbCoins} coins, Память: ${memCoins} coins - ОБНОВЛЯЕМ ИЗ БД`);
+          // Перезагружаем данные из БД
+          playerData.coins = dbCoins;
+          playerData.totalCoins = Number(dbPlayer.total_coins) || 0;
+          playerData.perClick = Number(dbPlayer.per_click) || 1;
+          playerData.perSecond = Number(dbPlayer.per_second) || 0;
+          playerData.clicks = Number(dbPlayer.clicks) || 0;
+          playerData.level = Number(dbPlayer.level) || 1;
+          playerData.clan = dbPlayer.clan || null;
+          playerData.effects = typeof dbPlayer.effects === 'string' ? JSON.parse(dbPlayer.effects) : dbPlayer.effects || {};
+          playerData._pendingEventClicks = Number(dbPlayer.pending_event_clicks) || 0;
+          playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
+          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}`);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Ошибка проверки данных из БД для ${accountId}:`, error);
     }
   }
   
