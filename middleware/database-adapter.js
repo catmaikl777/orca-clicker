@@ -48,11 +48,28 @@ class DatabaseAdapter {
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
         query_timeout: 15000,
+        // Автоматическое переподключение при потере соединения
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+      });
+      
+      // Обработка ошибок соединения
+      this.pool.on('error', (err) => {
+        console.error(`❌ PostgreSQL pool error: ${err.message}`);
+        console.error('⚠️ Попытка переподключения...');
       });
       
       // Тест соединения
       const client = await this.pool.connect();
       console.log('✅ Подключено к PostgreSQL');
+      
+      // Проверка что pool работает
+      client.query('SELECT 1').then(() => {
+        console.log('✅ PostgreSQL query test OK');
+      }).catch(err => {
+        console.error('❌ PostgreSQL query test failed:', err.message);
+      });
+      
       client.release();
       
       // Создать таблицы если их нет
@@ -279,7 +296,28 @@ class DatabaseAdapter {
   }
   
   async savePlayer(player) {
-    if (!this.usePostgreSQL) return;
+    if (!this.usePostgreSQL) {
+      console.log(`⚠️ savePlayer: PostgreSQL не используется! usePostgreSQL=${this.usePostgreSQL}`);
+      return;
+    }
+    
+    if (!this.initialized) {
+      console.log(`⚠️ savePlayer: PostgreSQL ещё не инициализирован!`);
+      return;
+    }
+    
+    // Проверка что pool доступен
+    if (!this.pool) {
+      console.error(`❌ savePlayer: pool не инициализирован! Переподключение...`);
+      try {
+        await this.initWithRetry();
+      } catch (e) {
+        console.error(`❌ savePlayer: не удалось переподключиться: ${e.message}`);
+        return;
+      }
+    }
+    
+    console.log(`💾 savePlayer НАЧАЛО: id=${player.id}, coins=${player.coins}, clan=${player.clan}`);
     
     // Убедимся что createdAt и lastLogin всегда есть
     const createdAt = player.createdAt || player.created_at || Date.now();
@@ -420,6 +458,35 @@ class DatabaseAdapter {
     );
     
     console.log(`💾 savePlayer DEBUG: pending_event_clicks=${pendingEventClicks}, last_processed_clicks=${lastProcessedClicks}`);
+    console.log(`💾 savePlayer УСПЕХ: ${player.id} сохранён в PostgreSQL`);
+  } catch (error) {
+    console.error(`❌ savePlayer ОШИБКА: ${error.message}`);
+    console.error(`❌ savePlayer STACK:`, error.stack);
+    
+    // Если ошибка соединения - пробуем переподключиться
+    const isConnectionError = error.code === 'ECONNREFUSED' || 
+                              error.code === 'PROTOCOL_CONNECTION_LOST' || 
+                              error.message.includes('connect') || 
+                              error.message.includes('terminated');
+    
+    if (isConnectionError) {
+      console.log('⚠️ Потеряно соединение с PostgreSQL, пробуем переподключиться...');
+      this.initialized = false;
+      
+      // Обёртка для async/await
+      (async () => {
+        try {
+          await this.initWithRetry();
+          console.log('✅ Переподключение успешно, пробуем сохранить снова...');
+          // Повторяем сохранение
+          await this.savePlayer(player);
+        } catch (retryError) {
+          console.error(`❌ Не удалось переподключиться: ${retryError.message}`);
+        }
+      })();
+    }
+    
+    throw error;
   }
   
   async saveEventCoins(accountId, coins) {
@@ -529,4 +596,32 @@ class DatabaseAdapter {
   }
 }
 
+// Heartbeat для поддержания соединения с PostgreSQL (каждые 5 минут)
+let heartbeatInterval = null;
+
+function startHeartbeat(adapter) {
+  if (heartbeatInterval) return;
+  
+  heartbeatInterval = setInterval(() => {
+    if (adapter.usePostgreSQL && adapter.pool && adapter.initialized) {
+      (async () => {
+        try {
+          await adapter.pool.query('SELECT 1');
+          // console.log('💓 PostgreSQL heartbeat OK');
+        } catch (err) {
+          console.error('❌ PostgreSQL heartbeat failed:', err.message);
+          adapter.initialized = false;
+          try {
+            await adapter.initWithRetry();
+            console.log('✅ Heartbeat: переподключение успешно');
+          } catch (e) {
+            console.error('❌ Heartbeat: не удалось переподключиться:', e.message);
+          }
+        }
+      })();
+    }
+  }, 5 * 60 * 1000); // каждые 5 минут
+}
+
 module.exports = new DatabaseAdapter();
+module.exports.startHeartbeat = startHeartbeat;

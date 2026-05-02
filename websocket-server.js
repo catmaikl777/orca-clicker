@@ -110,8 +110,14 @@ function deleteClanFromDB(clanId) {
 
 // Сохранение одного игрока в PostgreSQL
 function savePlayerToDB(accountId) {
-  if (!dbAdapter.usePostgreSQL) return;
-  if (!dbAdapter.initialized) return; // Адаптер ещё не инициализирован
+  if (!dbAdapter.usePostgreSQL) {
+    console.log(`⚠️ savePlayerToDB: PostgreSQL не используется! usePostgreSQL=${dbAdapter.usePostgreSQL}, NODE_ENV=${process.env.NODE_ENV}`);
+    return;
+  }
+  if (!dbAdapter.initialized) {
+    console.log(`⚠️ savePlayerToDB: PostgreSQL ещё не инициализирован!`);
+    return;
+  }
   const p = db.players[accountId];
   if (!p) {
     console.log(`💾 savePlayerToDB: игрок ${accountId} не найден в db.players`);
@@ -132,6 +138,7 @@ function savePlayerToDB(accountId) {
   }
   
   // Затем сохраняем игрока
+  console.log(`💾 savePlayerToDB: ВЫЗЫВАЮ dbAdapter.savePlayer для ${accountId}`);
   dbAdapter.savePlayer({ 
     ...p, 
     accountId: isRegistered ? accountId : null, // Только зарегистрированные игроки имеют accountId
@@ -478,6 +485,11 @@ httpServer.listen(PORT, () => {
   if (dbAdapter.usePostgreSQL) {
     dbAdapter.init().then(async () => {
       console.log('✅ PostgreSQL инициализирован');
+      
+      // Запуск heartbeat для поддержания соединения
+      const { startHeartbeat } = require('./middleware/database-adapter.js');
+      startHeartbeat(dbAdapter);
+      console.log('💓 PostgreSQL heartbeat запущен (каждые 5 минут)');
       try {
         // Загрузить игроков
         const rows = await dbAdapter.pool.query('SELECT * FROM players');
@@ -1025,7 +1037,8 @@ function handleSavePlayerData(ws, data) {
   playerData.skins = gameData.skins || playerData.skins;
   playerData.currentSkin = gameData.currentSkin || playerData.currentSkin;
   playerData.achievements = gameData.achievements || playerData.achievements;
-  playerData.pendingBoxes = gameData.pendingBoxes || playerData.pendingBoxes;
+  playerData.effects = gameData.effects || playerData.effects || {};
+  playerData.pendingBoxes = gameData.pendingBoxes || playerData.pendingBoxes || [];
   playerData.multiplier = gameData.multiplier || 1;
   playerData.lastLogin = Date.now();
   
@@ -1036,7 +1049,7 @@ function handleSavePlayerData(ws, data) {
   }
   
   savePlayerToDB(accountId);
-  console.log(`💾 Данные сохранены: ${accountId}`);
+  console.log(`💾 Данные сохранены: ${accountId}, effects=${JSON.stringify(playerData.effects)}`);
   
   // Отправляем подтверждение
   ws.send(JSON.stringify({ 
