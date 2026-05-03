@@ -648,6 +648,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       }
       console.log(`🏰 authSuccess: game.clan = ${game.clan}, type = ${typeof game.clan}`);
       game.multiplier = 1;
+      game.updatedAt = data.data?.updatedAt || Date.now();
       
       if (d.pendingBoxes) {
         // Загружаем боксы - используем реальные ID из БД
@@ -754,6 +755,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
           playSound('bonusSound');
         }
+        game.updatedAt = data.data?.updatedAt || Date.now();
         saveGame();
         updateUI();
         renderShop();
@@ -883,6 +885,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           playSound('bonusSound');
         }
         
+        game.updatedAt = data.data?.updatedAt || Date.now();
         saveGame();
         
         updateUI();
@@ -3075,23 +3078,12 @@ function openBox(boxId) {
     return;
   }
 
-  // Дополнительная проверка - не открываем если нет соединения
-  if (ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-
   isOpeningBox = true;
   const openingBoxId = boxId;
   const openingBoxIndex = boxIndex;
 
-  // Убираем бокс из UI сразу — он в процессе открытия
-  pendingBoxes.splice(boxIndex, 1);
-  renderBoxes();
-  updateBoxUI();
-
+  console.log(`📦 ОТКРЫТИЕ БОКСА: index=${boxIndex}, id=${boxId}, всего боксов=${pendingBoxes.length}`);
   console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
-  // Отправляем РЕАЛЬНЫЙ ID бокса из массива pendingBoxes
   ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
 
   showBoxOpeningCutscene('box');
@@ -3100,7 +3092,55 @@ function openBox(boxId) {
     clearTimeout(currentBoxOpenTimeout);
   }
   
-  // Увеличенный таймаут до 10 секунд для медленных соединений
+  // Увеличенный таймаут до 15 секунд для медленных соединений
+  currentBoxOpenTimeout = setTimeout(() => {
+    if (isOpeningBox) {
+      console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
+      console.log('📦 Текущие pendingBoxes после тайм-аута:', pendingBoxes);
+      
+      // Возвращаем бокс в инвентарь
+      isOpeningBox = false;
+      currentBoxOpenTimeout = null;
+      removeActiveCutscene('box');
+      
+      // Проверяем что бокс действительно исчез из массива
+      if (pendingBoxes.indexOf(openingBoxId) === -1) {
+        pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+        console.log(`✅ Бокс возвращён в массив после тайм-аута: index=${openingBoxIndex}, id=${openingBoxId}`);
+      } else {
+        console.log('⚠️ Бокс уже есть в массиве, не дублируем');
+      }
+      
+      renderBoxes();
+      updateBoxUI();
+      
+      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+    }
+  }, 15000);
+}
+  
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+  
+  isOpeningBox = true;
+  const openingBoxId = boxId;
+  const openingBoxIndex = boxIndex;
+
+  // Сохраняем бокс во временную переменную НА ВРЕМЯ открытия
+  let removedBox = null;
+  
+  console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
+  ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
+
+  showBoxOpeningCutscene('box');
+
+  if (currentBoxOpenTimeout) {
+    clearTimeout(currentBoxOpenTimeout);
+  }
+  
+  // Увеличенный таймаут до 15 секунд для медленных соединений
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
       console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
@@ -3109,14 +3149,22 @@ function openBox(boxId) {
       isOpeningBox = false;
       currentBoxOpenTimeout = null;
       removeActiveCutscene('box');
-      pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+      
+      // Проверяем что бокс действительно исчез из массива
+      if (pendingBoxes.indexOf(openingBoxId) === -1) {
+        pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+        console.log('✅ Бокс возвращён в массив после тайм-аута');
+      } else {
+        console.log('⚠️ Бокс уже есть в массиве, не дублируем');
+      }
+      
       renderBoxes();
       updateBoxUI();
       
       showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
     }
-  }, 10000); // Увеличено с 5000 до 10000
-}
+  }, 15000); // Увеличено с 10000 до 15000
+
   
 function buyFishBox() {
   if (isOpeningFishBox) return;
@@ -3140,19 +3188,9 @@ function openFishBox(boxId) {
     return;
   }
 
-  // Дополнительная проверка - не открываем если нет соединения
-  if (ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-
   isOpeningFishBox = true;
   const openingFishBoxId = boxId;
   const openingFishBoxIndex = boxIndex;
-
-  pendingFishBoxes.splice(boxIndex, 1);
-  renderBoxes();
-  updateFishBoxUI();
 
   console.log('📤 Отправка openFishBox на сервер:', { boxId, boxIndex });
   ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
@@ -3163,7 +3201,7 @@ function openFishBox(boxId) {
     clearTimeout(currentFishBoxOpenTimeout);
   }
   
-  // Увеличенный таймаут до 10 секунд для медленных соединений
+  // Увеличенный таймаут до 15 секунд
   currentFishBoxOpenTimeout = setTimeout(() => {
     if (isOpeningFishBox) {
       console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
@@ -3172,13 +3210,21 @@ function openFishBox(boxId) {
       isOpeningFishBox = false;
       currentFishBoxOpenTimeout = null;
       removeActiveCutscene('fish');
-      pendingFishBoxes.splice(openingFishBoxIndex, 0, openingFishBoxId);
+      
+      // Проверяем что бокс действительно исчез из массива
+      if (pendingFishBoxes.indexOf(openingFishBoxId) === -1) {
+        pendingFishBoxes.splice(openingFishBoxIndex, 0, openingFishBoxId);
+        console.log('✅ Рыбный бокс возвращён в массив после тайм-аута');
+      } else {
+        console.log('⚠️ Рыбный бокс уже есть в массиве, не дублируем');
+      }
+      
       renderBoxes();
       updateFishBoxUI();
       
       showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
     }
-  }, 10000); // Увеличено с 5000 до 10000
+  }, 15000);
 }
   
 function openFishBoxUI() {
@@ -3575,7 +3621,8 @@ function saveGameToServer() {
       // Добавляем поля для отслеживания кланов
       clansJoinedHistory: game.clansJoinedHistory || [],
       ownedClanMemberCount: game.ownedClanMemberCount || 0,
-      skills: game.skills || {}
+      skills: game.skills || {},
+      updatedAt: game.updatedAt || Date.now()
     }
   }));
 }
