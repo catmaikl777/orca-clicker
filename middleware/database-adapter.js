@@ -118,6 +118,7 @@ class DatabaseAdapter {
         daily_quest_ids JSONB DEFAULT '[]',
         pending_event_clicks INTEGER DEFAULT 0,
         last_processed_clicks INTEGER DEFAULT 0,
+        total_play_time INTEGER DEFAULT 0,
         created_at BIGINT NOT NULL,
         last_login BIGINT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -150,6 +151,9 @@ class DatabaseAdapter {
       
       // Добавить поле effects для визуальных эффектов
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS effects JSONB DEFAULT '{}'`,
+      
+      // Добавить поле total_play_time для общего времени в игре
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS total_play_time INTEGER DEFAULT 0`,
       
       // Обновить внешний ключ если таблица уже существует (для миграции)
       `DO $$ 
@@ -420,8 +424,8 @@ class DatabaseAdapter {
         clicks, level, skills, achievements, skins, current_skin, effects,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
-        banned_at, ban_reason, pending_event_clicks, last_processed_clicks
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+        banned_at, ban_reason, pending_event_clicks, last_processed_clicks, total_play_time
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -446,14 +450,16 @@ class DatabaseAdapter {
         banned_at = EXCLUDED.banned_at,
         ban_reason = EXCLUDED.ban_reason,
         pending_event_clicks = EXCLUDED.pending_event_clicks,
-        last_processed_clicks = EXCLUDED.last_processed_clicks`,
+        last_processed_clicks = EXCLUDED.last_processed_clicks,
+        total_play_time = EXCLUDED.total_play_time`,
       [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         skills, achievements, skins, player.currentSkin || 'normal', effects,
         clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
         dailyQuestDate, dailyQuestIds, createdAt, lastLogin, new Date(),
-        bannedAt, banReason, pendingEventClicks, lastProcessedClicks
+        bannedAt, banReason, pendingEventClicks, lastProcessedClicks,
+        player.playTime || 0
       ]
     );
     

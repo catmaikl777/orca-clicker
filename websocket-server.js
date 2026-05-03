@@ -544,6 +544,7 @@ skins: safeParseJSON(row.skins, { normal: true }),
             // Загружаем pendingEventClicks
             db.players[row.id]._pendingEventClicks = Number(row.pending_event_clicks) || 0;
             db.players[row.id]._lastProcessedClicks = Number(row.last_processed_clicks) || 0;
+            db.players[row.id].playTime = Number(row.total_play_time) || 0;  // Общее время в игре
             
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
@@ -1115,7 +1116,8 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
         lastLogin: dbPlayer.last_login || Date.now(),
         antiCheat: null,
         _pendingEventClicks: Number(dbPlayer.pending_event_clicks) || 0,
-        _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0
+        _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0,
+        playTime: Number(dbPlayer.total_play_time) || 0  // Общее время в игры
       };
       } else {
         console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
@@ -1148,7 +1150,8 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
           playerData.effects = typeof dbPlayer.effects === 'string' ? JSON.parse(dbPlayer.effects) : dbPlayer.effects || {};
           playerData._pendingEventClicks = Number(dbPlayer.pending_event_clicks) || 0;
           playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
-          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}`);
+          playerData.playTime = Number(dbPlayer.total_play_time) || 0;  // Общее время в игре
+          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, playTime=${playerData.playTime}`);
         }
       }
     } catch (error) {
