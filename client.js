@@ -3119,53 +3119,6 @@ function openBox(boxId) {
   }, 15000);
 }
   
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-  
-  isOpeningBox = true;
-  const openingBoxId = boxId;
-  const openingBoxIndex = boxIndex;
-
-  // Сохраняем бокс во временную переменную НА ВРЕМЯ открытия
-  let removedBox = null;
-  
-  console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
-  ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
-
-  showBoxOpeningCutscene('box');
-
-  if (currentBoxOpenTimeout) {
-    clearTimeout(currentBoxOpenTimeout);
-  }
-  
-  // Увеличенный таймаут до 15 секунд для медленных соединений
-  currentBoxOpenTimeout = setTimeout(() => {
-    if (isOpeningBox) {
-      console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
-      
-      // Возвращаем бокс в инвентарь
-      isOpeningBox = false;
-      currentBoxOpenTimeout = null;
-      removeActiveCutscene('box');
-      
-      // Проверяем что бокс действительно исчез из массива
-      if (pendingBoxes.indexOf(openingBoxId) === -1) {
-        pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
-        console.log('✅ Бокс возвращён в массив после тайм-аута');
-      } else {
-        console.log('⚠️ Бокс уже есть в массиве, не дублируем');
-      }
-      
-      renderBoxes();
-      updateBoxUI();
-      
-      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
-    }
-  }, 15000); // Увеличено с 10000 до 15000
-
-  
 function buyFishBox() {
   if (isOpeningFishBox) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
