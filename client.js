@@ -650,11 +650,11 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       game.multiplier = 1;
       
       if (d.pendingBoxes) {
-        // Загружаем боксы - если это массив ID, сохраняем как есть, иначе создаём заглушки
+        // Загружаем боксы - используем реальные ID из БД
         if (Array.isArray(d.pendingBoxes)) {
-          pendingBoxes = d.pendingBoxes.map(id => id || 'box');
+          pendingBoxes = d.pendingBoxes.filter(id => id && typeof id === 'string');
         } else {
-          pendingBoxes = new Array(d.pendingBoxes).fill('box');
+          pendingBoxes = [];
         }
       }
       if (d.pendingFishBoxes) {
@@ -737,10 +737,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         }
         if (data.data?.pendingBoxes) {
           if (Array.isArray(data.data.pendingBoxes)) {
-            pendingBoxes = data.data.pendingBoxes.map(id => id || 'box');
-          } else {
-            pendingBoxes = new Array(data.data.pendingBoxes).fill('box');
-          }
+            pendingBoxes = data.data.pendingBoxes.filter(id => id && typeof id === 'string');
+} else {
+  pendingBoxes = [];
+}
         }
         if (data.data?.pendingFishBoxes) {
           if (Array.isArray(data.data.pendingFishBoxes)) {
@@ -864,10 +864,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         }
         if (data.data?.pendingBoxes) {
           if (Array.isArray(data.data.pendingBoxes)) {
-            pendingBoxes = data.data.pendingBoxes.map(id => id || 'box');
-          } else {
-            pendingBoxes = new Array(data.data.pendingBoxes).fill('box');
-          }
+            pendingBoxes = data.data.pendingBoxes.filter(id => id && typeof id === 'string');
+} else {
+  pendingBoxes = [];
+}
         }
         if (data.data?.pendingFishBoxes) {
           if (Array.isArray(data.data.pendingFishBoxes)) {
@@ -1114,7 +1114,7 @@ case 'joinedClan':
         }
       }
       if (data.pendingBoxes !== undefined) {
-        pendingBoxes = new Array(data.pendingBoxes).fill(null).map((_, i) => `box_${i}`);
+        pendingBoxes = [];
       }
       updateUI();
       updateBoxUI();
@@ -1158,7 +1158,7 @@ case 'joinedClan':
         console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
       if (data.pendingBoxes !== undefined) {
-        pendingBoxes = new Array(data.pendingBoxes).fill('box');
+        pendingBoxes = [];
       }
       updateUI();
       updateBoxUI();
