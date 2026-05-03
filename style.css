@@ -1374,11 +1374,32 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 100%;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Плавный скролл на iOS */
   padding-bottom: 20px;
 }
 
+/* Адаптивная высота для мобильных */
+@media (max-width: 768px) {
+  .shop-items {
+    max-height: 60vh; /* Ограничиваем высоту на мобильных */
+  }
+}
+  
+@media (min-width: 769px) {
+  .shop-items {
+    max-height: 400px; /* Фиксированная высота на десктопе */
+  }
+}
+  
+/* Улучшенный скролл для мобильных */
+@media (max-width: 768px) {
+  .shop-items {
+    height: auto;
+    min-height: 200px;
+  }
+}
+  
 .shop-item {
   background: linear-gradient(145deg, rgba(32,178,170,0.15), rgba(72,209,204,0.1));
   border: 1px solid rgba(32,178,170,0.3);
@@ -1391,11 +1412,9 @@ body {
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
-  overflow-y: auto;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   min-height: 110px;
-  max-height: 120px;
   box-sizing: border-box;
 }
 
