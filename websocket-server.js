@@ -888,15 +888,11 @@ function handleSaveGame(ws, data) {
   const p = db.players[id];
   const mem = players.get(id);
   
-  // Проверка updatedAt - не сохраняем старые данные поверх новых
-  if (data.updatedAt && p.updatedAt) {
-    const clientTime = new Date(data.updatedAt);
-    const serverTime = new Date(p.updatedAt);
-    if (clientTime < serverTime) {
-      console.log(`⏰ Игнорируем устаревшее сохранение: клиент=${clientTime.toISOString()}, сервер=${serverTime.toISOString()}`);
-      return;
-    }
-  }
+  // Лог для отладки
+  console.log(`💾 handleSaveGame: id=${id}, coins=${data.coins}, updatedAt=${data.updatedAt}`);
+  
+  // УБРАНА проверка updatedAt - она работала неправильно!
+  // Теперь всегда обновляем данные из клиента (клиент - источник истины для активных сессий)
   
   // Проверка "невозможного" CPS по приросту clicks между saveGame
   if (typeof data?.clicks === 'number') {
@@ -934,7 +930,8 @@ p.coins = data.coins ?? p.coins;
     p.pendingBoxes = Array.isArray(data.pendingBoxes) ? data.pendingBoxes : p.pendingBoxes || [];
   }
   p.playTime = data.playTime ?? p.playTime;
-  p.shopItems = data.shopItems || p.shopItems;
+  // shopItems: НЕ принимаем от клиента - цены управляются только сервером!
+  // p.shopItems = data.shopItems || p.shopItems;  // ЗАКОММЕНТИРОВАНО
   p.questProgress = data.questProgress || p.questProgress;
   if (data.dailyQuestDate) p.dailyQuestDate = data.dailyQuestDate;
   if (Array.isArray(data.dailyQuestIds) && data.dailyQuestIds.length > 0) p.dailyQuestIds = data.dailyQuestIds;
@@ -1175,7 +1172,8 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
     }
   }
   
-  if (!playerData.shopItems) playerData.shopItems = [];
+  if (!playerData.shopItems) playerData.shopItems = [];  // shopItems больше не используются - цены управляются только через getPlayerItemCost
+  playerData.shopItems = [];  // СБРОС shopItems - цены управляются только через getPlayerItemCost/SHOP_CATALOG
   
   playerData.lastLogin = Date.now();
   account.lastLogin = Date.now();
@@ -2114,18 +2112,40 @@ function handleBuyEffect(ws, effectId) {
 // Покупка предмета в магазине
 function handleBuyItem(ws, itemId) {
   const id = ws.accountId || ws.playerId;
-  if (!id || !db.players[id]) return;
+  if (!id || !db.players[id]) {
+    console.error(`❌ handleBuyItem: игрок ${id} не найден`);
+    return;
+  }
   
   const p = db.players[id];
   const mem = players.get(id);
+  
+  // БЕРЁМ актуальные монеты ИЗ ПАМЯТИ если игрок онлайн, иначе из БД
   const coins = mem ? mem.coins : p.coins;
   
   const item = SHOP_CATALOG.find(i => i.id === itemId);
-  if (!item) return;
+  if (!item) {
+    console.error(`❌ handleBuyItem: предмет ${itemId} не найден в каталоге`);
+    return;
+  }
+  
   const itemCost = getPlayerItemCost(p, itemId);
-  if (itemCost === null) return;
+  if (itemCost === null) {
+    console.error(`❌ handleBuyItem: не удалось получить цену для ${itemId}`);
+    return;
+  }
+  
+  console.log(`🛒 Попытка покупки: ${item.name}, цена=${itemCost}, coins=${coins}, coins в БД=${p.coins}`);
+  
+  // Проверяем что coins - число
+  if (typeof coins !== 'number' || !Number.isFinite(coins)) {
+    console.error(`❌ handleBuyItem: invalid coins value: ${coins}`);
+    ws.send(JSON.stringify({ type: 'error', message: 'Ошибка данных игрока' }));
+    return;
+  }
   
   if (coins < itemCost) {
+    console.log(`❌ Недостаточно монет: нужно ${itemCost}, есть ${coins}`);
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно монет' }));
     return;
   }

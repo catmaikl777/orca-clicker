@@ -433,6 +433,30 @@ window.addEventListener('focus', updateFocusState);
 window.addEventListener('blur', updateFocusState);
 document.addEventListener('visibilitychange', updateFocusState);
 
+// Сохранение при закрытии вкладки (без диалога, чтобы работало на iOS)
+let isSavingOnClose = false;
+
+window.addEventListener('beforeunload', (e) => {
+  // Только для авторизованных игроков
+  if (typeof currentUser !== 'undefined' && currentUser && !isGuest && !isSavingOnClose) {
+    isSavingOnClose = true;
+    
+    // Принудительное сохранение (неблокирующее)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('💾 Автосохранение перед закрытием...');
+      ws.send(JSON.stringify({ type: 'forceSaveAll' }));
+      
+      // Даем время на отправку (но не блокируем закрытие)
+      setTimeout(() => {}, 1000);
+    }
+  }
+  
+  // Для некоторых браузеров нужно установить returnValue
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
+});
+
 function canPlayActions() {
   updateFocusState();
   return windowFocused && pageVisible;
@@ -670,7 +694,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       if (d.shopItems && Array.isArray(d.shopItems)) {
         d.shopItems.forEach(saved => {
           const item = shopItems.find(i => i.id === saved.id);
-          if (item) item.cost = saved.cost;
+          if (item) {
+            item.cost = saved.cost;
+            console.log(`📦 shopItems загружены: ${item.id} = ${item.cost}`);
+          }
         });
       }
       
