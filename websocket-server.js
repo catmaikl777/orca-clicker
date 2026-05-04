@@ -2760,18 +2760,34 @@ function handleJoinRaidLobby(ws, data) {
     teamSize: lobby.team.length
   }));
   
-  // Уведомляем капитана
+  // Уведомляем капитана о присоединении и статусе
   const captainWs = players.get(lobby.captainId)?.ws;
   if (captainWs && captainWs.readyState === WebSocket.OPEN) {
     captainWs.send(JSON.stringify({
       type: 'playerJoinedRaidLobby',
       lobbyId,
       playerName: player.name,
-      teamSize: lobby.team.length
+      teamSize: lobby.team.length,
+      isTeamFull: lobby.team.length >= 3,
+      allRolesSelected: lobby.team.every(p => p.role)
     }));
   }
   
-  console.log(`👥 Игрок ${player.name} присоединился к рейду: ${lobbyId}`);
+  // Уведомляем всех игроков о статусе команды
+  lobby.team.forEach(member => {
+    const memberWs = players.get(member.id)?.ws;
+    if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+      memberWs.send(JSON.stringify({
+        type: 'raidTeamStatus',
+        lobbyId,
+        teamSize: lobby.team.length,
+        isTeamFull: lobby.team.length >= 3,
+        allRolesSelected: lobby.team.every(p => p.role)
+      }));
+    }
+  });
+  
+  console.log(`👥 Игрок ${player.name} присоединился к рейду: ${lobbyId}, команда: ${lobby.team.length}/3`);
 }
 
 // Выход из рейдового лобби
@@ -2807,7 +2823,7 @@ function handleLeaveRaidLobby(ws) {
       });
     }
   }
-  
+      
   raidTeams.delete(id);
   broadcastRaidLobbies();
 }

@@ -1294,6 +1294,9 @@ case 'joinedClan':
     case 'raidBattleEnd':
       endRaidBattle(data);
       break;
+    case 'raidTeamStatus':
+      updateRaidTeamStatus(data);
+      break;
     case 'raidLobbies':
       raidLobbiesList = data.lobbies || [];
       renderRaidLobbies();
