@@ -730,6 +730,15 @@ case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'openBox': handleOpenBox(ws, data.boxId); break;
     case 'buyFishBox': handleBuyFishBox(ws); break;
     case 'openFishBox': handleOpenFishBox(ws, data.boxId); break;
+    // 3x3 Рейдовые битвы
+    case 'createRaidLobby': handleCreateRaidLobby(ws, data.isOpen); break;
+    case 'joinRaidLobby': handleJoinRaidLobby(ws, data); break;
+    case 'leaveRaidLobby': handleLeaveRaidLobby(ws); break;
+    case 'selectRaidRole': handleSelectRaidRole(ws, data.role); break;
+    case 'selectRaidStratagem': handleSelectRaidStratagem(ws, data.stratagem); break;
+    case 'startRaidBattle': handleStartRaidBattle(ws, data.lobbyId); break;
+    case 'raidClick': handleRaidClick(ws, data); break;
+    case 'getRaidLobbies': handleGetRaidLobbies(ws); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
     case 'forceSaveAll': handleForceSaveAll(ws); break;
   }
@@ -2228,6 +2237,44 @@ function handleEquipSkin(ws, skinId) {
 const boxPrice = 8500;  // Было 1700, увеличено в 5 раз
 const fishBoxPrice = 12500;  // Было 2500, увеличено в 5 раз
 
+// ==================== 3x3 РЕЙДОВЫЕ БИТВЫ ====================
+const RAID_ROLES = {
+  assassin: { emoji: '🔪', name: 'Ассасин', multiplier: 1.0, bonus: 'x2 кликов в последние 10с' },
+  tank: { emoji: '🛡️', name: 'Танк', multiplier: 0.5, bonus: 'Защита союзников' },
+  shooter: { emoji: '🏹', name: 'Стрелок', multiplier: 1.0, bonus: 'Стабильный DPS' },
+  mage: { emoji: '🔮', name: 'Маг', multiplier: 1.0, bonus: 'Заморозка кликов на 3с' },
+  healer: { emoji: '💚', name: 'Хилер', multiplier: 1.0, bonus: 'Восстановление 15% очков' },
+  leader: { emoji: '👑', name: 'Лидер', multiplier: 1.1, bonus: '+10% к кликам команды' }
+};
+
+const RAID_RANKS = {
+  bronze: { name: 'Бронза', minPoints: 0, rewardCoins: 500, rewardBoxes: 1 },
+  silver: { name: 'Серебро', minPoints: 1000, rewardCoins: 2000, rewardBoxes: 2 },
+  gold: { name: 'Золото', minPoints: 3000, rewardCoins: 5000, rewardBoxes: 3 },
+  platinum: { name: 'Платина', minPoints: 8000, rewardCoins: 15000, rewardBoxes: 0, rewardEffect: true },
+  diamond: { name: 'Алмаз', minPoints: 15000, rewardCoins: 50000, rewardBoxes: 0, rewardSkin: true }
+};
+
+const RAID_STRATEGEMS = {
+  tripleStrike: { name: 'Тройной удар', description: 'x3 клики союзнику на 10с' },
+  stoneWall: { name: 'Каменная стена', description: 'Иммунитет к контролю 15с' },
+  reverse: { name: 'Реверс', description: '-20% очков врагам' },
+  tornado: { name: 'Торнадо', description: 'Перемешивает роли врагов' },
+  sacrifice: { name: 'Жертва', description: '+200% к очкам другого игрока' }
+};
+
+const RAID_EVENTS = [
+  { time: 10, type: 'wave', name: 'Волна усиления', description: 'Случайная роль получает x2 на 5с' },
+  { time: 25, type: 'kraken', name: 'Кракен!', description: '5 кликов по боссу или -20% урона' },
+  { time: 40, type: 'darkness', name: 'Тёмная фаза', description: 'Экраны меняются местами' },
+  { time: 55, type: 'rage', name: 'Ярость', description: 'x2 кликов до конца боя' }
+];
+
+// Хранилище рейдовых лобби
+const raidLobbies = new Map(); // lobbyId -> { id, captainId, team, opponentTeam, status, stratagem, createdAt }
+const raidTeams = new Map(); // playerId -> { lobbyId, role, playerId1, playerId2, playerId3 }
+const raidBattles = new Map(); // battleId -> { team1, team2, scores, startTime, events, status }
+
 // ==================== ЗАЩИТА ОТ БОТОВ (умная) ====================
 // Отличает людей от ботов по паттернам кликов
 const clickAnalysis = new Map(); // accountId -> { times: [], lastCheck: }
@@ -2619,6 +2666,431 @@ function handleOpenFishBox(ws, boxId) {
   
   console.log(`🐟 Игрок ${id} открыл Рыбный бокс ${realBoxId}. Награда: ${reward.type}. Всего рыбных боксов: ${playerDB.pendingFishBoxes.length}`);
 }
+
+// ==================== 3x3 РЕЙДОВЫЕ БИТВЫ ====================
+
+// Создание рейдового лобби
+function handleCreateRaidLobby(ws, isOpen = true) {
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  if (!player) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
+  
+  // Проверка: игрок уже в лобби?
+  if (raidTeams.has(id)) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в рейдовой команде' }));
+    return;
+  }
+  
+  const lobbyId = generateId();
+  const lobbyCode = Math.floor(1000 + Math.random() * 9000).toString();
+  
+  raidLobbies.set(lobbyId, {
+    id: lobbyId,
+    captainId: id,
+    captainName: player.name,
+    team: [{ id, name: player.name, role: null }],
+    opponentTeam: null,
+    status: 'waiting', // waiting, ready, battling, finished
+    stratagem: null,
+    isOpen: isOpen,
+    lobbyCode: lobbyCode,
+    createdAt: Date.now()
+  });
+  
+  raidTeams.set(id, { lobbyId, role: null });
+  
+  ws.send(JSON.stringify({ 
+    type: 'raidLobbyCreated',
+    lobbyId,
+    captainName: player.name,
+    lobbyCode,
+    isOpen
+  }));
+  
+  broadcastRaidLobbies();
+  console.log(`🎮 Рейдовое лобби создано: ${lobbyId}, код: ${lobbyCode}`);
+}
+
+// Присоединение к рейдовому лобби
+function handleJoinRaidLobby(ws, data) {
+  const lobbyId = data.lobbyId;
+  const code = data.code;
+  const id = ws.accountId || ws.playerId;
+  const player = players.get(id);
+  
+  if (!player) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
+    return;
+  }
+  
+  const lobby = raidLobbies.get(lobbyId);
+  if (!lobby) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  // Проверка: лобби закрыто - нужен код
+  if (!lobby.isOpen && (!code || lobby.lobbyCode !== code)) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Неверный код лобби' }));
+    return;
+  }
+  
+  // Проверка: лобби уже заполнено
+  if (lobby.team.length >= 3) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Команда заполнена' }));
+    return;
+  }
+  
+  // Проверка: игрок уже в лобби
+  if (raidTeams.has(id)) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы уже в команде' }));
+    return;
+  }
+  
+  // Добавляем игрока
+  lobby.team.push({ id, name: player.name, role: null });
+  raidTeams.set(id, { lobbyId, role: null });
+  
+  ws.send(JSON.stringify({ 
+    type: 'joinedRaidLobby',
+    lobbyId,
+    teamSize: lobby.team.length
+  }));
+  
+  // Уведомляем капитана
+  const captainWs = players.get(lobby.captainId)?.ws;
+  if (captainWs && captainWs.readyState === WebSocket.OPEN) {
+    captainWs.send(JSON.stringify({
+      type: 'playerJoinedRaidLobby',
+      lobbyId,
+      playerName: player.name,
+      teamSize: lobby.team.length
+    }));
+  }
+  
+  console.log(`👥 Игрок ${player.name} присоединился к рейду: ${lobbyId}`);
+}
+
+// Выход из рейдового лобби
+function handleLeaveRaidLobby(ws) {
+  const id = ws.accountId || ws.playerId;
+  const teamData = raidTeams.get(id);
+  
+  if (!teamData) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы не в команде' }));
+    return;
+  }
+  
+  const lobby = raidLobbies.get(teamData.lobbyId);
+  if (lobby) {
+    // Удаляем из команды
+    lobby.team = lobby.team.filter(p => p.id !== id);
+    
+    // Если капитан вышел - удаляем лобби
+    if (id === lobby.captainId || lobby.team.length === 0) {
+      raidLobbies.delete(teamData.lobbyId);
+      ws.send(JSON.stringify({ type: 'raidLobbyDeleted' }));
+    } else {
+      // Уведомляем остальных
+      lobby.team.forEach(member => {
+        const memberWs = players.get(member.id)?.ws;
+        if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+          memberWs.send(JSON.stringify({
+            type: 'playerLeftRaidLobby',
+            lobbyId: teamData.lobbyId,
+            playerName: players.get(id)?.name || 'Unknown'
+          }));
+        }
+      });
+    }
+  }
+  
+  raidTeams.delete(id);
+  broadcastRaidLobbies();
+}
+
+// Выбор роли в рейде
+function handleSelectRaidRole(ws, role) {
+  const id = ws.accountId || ws.playerId;
+  const teamData = raidTeams.get(id);
+  
+  if (!teamData) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы не в команде' }));
+    return;
+  }
+  
+  if (!RAID_ROLES[role]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Неверная роль' }));
+    return;
+  }
+  
+  const lobby = raidLobbies.get(teamData.lobbyId);
+  if (!lobby) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  // Проверка: роль уже выбрана кем-то в команде
+  const roleTaken = lobby.team.some(p => p.role === role);
+  if (roleTaken) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Эта роль уже выбрана' }));
+    return;
+  }
+  
+  // Устанавливаем роль
+  teamData.role = role;
+  const playerInTeam = lobby.team.find(p => p.id === id);
+  if (playerInTeam) {
+    playerInTeam.role = role;
+  }
+  
+  ws.send(JSON.stringify({ 
+    type: 'raidRoleSelected',
+    role,
+    roleData: RAID_ROLES[role]
+  }));
+  
+  console.log(`🎭 Игрок выбрал роль ${role} в рейде ${teamData.lobbyId}`);
+}
+
+// Выбор стратегемы (только капитан)
+function handleSelectRaidStratagem(ws, stratagem) {
+  const id = ws.accountId || ws.playerId;
+  const teamData = raidTeams.get(id);
+  
+  if (!teamData) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Вы не в команде' }));
+    return;
+  }
+  
+  const lobby = raidLobbies.get(teamData.lobbyId);
+  if (!lobby || id !== lobby.captainId) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Только капитан может выбрать стратегему' }));
+    return;
+  }
+  
+  if (!RAID_STRATEGEMS[stratagem]) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Неверная стратегема' }));
+    return;
+  }
+  
+  lobby.stratagem = stratagem;
+  
+  ws.send(JSON.stringify({ 
+    type: 'raidStratagemSelected',
+    stratagem,
+    stratagemData: RAID_STRATEGEMS[stratagem]
+  }));
+  
+  console.log(`🎯 Капитан выбрал стратегему ${stratagem} для рейда ${teamData.lobbyId}`);
+}
+
+// Запуск рейдовой битвы
+function handleStartRaidBattle(ws, lobbyId) {
+  const id = ws.accountId || ws.playerId;
+  const lobby = raidLobbies.get(lobbyId);
+  
+  if (!lobby) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Лобби не найдено' }));
+    return;
+  }
+  
+  if (id !== lobby.captainId) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Только капитан может начать бой' }));
+    return;
+  }
+  
+  if (lobby.team.length < 3) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Нужно 3 игрока для начала боя' }));
+    return;
+  }
+  
+  // Проверка: все выбрали роли?
+  const allRolesSelected = lobby.team.every(p => p.role);
+  if (!allRolesSelected) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Все игроки должны выбрать роль' }));
+    return;
+  }
+  
+  // TODO: Поиск соперника (временно - автоматическое начало)
+  lobby.status = 'battling';
+  
+  // Создаём битву
+  const battleId = generateId();
+  const battle = {
+    id: battleId,
+    lobbyId: lobbyId,
+    team1: lobby.team.map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      role: p.role,
+      clicks: 0,
+      multiplier: RAID_ROLES[p.role].multiplier
+    })),
+    team2: [], // Будет заполнено при поиске соперника
+    scores: { team1: 0, team2: 0 },
+    startTime: Date.now(),
+    duration: 60, // 60 секунд
+    events: [],
+    status: 'active',
+    currentEvent: null
+  };
+  
+  raidBattles.set(battleId, battle);
+  
+  // Уведомляем команду
+  lobby.team.forEach(member => {
+    const memberWs = players.get(member.id)?.ws;
+    if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+      memberWs.send(JSON.stringify({
+        type: 'raidBattleStart',
+        battleId,
+        team: battle.team1,
+        duration: 60
+      }));
+    }
+  });
+  
+  console.log(`⚔️ Рейдовая битва началась: ${battleId}`);
+}
+
+// Обработка клика в рейде
+function handleRaidClick(ws, data) {
+  const id = ws.accountId || ws.playerId;
+  const battleId = data.battleId;
+  const clicks = data.clicks || 1;
+  
+  const battle = raidBattles.get(battleId);
+  if (!battle || battle.status !== 'active') {
+    return;
+  }
+  
+  // Находим игрока в команде
+  const player = battle.team1.find(p => p.id === id);
+  if (!player) {
+    return;
+  }
+  
+  // Добавляем клики
+  player.clicks += clicks;
+  
+  // Рассчитываем очки с учётом роли
+  const playerScore = player.clicks * player.multiplier;
+  
+  // Обновляем общий счёт команды
+  battle.scores.team1 = battle.team1.reduce((sum, p) => sum + (p.clicks * p.multiplier), 0);
+  
+  // Отправляем обновление
+  ws.send(JSON.stringify({
+    type: 'raidBattleUpdate',
+    battleId,
+    playerId: id,
+    clicks: player.clicks,
+    score: playerScore,
+    teamScore: battle.scores.team1
+  }));
+}
+
+// Получение списка рейдовых лобби
+function handleGetRaidLobbies(ws) {
+  const lobbies = Array.from(raidLobbies.values())
+    .filter(l => l.status === 'waiting')
+    .map(l => ({
+      lobbyId: l.id,
+      captainName: l.captainName,
+      teamSize: l.team.length,
+      isOpen: l.isOpen,
+      lobbyCode: l.isOpen ? null : l.lobbyCode,
+      stratagem: l.stratagem
+    }));
+  
+  ws.send(JSON.stringify({
+    type: 'raidLobbies',
+    lobbies
+  }));
+}
+
+// Трансляция рейдовых лобби всем клиентам
+function broadcastRaidLobbies() {
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      const lobbies = Array.from(raidLobbies.values())
+        .filter(l => l.status === 'waiting')
+        .map(l => ({
+          lobbyId: l.id,
+          captainName: l.captainName,
+          teamSize: l.team.length,
+          isOpen: l.isOpen,
+          lobbyCode: l.isOpen ? null : l.lobbyCode
+        }));
+      
+      client.send(JSON.stringify({
+        type: 'raidLobbies',
+        lobbies
+      }));
+    }
+  });
+}
+
+// Запуск таймера рейдовых событий
+setInterval(() => {
+  raidBattles.forEach((battle, battleId) => {
+    if (battle.status !== 'active') return;
+    
+    const elapsed = Math.floor((Date.now() - battle.startTime) / 1000);
+    
+    // Проверка событий
+    RAID_EVENTS.forEach(event => {
+      if (elapsed === event.time && !battle.events.includes(event.type)) {
+        battle.events.push(event.type);
+        battle.currentEvent = event;
+        
+        // Отправляем событие всем участникам
+        battle.team1.forEach(player => {
+          const playerWs = players.get(player.id)?.ws;
+          if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+            playerWs.send(JSON.stringify({
+              type: 'raidBattleEvent',
+              battleId,
+              event: event
+            }));
+          }
+        });
+        
+        console.log(`🎭 Рейдовое событие: ${event.name} в битве ${battleId}`);
+      }
+    });
+    
+    // Конец боя через 60 секунд
+    if (elapsed >= battle.duration) {
+      battle.status = 'finished';
+      
+      // TODO: Подсчёт результатов и награды
+      
+      // Уведомляем о конце боя
+      battle.team1.forEach(player => {
+        const playerWs = players.get(player.id)?.ws;
+        if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+          playerWs.send(JSON.stringify({
+            type: 'raidBattleEnd',
+            battleId,
+            teamScore: battle.scores.team1
+          }));
+        }
+      });
+      
+      // Удаляем битву через 30 секунд
+      setTimeout(() => {
+        raidBattles.delete(battleId);
+      }, 30000);
+      
+      console.log(`✅ Рейдовая битва завершена: ${battleId}`);
+    }
+  });
+}, 1000);
 
 process.on('SIGINT', () => {
   console.log('\n⚠️ SIGINT получен, сервер останавливается...');

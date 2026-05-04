@@ -139,6 +139,7 @@
       <button class="menu-btn" onclick="showModal('stats')">📈 Статистика</button>
       <button class="menu-btn" onclick="showModal('leaderboard')">📊 Лидеры</button>
       <button class="menu-btn" onclick="showModal('battle')">⚔️ PvP</button>
+      <button class="menu-btn" onclick="showRaidView()">🎮 3x3 Рейд</button>
       <button class="menu-btn" onclick="showModal('clans')">👥 Кланы</button>
       <button class="menu-btn" onclick="openEventModal()">🎉 Ивент</button>
       <button class="menu-btn" onclick="showModal('effectsModal')">✨ Эффекты</button>
@@ -654,6 +655,53 @@
         <small>Код нужно получить у владельца лобби</small>
       </p>
       <div id="closedLobbiesList"></div>
+    </div>
+  </div>
+
+  <!-- 3x3 Рейдовые битвы -->
+  <div id="raidView" class="modal">
+    <div class="modal-header">
+      <h2>🎮 3x3 Рейдовые Битвы</h2>
+      <button class="close-btn" onclick="closeAllModals()">&times;</button>
+    </div>
+    <div class="modal-content">
+      <div id="raidLobbyList" class="raid-lobby-list">
+        <p style="text-align:center;padding:20px;color:#888">Загрузка...</p>
+      </div>
+      
+      <div id="raidTeamPanel" style="display:none;" class="raid-team-panel">
+        <h3>🎯 Ваша команда</h3>
+        <div id="raidTeamMembers"></div>
+        <button class="raid-start-btn" onclick="startRaidBattle()">⚔️ Начать поиск соперников</button>
+        <button class="action-btn" onclick="leaveRaidLobby()" style="margin-top:10px;background:rgba(255,100,100,0.3)">👋 Выйти из команды</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UI рейдового боя -->
+  <div id="raidBattleView" class="raid-battle-view">
+    <div class="raid-battle-header">
+      <h2>⚔️ Рейдовая Битва</h2>
+      <div class="raid-battle-timer" id="raidBattleTimer">60</div>
+    </div>
+    
+    <div class="raid-battle-team" id="raidBattleTeam">
+      <!-- Игроки команды будут добавлены через JS -->
+    </div>
+    
+    <div class="raid-team-score">
+      Счёт команды: <span id="raidTeamScore">0</span>
+    </div>
+    
+    <div class="raid-clicker-container">
+      <div id="raidClicker" class="raid-clicker">
+        <div style="font-size:200px;">🐋</div>
+      </div>
+      <div class="raid-timer" id="raidTimer">60</div>
+    </div>
+    
+    <div id="raidCurrentEvent" class="raid-current-event">
+      <!-- Текущее событие -->
     </div>
   </div>
 

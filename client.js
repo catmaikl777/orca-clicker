@@ -1269,6 +1269,31 @@ case 'joinedClan':
         document.getElementById('clicker')?.classList.add('locked');
       } catch (_) {}
       break;
+    // 3x3 Рейдовые битвы
+    case 'raidLobbyCreated':
+      showNotification(`🎮 Рейдовое лобби создано! Код: ${data.lobbyCode}`);
+      renderRaidLobbies();
+      break;
+    case 'joinedRaidLobby':
+      showNotification('👥 Вы присоединились к рейду!');
+      renderRaidLobbies();
+      break;
+    case 'raidRoleSelected':
+      showNotification(`🎭 Роль выбрана: ${data.roleData.emoji} ${data.roleData.name}`);
+      renderRaidTeam();
+      break;
+    case 'raidBattleStart':
+      showRaidBattleUI(data);
+      break;
+    case 'raidBattleUpdate':
+      updateRaidBattleUI(data);
+      break;
+    case 'raidBattleEvent':
+      showRaidEvent(data.event);
+      break;
+    case 'raidBattleEnd':
+      endRaidBattle(data);
+      break;
     case 'forceSaveCompleted':
       if (window.handleForceSaveResponse) {
         window.handleForceSaveResponse(data);
@@ -1316,6 +1341,282 @@ function showFloatingText(x, y, text, color = '#4fc3f7') {
   document.getElementById('clickEffects').appendChild(effect);
   setTimeout(() => effect.remove(), 1000);
 }
+
+// ==================== 3x3 РЕЙДОВЫЕ БИТВЫ ====================
+let currentRaidBattle = null;
+let raidLobbiesList = [];
+
+function showRaidView() {
+  // Скрываем все виды
+  hideAllViews();
+  
+  // Показываем вид рейда
+  const raidView = document.getElementById('raidView');
+  if (raidView) {
+    raidView.classList.add('active');
+  }
+  
+  // Запрашиваем список лобби
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'getRaidLobbies' }));
+  }
+  
+  renderRaidLobbies();
+}
+
+function renderRaidLobbies() {
+  const container = document.getElementById('raidLobbyList');
+  if (!container) return;
+  
+  container.innerHTML = '<h3>🎮 Доступные рейдовые команды</h3>';
+  
+  if (raidLobbiesList.length === 0) {
+    container.innerHTML += '<p style="text-align:center;padding:20px;color:#888">Нет доступных команд</p>';
+  } else {
+    raidLobbiesList.forEach(lobby => {
+      const div = document.createElement('div');
+      div.className = 'raid-lobby-item';
+      div.innerHTML = `
+        <div class="raid-lobby-info">
+          <h4>👑 ${lobby.captainName}</h4>
+          <p>Команда: ${lobby.teamSize}/3 игрока</p>
+        </div>
+        <div class="raid-lobby-action">
+          ${lobby.isOpen 
+            ? '<button onclick="joinRaidLobby(\'' + lobby.lobbyId + '\')">Присоединиться</button>'
+            : '<button onclick="joinRaidLobbyWithCode(\'' + lobby.lobbyId + '\')">Ввести код</button>'
+          }
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  }
+}
+
+function createRaidLobby(isOpen = true) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'createRaidLobby', isOpen }));
+  }
+}
+
+function joinRaidLobby(lobbyId) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'joinRaidLobby', lobbyId }));
+  }
+}
+
+function joinRaidLobbyWithCode(lobbyId) {
+  const code = prompt('Введите код лобби:');
+  if (code) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'joinRaidLobby', lobbyId, code }));
+    }
+  }
+}
+
+function leaveRaidLobby() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'leaveRaidLobby' }));
+  }
+}
+
+function renderRaidTeam() {
+  // Функция рендера команды (будет заполнена при получении данных)
+  console.log('Рендер команды рейда');
+}
+  
+function showRaidTeamUI(lobbyData) {
+  const panel = document.getElementById('raidTeamPanel');
+  const members = document.getElementById('raidTeamMembers');
+  
+  if (!panel || !members) return;
+  
+  panel.style.display = 'block';
+  members.innerHTML = '';
+  
+  lobbyData.team.forEach((member, index) => {
+    const div = document.createElement('div');
+    div.className = 'raid-team-member';
+    
+    const roleOptions = Object.entries(RAID_ROLES_CLIENT).map(([key, role]) => 
+      `<button class="raid-role-btn ${member.role === key ? 'selected' : ''}" 
+               onclick="selectRaidRole('${key}')">${role.emoji} ${role.name}</button>`
+    ).join('');
+    
+    div.innerHTML = `
+      <div>
+        <h4>${member.name}</h4>
+        <div class="raid-role-selection">${roleOptions}</div>
+      </div>
+    `;
+    
+    members.appendChild(div);
+  });
+}
+  
+function selectRaidRole(role) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'selectRaidRole', role }));
+  }
+}
+
+function selectRaidStratagem(stratagem) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'selectRaidStratagem', stratagem }));
+  }
+}
+
+function startRaidBattle(lobbyId) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId }));
+  }
+}
+
+function showRaidBattleUI(data) {
+  currentRaidBattle = {
+    battleId: data.battleId,
+    team: data.team,
+    duration: data.duration,
+    timeLeft: data.duration
+  };
+  
+  // Скрываем все виды
+  hideAllViews();
+  
+  // Показываем UI боя
+  const battleView = document.getElementById('raidBattleView');
+  if (battleView) {
+    battleView.classList.add('active');
+  }
+  
+  renderRaidBattleTeam();
+  startRaidBattleTimer();
+}
+
+function renderRaidBattleTeam() {
+  const container = document.getElementById('raidBattleTeam');
+  if (!container || !currentRaidBattle) return;
+  
+  container.innerHTML = '';
+  
+  currentRaidBattle.team.forEach((player, index) => {
+    const role = RAID_ROLES_CLIENT[player.role] || { emoji: '❓', name: player.role };
+    const div = document.createElement('div');
+    div.className = 'raid-battle-player';
+    div.innerHTML = `
+      <div class="raid-player-role">${role.emoji} ${role.name}</div>
+      <div class="raid-player-name">${player.name}</div>
+      <div class="raid-player-clicks" id="raidClicks_${index}">0</div>
+      <div class="raid-player-score" id="raidScore_${index}">0</div>
+    `;
+    container.appendChild(div);
+  });
+  
+  // Кликер для боя
+  const clickerContainer = document.getElementById('raidClickerContainer');
+  if (clickerContainer) {
+    clickerContainer.innerHTML = `
+      <div id="raidClicker" class="raid-clicker">
+        <img src="orca.png" alt="Orca" style="width:200px;height:200px;">
+      </div>
+      <div id="raidTimer" class="raid-timer">60</div>
+    `;
+    
+    const raidClicker = document.getElementById('raidClicker');
+    if (raidClicker) {
+      raidClicker.addEventListener('click', handleRaidClick);
+    }
+  }
+}
+
+function updateRaidBattleUI(data) {
+  if (!currentRaidBattle || data.battleId !== currentRaidBattle.battleId) return;
+  
+  // Находим индекс игрока
+  const playerIndex = currentRaidBattle.team.findIndex(p => p.id === data.playerId);
+  if (playerIndex >= 0) {
+    const clicksEl = document.getElementById(`raidClicks_${playerIndex}`);
+    const scoreEl = document.getElementById(`raidScore_${playerIndex}`);
+    if (clicksEl) clicksEl.textContent = formatNumber(data.clicks);
+    if (scoreEl) scoreEl.textContent = formatNumber(data.score);
+  }
+  
+  // Обновляем общий счёт команды
+  const teamScoreEl = document.getElementById('raidTeamScore');
+  if (teamScoreEl) {
+    teamScoreEl.textContent = formatNumber(data.teamScore);
+  }
+}
+
+function showRaidEvent(event) {
+  showNotification(`🎭 ${event.name}: ${event.description}`);
+  
+  const eventEl = document.getElementById('raidCurrentEvent');
+  if (eventEl) {
+    eventEl.textContent = event.name;
+    eventEl.classList.add('active');
+    setTimeout(() => eventEl.classList.remove('active'), 5000);
+  }
+}
+
+function startRaidBattleTimer() {
+  if (raidBattleTimer) clearInterval(raidBattleTimer);
+  
+  raidBattleTimer = setInterval(() => {
+    if (!currentRaidBattle) {
+      clearInterval(raidBattleTimer);
+      return;
+    }
+    
+    currentRaidBattle.timeLeft--;
+    
+    const timerEl = document.getElementById('raidTimer');
+    if (timerEl) {
+      timerEl.textContent = currentRaidBattle.timeLeft;
+    }
+    
+    if (currentRaidBattle.timeLeft <= 0) {
+      clearInterval(raidBattleTimer);
+    }
+  }, 1000);
+}
+
+function endRaidBattle(data) {
+  showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
+  
+  currentRaidBattle = null;
+  if (raidBattleTimer) {
+    clearInterval(raidBattleTimer);
+    raidBattleTimer = null;
+  }
+  
+  // Возвращаемся к главному меню через 3 секунды
+  setTimeout(() => {
+    showMainView();
+  }, 3000);
+}
+
+function handleRaidClick() {
+  if (!currentRaidBattle || !ws || ws.readyState !== WebSocket.OPEN) return;
+  
+  ws.send(JSON.stringify({
+    type: 'raidClick',
+    battleId: currentRaidBattle.battleId,
+    clicks: 1
+  }));
+}
+
+// Данные ролей для клиента
+const RAID_ROLES_CLIENT = {
+  assassin: { emoji: '🔪', name: 'Ассасин' },
+  tank: { emoji: '🛡️', name: 'Танк' },
+  shooter: { emoji: '🏹', name: 'Стрелок' },
+  mage: { emoji: '🔮', name: 'Маг' },
+  healer: { emoji: '💚', name: 'Хилер' },
+  leader: { emoji: '👑', name: 'Лидер' }
+};
+
+let raidBattleTimer = null;
 
 // ==================== x2 МНОЖИТЕЛЬ ====================
 let x2Active = false;
