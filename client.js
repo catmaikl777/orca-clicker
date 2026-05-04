@@ -1272,15 +1272,30 @@ case 'joinedClan':
     // 3x3 Рейдовые битвы
     case 'raidLobbyCreated':
       showNotification(`🎮 Рейдовое лобби создано! Код: ${data.lobbyCode}`);
+      // Сохраняем текущее лобби
+      if (data.lobby && data.lobby.team) {
+        currentRaidLobby = data.lobby;
+        showRaidTeamUI(data.lobby);
+      }
       renderRaidLobbies();
       break;
     case 'joinedRaidLobby':
       showNotification('👥 Вы присоединились к рейду!');
-      renderRaidLobbies();
+      // Сохраняем текущее лобби
+      if (data.lobby && data.lobby.team) {
+        currentRaidLobby = data.lobby;
+        showRaidTeamUI(data.lobby);
+      } else {
+        renderRaidLobbies();
+      }
       break;
     case 'raidRoleSelected':
-      showNotification(`🎭 Роль выбрана: ${data.roleData.emoji} ${data.roleData.name}`);
-      renderRaidTeam();
+      showNotification(`🎭 Роль выбрана: ${data.roleData?.emoji || '❓'} ${data.roleData?.name || data.role || 'Неизвестно'}`);
+      // Обновляем команду
+      if (data.lobby && data.lobby.team) {
+        currentRaidLobby = data.lobby;
+        renderRaidTeam();
+      }
       break;
     case 'raidBattleStart':
       showRaidBattleUI(data);
@@ -1308,7 +1323,7 @@ case 'joinedClan':
       break;
   }
 }
-  
+      
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
   const audioElements = document.querySelectorAll('audio');
@@ -1438,7 +1453,7 @@ function renderRaidLobbies() {
     });
   }
 }
-
+  
 function createRaidLobby(isOpen = true) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'createRaidLobby', isOpen }));
@@ -1465,13 +1480,13 @@ function leaveRaidLobby() {
     ws.send(JSON.stringify({ type: 'leaveRaidLobby' }));
   }
 }
-
-function renderRaidTeam() {
-  // Функция рендера команды (будет заполнена при получении данных)
-  console.log('Рендер команды рейда');
-}
   
-function showRaidTeamUI(lobbyData) {
+// Текущее лобби рейда
+let currentRaidLobby = null;
+  
+function renderRaidTeam() {
+  if (!currentRaidLobby) return;
+  
   const panel = document.getElementById('raidTeamPanel');
   const members = document.getElementById('raidTeamMembers');
   
@@ -1480,24 +1495,75 @@ function showRaidTeamUI(lobbyData) {
   panel.style.display = 'block';
   members.innerHTML = '';
   
-  lobbyData.team.forEach((member, index) => {
+  currentRaidLobby.team.forEach((member) => {
     const div = document.createElement('div');
     div.className = 'raid-team-member';
     
-    const roleOptions = Object.entries(RAID_ROLES_CLIENT).map(([key, role]) => 
+    const role = RAID_ROLES_CLIENT[member.role] || { emoji: '❓', name: 'Выбор...' };
+    const isSelected = member.role && member.role !== 'none';
+    
+    const roleButtons = Object.entries(RAID_ROLES_CLIENT).map(([key, r]) => 
       `<button class="raid-role-btn ${member.role === key ? 'selected' : ''}" 
-               onclick="selectRaidRole('${key}')">${role.emoji} ${role.name}</button>`
+               onclick="selectRaidRole('${key}')">${r.emoji} ${r.name}</button>`
     ).join('');
     
     div.innerHTML = `
       <div>
-        <h4>${member.name}</h4>
-        <div class="raid-role-selection">${roleOptions}</div>
+        <h4>${isSelected ? `${role.emoji} ` : ''}${member.name}${isSelected ? '' : ' (нет роли)'}</h4>
+        <div class="raid-role-selection">${roleButtons}</div>
       </div>
     `;
     
     members.appendChild(div);
   });
+  
+  // Обновляем кнопку старта - только если команда полная
+  const startBtn = document.querySelector('.raid-start-btn');
+  if (startBtn) {
+    const isFull = currentRaidLobby.team.length >= 3;
+    startBtn.disabled = !isFull;
+    startBtn.textContent = isFull ? '⚔️ Начать поиск соперников' : `Нужно ещё игроков (${currentRaidLobby.team.length}/3)`;
+  }
+}
+
+function showRaidTeamUI(lobbyData) {
+  currentRaidLobby = lobbyData;
+  renderRaidTeam();
+}
+
+function updateRaidTeamStatus(data) {
+  if (!currentRaidLobby || data.lobbyId !== currentRaidLobby.lobbyId) return;
+  
+  // Обновляем размер команды
+  currentRaidLobby.teamSize = data.teamSize;
+  
+  // Если пришли данные о команде - обновляем
+  if (data.team && Array.isArray(data.team)) {
+    currentRaidLobby.team = data.team;
+    renderRaidTeam();
+  } else {
+    // Просто обновляем счётчик
+    const membersEl = document.getElementById('raidTeamMembers');
+    if (membersEl) {
+      const countEl = membersEl.querySelector('.team-count');
+      if (countEl) {
+        countEl.textContent = `${data.teamSize}/3 игрока`;
+      }
+    }
+    
+    // Обновляем кнопку старта
+    const startBtn = document.querySelector('.raid-start-btn');
+    if (startBtn) {
+      const isFull = data.teamSize >= 3;
+      startBtn.disabled = !isFull;
+      startBtn.textContent = isFull ? '⚔️ Начать поиск соперников' : `Нужно ещё игроков (${data.teamSize}/3)`;
+    }
+  }
+  
+  // Показываем уведомление если команда заполнилась
+  if (data.teamSize === 3) {
+    showNotification('✅ Команда собрана! Можно начинать поиск!');
+  }
 }
   
 function selectRaidRole(role) {
@@ -1512,9 +1578,13 @@ function selectRaidStratagem(stratagem) {
   }
 }
 
-function startRaidBattle(lobbyId) {
+function startRaidBattle() {
+  if (!currentRaidLobby || !currentRaidLobby.lobbyId) {
+    showNotification('❌ Ошибка: лобби не найдено!');
+    return;
+  }
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId }));
+    ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId: currentRaidLobby.lobbyId }));
   }
 }
 
@@ -1538,7 +1608,7 @@ function showRaidBattleUI(data) {
   renderRaidBattleTeam();
   startRaidBattleTimer();
 }
-
+  
 function renderRaidBattleTeam() {
   const container = document.getElementById('raidBattleTeam');
   if (!container || !currentRaidBattle) return;
