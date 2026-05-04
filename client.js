@@ -1346,6 +1346,18 @@ function showFloatingText(x, y, text, color = '#4fc3f7') {
 let currentRaidBattle = null;
 let raidLobbiesList = [];
 
+function hideAllViews() {
+  // Закрываем все модальные окна
+  closeAllModals();
+  
+  // Скрываем рейдовые виды
+  const raidView = document.getElementById('raidView');
+  const raidBattleView = document.getElementById('raidBattleView');
+  
+  if (raidView) raidView.classList.remove('active');
+  if (raidBattleView) raidBattleView.classList.remove('active');
+}
+
 function showRaidView() {
   // Скрываем все виды
   hideAllViews();
