@@ -2768,6 +2768,7 @@ function handleJoinRaidLobby(ws, data) {
       lobbyId,
       playerName: player.name,
       teamSize: lobby.team.length,
+      team: lobby.team,
       isTeamFull: lobby.team.length >= 3,
       allRolesSelected: lobby.team.every(p => p.role)
     }));
@@ -2781,6 +2782,7 @@ function handleJoinRaidLobby(ws, data) {
         type: 'raidTeamStatus',
         lobbyId,
         teamSize: lobby.team.length,
+        team: lobby.team,
         isTeamFull: lobby.team.length >= 3,
         allRolesSelected: lobby.team.every(p => p.role)
       }));

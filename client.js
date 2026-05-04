@@ -1289,6 +1289,14 @@ case 'joinedClan':
         renderRaidLobbies();
       }
       break;
+    case 'playerJoinedRaidLobby':
+      showNotification(`👤 ${data.playerName} присоединился к команде!`);
+      // Обновляем команду капитана
+      if (data.lobby && data.lobby.team) {
+        currentRaidLobby = data.lobby;
+        renderRaidTeam();
+      }
+      break;
     case 'raidRoleSelected':
       showNotification(`🎭 Роль выбрана: ${data.roleData?.emoji || '❓'} ${data.roleData?.name || data.role || 'Неизвестно'}`);
       // Обновляем команду
@@ -1367,7 +1375,8 @@ function showFloatingText(x, y, text, color = '#4fc3f7') {
 // ==================== 3x3 РЕЙДОВЫЕ БИТВЫ ====================
 let currentRaidBattle = null;
 let raidLobbiesList = [];
-
+let currentRaidLobby = null;
+  
 function hideAllViews() {
   // Закрываем все модальные окна
   closeAllModals();
@@ -1401,7 +1410,7 @@ function showRaidView() {
   
   console.log('🎮 Открыт экран рейда');
 }
-
+  
 function showRaidPublicLobbies() {
   const createButtons = document.getElementById('raidCreateButtons');
   const lobbyList = document.getElementById('raidLobbyList');
@@ -1480,10 +1489,7 @@ function leaveRaidLobby() {
     ws.send(JSON.stringify({ type: 'leaveRaidLobby' }));
   }
 }
-  
-// Текущее лобби рейда
-let currentRaidLobby = null;
-  
+
 function renderRaidTeam() {
   if (!currentRaidLobby) return;
   
@@ -1534,15 +1540,15 @@ function showRaidTeamUI(lobbyData) {
 function updateRaidTeamStatus(data) {
   if (!currentRaidLobby || data.lobbyId !== currentRaidLobby.lobbyId) return;
   
-  // Обновляем размер команды
-  currentRaidLobby.teamSize = data.teamSize;
-  
-  // Если пришли данные о команде - обновляем
+  // Если пришли данные о команде - обновляем полностью
   if (data.team && Array.isArray(data.team)) {
     currentRaidLobby.team = data.team;
+    currentRaidLobby.teamSize = data.team.length;
     renderRaidTeam();
   } else {
     // Просто обновляем счётчик
+    currentRaidLobby.teamSize = data.teamSize;
+    
     const membersEl = document.getElementById('raidTeamMembers');
     if (membersEl) {
       const countEl = membersEl.querySelector('.team-count');
@@ -1587,7 +1593,7 @@ function startRaidBattle() {
     ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId: currentRaidLobby.lobbyId }));
   }
 }
-
+  
 function showRaidBattleUI(data) {
   currentRaidBattle = {
     battleId: data.battleId,
@@ -1696,7 +1702,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-
+  
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
