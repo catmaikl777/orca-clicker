@@ -665,8 +665,23 @@
       <button class="close-btn" onclick="closeAllModals()">&times;</button>
     </div>
     <div class="modal-content">
-      <div id="raidLobbyList" class="raid-lobby-list">
-        <p style="text-align:center;padding:20px;color:#888">Загрузка...</p>
+      <!-- Кнопки создания команды -->
+      <div id="raidCreateButtons" style="text-align:center;margin-bottom:20px;">
+        <button class="action-btn" onclick="createRaidLobby(true)" style="width:100%;margin-bottom:10px;background:linear-gradient(145deg, rgba(32,178,170,0.5), rgba(72,209,204,0.4));">
+          🎮 Открыть публичное лобби
+        </button>
+        <button class="action-btn" onclick="createRaidLobby(false)" style="width:100%;margin-bottom:10px;background:linear-gradient(145deg, rgba(138,43,226,0.5), rgba(191,0,255,0.4));">
+          🔒 Закрытое лобби (с кодом)
+        </button>
+        <button class="action-btn" onclick="showRaidPublicLobbies()" style="width:100%;background:linear-gradient(145deg, rgba(32,178,170,0.3), rgba(72,209,204,0.2));">
+          👥 Подключиться к команде
+        </button>
+      </div>
+      
+      <div id="raidLobbyList" class="raid-lobby-list" style="display:none;">
+        <h3>🎮 Доступные рейдовые команды</h3>
+        <div id="raidLobbiesContainer"></div>
+        <button class="action-btn" onclick="hideRaidLobbies()" style="margin-top:15px;background:rgba(255,255,255,0.1);">🔙 Назад</button>
       </div>
       
       <div id="raidTeamPanel" style="display:none;" class="raid-team-panel">

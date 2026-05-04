@@ -1294,6 +1294,10 @@ case 'joinedClan':
     case 'raidBattleEnd':
       endRaidBattle(data);
       break;
+    case 'raidLobbies':
+      raidLobbiesList = data.lobbies || [];
+      renderRaidLobbies();
+      break;
     case 'forceSaveCompleted':
       if (window.handleForceSaveResponse) {
         window.handleForceSaveResponse(data);
@@ -1368,23 +1372,50 @@ function showRaidView() {
     raidView.classList.add('active');
   }
   
+  // Показываем экран создания команды
+  const createButtons = document.getElementById('raidCreateButtons');
+  const lobbyList = document.getElementById('raidLobbyList');
+  const teamPanel = document.getElementById('raidTeamPanel');
+  
+  if (createButtons) createButtons.style.display = 'block';
+  if (lobbyList) lobbyList.style.display = 'none';
+  if (teamPanel) teamPanel.style.display = 'none';
+  
+  console.log('🎮 Открыт экран рейда');
+}
+
+function showRaidPublicLobbies() {
+  const createButtons = document.getElementById('raidCreateButtons');
+  const lobbyList = document.getElementById('raidLobbyList');
+  const container = document.getElementById('raidLobbiesContainer');
+  
+  if (createButtons) createButtons.style.display = 'none';
+  if (lobbyList) lobbyList.style.display = 'block';
+  
   // Запрашиваем список лобби
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'getRaidLobbies' }));
+  } else {
+    container.innerHTML = '<p style="text-align:center;padding:20px;color:#888">Подключение...</p>';
   }
+}
+
+function hideRaidLobbies() {
+  const createButtons = document.getElementById('raidCreateButtons');
+  const lobbyList = document.getElementById('raidLobbyList');
   
-  renderRaidLobbies();
+  if (createButtons) createButtons.style.display = 'block';
+  if (lobbyList) lobbyList.style.display = 'none';
 }
 
 function renderRaidLobbies() {
-  const container = document.getElementById('raidLobbyList');
+  const container = document.getElementById('raidLobbiesContainer');
   if (!container) return;
   
-  container.innerHTML = '<h3>🎮 Доступные рейдовые команды</h3>';
-  
   if (raidLobbiesList.length === 0) {
-    container.innerHTML += '<p style="text-align:center;padding:20px;color:#888">Нет доступных команд</p>';
+    container.innerHTML = '<p style="text-align:center;padding:20px;color:#888">Нет доступных команд</p>';
   } else {
+    container.innerHTML = '';
     raidLobbiesList.forEach(lobby => {
       const div = document.createElement('div');
       div.className = 'raid-lobby-item';
