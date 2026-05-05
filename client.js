@@ -1295,16 +1295,28 @@ case 'joinedClan':
       break;
     case 'playerJoinedRaidLobby':
       showNotification(`👤 ${data.playerName} присоединился к команде!`);
-      // Обновляем команду капитана
-      if (data.lobby && data.lobby.team) {
+      // Обновляем команду - приоритет у team из данных
+      if (data.team && Array.isArray(data.team)) {
+        if (!currentRaidLobby) currentRaidLobby = {};
+        currentRaidLobby.lobbyId = data.lobbyId;
+        currentRaidLobby.team = data.team;
+        currentRaidLobby.teamSize = data.team.length;
+        renderRaidTeam();
+      } else if (data.lobby && data.lobby.team) {
         currentRaidLobby = data.lobby;
         renderRaidTeam();
       }
       break;
     case 'raidRoleSelected':
       showNotification(`🎭 Роль выбрана: ${data.roleData?.emoji || '❓'} ${data.roleData?.name || data.role || 'Неизвестно'}`);
-      // Обновляем команду
-      if (data.lobby && data.lobby.team) {
+      // Обновляем команду - приоритет у team из данных
+      if (data.team && Array.isArray(data.team)) {
+        if (!currentRaidLobby) currentRaidLobby = {};
+        currentRaidLobby.lobbyId = data.lobbyId;
+        currentRaidLobby.team = data.team;
+        currentRaidLobby.teamSize = data.team.length;
+        renderRaidTeam();
+      } else if (data.lobby && data.lobby.team) {
         currentRaidLobby = data.lobby;
         renderRaidTeam();
       }

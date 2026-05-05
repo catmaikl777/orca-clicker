@@ -137,11 +137,17 @@ class DatabaseAdapter {
       `ALTER TABLE players ALTER COLUMN clan TYPE VARCHAR(50) USING clan::VARCHAR(50)`,
       
       // Добавить поля бана в players (для совместимости)
-      `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at BIGINT`,
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS banned_at TIMESTAMP`,
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS ban_reason VARCHAR(255)`,
+      
+      // Исправить тип banned_at если он BIGINT
+      `ALTER TABLE players ALTER COLUMN banned_at TYPE TIMESTAMP USING TO_TIMESTAMP(banned_at/1000)`,
       
       // Добавить поле updated_at если нет
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+      
+      // Исправить тип updated_at если он BIGINT
+      `ALTER TABLE players ALTER COLUMN updated_at TYPE TIMESTAMP USING TO_TIMESTAMP(updated_at/1000)`,
       
       // Добавить поля квестов в players (для совместимости)
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS quest_progress JSONB DEFAULT '[]'`,
@@ -152,8 +158,17 @@ class DatabaseAdapter {
       // Добавить поле effects для визуальных эффектов
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS effects JSONB DEFAULT '{}'`,
       
+      // Исправить тип effects если он TEXT
+      `ALTER TABLE players ALTER COLUMN effects TYPE JSONB USING effects::JSONB`,
+      
       // Добавить поле total_play_time для общего времени в игре
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS total_play_time INTEGER DEFAULT 0`,
+      
+      // Добавить поле event_rewards если нет
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS event_rewards BIGINT DEFAULT 0`,
+      
+      // Добавить поле pending_boxes если нет
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS pending_boxes JSONB DEFAULT '[]'`,
       
       // Обновить внешний ключ если таблица уже существует (для миграции)
       `DO $$ 
@@ -471,6 +486,8 @@ await this.pool.query(
   } catch (error) {
     console.error(`❌ savePlayer ОШИБКА: ${error.message}`);
     console.error(`❌ savePlayer STACK:`, error.stack);
+    console.error(`❌ savePlayer SQL ERROR DETAIL:`, error.detail || 'No detail');
+    console.error(`❌ savePlayer HINT:`, error.hint || 'No hint');
     
     // Если ошибка соединения - пробуем переподключиться
     const isConnectionError = error.code === 'ECONNREFUSED' || 

@@ -2886,13 +2886,35 @@ function handleSelectRaidRole(ws, role) {
     playerInTeam.role = role;
   }
   
+  // Отправляем выбранную роль игроку С ДАННЫМИ КОМАНДЫ
   ws.send(JSON.stringify({ 
     type: 'raidRoleSelected',
     role,
-    roleData: RAID_ROLES[role]
+    roleData: RAID_ROLES[role],
+    lobbyId: teamData.lobbyId,
+    team: lobby.team,
+    teamSize: lobby.team.length
   }));
   
-  console.log(`🎭 Игрок выбрал роль ${role} в рейде ${teamData.lobbyId}`);
+  // Уведомляем ВСЕХ игроков в команде о выбранной роли
+  lobby.team.forEach(member => {
+    if (member.id === id) return; // Пропускаем самого игрока (ему уже отправили)
+    
+    const memberWs = players.get(member.id)?.ws;
+    if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+      memberWs.send(JSON.stringify({
+        type: 'raidRoleSelected',
+        playerName: playerInTeam?.name || 'Unknown',
+        role,
+        roleData: RAID_ROLES[role],
+        lobbyId: teamData.lobbyId,
+        team: lobby.team,
+        teamSize: lobby.team.length
+      }));
+    }
+  });
+  
+  console.log(`🎭 Игрок ${playerInTeam?.name} выбрал роль ${role} в рейде ${teamData.lobbyId}, команда: ${lobby.team.length} чел.`);
 }
 
 // Выбор стратегемы (только капитан)
@@ -2918,7 +2940,7 @@ function handleSelectRaidStratagem(ws, stratagem) {
   
   lobby.stratagem = stratagem;
   
-  ws.send(JSON.stringify({ 
+  ws.send(JSON.stringify({
     type: 'raidStratagemSelected',
     stratagem,
     stratagemData: RAID_STRATEGEMS[stratagem]
