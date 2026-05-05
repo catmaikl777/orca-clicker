@@ -2707,7 +2707,16 @@ function handleCreateRaidLobby(ws, isOpen = true) {
     lobbyId,
     captainName: player.name,
     lobbyCode,
-    isOpen
+    isOpen,
+    lobby: {
+      id: lobbyId,
+      captainId: id,
+      captainName: player.name,
+      team: [{ id, name: player.name, role: null }],
+      status: 'waiting',
+      isOpen,
+      lobbyCode
+    }
   }));
   
   broadcastRaidLobbies();
@@ -2757,7 +2766,9 @@ function handleJoinRaidLobby(ws, data) {
   ws.send(JSON.stringify({ 
     type: 'joinedRaidLobby',
     lobbyId,
-    teamSize: lobby.team.length
+    teamSize: lobby.team.length,
+    team: lobby.team,
+    lobby: lobby
   }));
   
   // Уведомляем капитана о присоединении и статусе

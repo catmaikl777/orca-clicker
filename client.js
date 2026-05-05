@@ -1281,10 +1281,14 @@ case 'joinedClan':
       break;
     case 'joinedRaidLobby':
       showNotification('👥 Вы присоединились к рейду!');
-      // Сохраняем текущее лобби
+      // Сохраняем текущее лобби - приоритет у lobby.team если есть
       if (data.lobby && data.lobby.team) {
         currentRaidLobby = data.lobby;
         showRaidTeamUI(data.lobby);
+      } else if (data.team) {
+        // Фоллбек если lobby нет
+        currentRaidLobby = { lobbyId: data.lobbyId, team: data.team, teamSize: data.teamSize };
+        showRaidTeamUI(currentRaidLobby);
       } else {
         renderRaidLobbies();
       }
