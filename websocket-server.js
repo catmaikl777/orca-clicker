@@ -109,41 +109,57 @@ function deleteClanFromDB(clanId) {
 }
 
 // Сохранение одного игрока в PostgreSQL
-function savePlayerToDB(accountId) {
+async function savePlayerToDB(accountId) {
+  console.log(`🚀 [PHASE1] savePlayerToDB START: accountId=${accountId}`);
+  
   if (!dbAdapter.usePostgreSQL) {
-    console.log(`⚠️ savePlayerToDB: PostgreSQL не используется! usePostgreSQL=${dbAdapter.usePostgreSQL}, NODE_ENV=${process.env.NODE_ENV}`);
-    return;
+    console.log(`⚠️ savePlayerToDB: PostgreSQL не используется! usePostgreSQL=${dbAdapter.usePostgreSQL}`);
+    return false;
   }
   if (!dbAdapter.initialized) {
     console.log(`⚠️ savePlayerToDB: PostgreSQL ещё не инициализирован!`);
-    return;
-  }
-  const p = db.players[accountId];
-  if (!p) {
-    console.log(`💾 savePlayerToDB: игрок ${accountId} не найден в db.players`);
-    return;
+    return false;
   }
   
-  // Проверяем что это зарегистрированный игрок (есть в accounts)
+  const p = db.players[accountId];
+  if (!p) {
+    console.log(`❌ savePlayerToDB: игрок ${accountId} не найден в db.players`);
+    return false;
+  }
+  
   const acc = db.accounts[accountId];
   const isRegistered = !!acc;
   
-  // Лог для отладки - ВАЖНО: логируем coins перед сохранением
-  console.log(`💾 savePlayerToDB: id=${accountId}, name=${p.name}, coins=${p.coins}, totalCoins=${p.totalCoins}, isRegistered=${isRegistered}`);
+  // CRITICAL: Log EXACT values before save
+  console.log(`📊 savePlayerToDB BEFORE: coins=${p.coins}(${typeof p.coins}), totalCoins=${p.totalCoins}, clan=${JSON.stringify(p.clan)}`);
   
-  // Если игрок зарегистрирован но аккаунт ещё не сохранён в БД - сохраняем сначала
-  if (isRegistered && acc) {
-    // Сохраняем аккаунт НЕ awaiting (чтобы не блокировать)
-    dbAdapter.saveAccount(acc).catch(e => console.error('Ошибка сохранения аккаунта:', e.message));
+  try {
+    // Save account first if registered
+    if (isRegistered && acc) {
+      await dbAdapter.saveAccount(acc);
+      console.log(`✅ Account saved for ${accountId}`);
+    }
+    
+    // Clone + ensure required fields
+    const playerToSave = {
+      ...p,
+      id: accountId,
+      accountId: isRegistered ? accountId : null,
+      // Ensure clan is string/null (fix Phase 2)
+      clan: p.clan && typeof p.clan === 'object' ? p.clan.id : p.clan || null
+    };
+    
+    console.log(`📤 Calling dbAdapter.savePlayer(${accountId})`);
+    await dbAdapter.savePlayer(playerToSave);
+    
+    console.log(`✅ [PHASE1] savePlayerToDB SUCCESS: ${accountId}, coins=${p.coins}, clan=${playerToSave.clan}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`💥 [PHASE1] savePlayerToDB FAILED: ${accountId}`, error);
+    console.error(`💥 Player data:`, { coins: p.coins, clan: p.clan });
+    return false;
   }
-  
-  // Затем сохраняем игрока
-  console.log(`💾 savePlayerToDB: ВЫЗЫВАЮ dbAdapter.savePlayer для ${accountId}`);
-  dbAdapter.savePlayer({ 
-    ...p, 
-    accountId: isRegistered ? accountId : null, // Только зарегистрированные игроки имеют accountId
-    id: accountId // id всегда есть
-  }).catch(e => console.error('Ошибка сохранения игрока:', e.message));
 }
 
 // Каталог предметов магазина (цены хранятся пер-игрока в db.players[id].shopItems)
@@ -886,7 +902,7 @@ function handleClick(ws, payload) {
   player._lastProcessedClicks = newClicks;
 }
   
-function handleSaveGame(ws, data) {
+async function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
   
   // Лог для отладки
@@ -969,10 +985,12 @@ p.coins = data.coins ?? p.coins;
   if (mem) Object.assign(mem, p);
   
   updateLeaderboard(p);
-  savePlayerToDB(id);
-  
-  // ЛОГ после сохранения
-  console.log(`✅ Автосохранение завершено: ${id}, coins=${p.coins}, totalCoins=${p.totalCoins}, pendingBoxes=${p.pendingBoxes?.length || 0} шт.`);
+  const saveResult = await savePlayerToDB(id);
+  if (saveResult) {
+    console.log(`✅ Автосохранение завершено: ${id}, coins=${p.coins}`);
+  } else {
+    console.error(`❌ Автосохранение FAILED: ${id}`);
+  }
 }
   
 // Принудительное сохранение ВСЕх данных игрока и клана
@@ -1043,7 +1061,7 @@ function handleAuthRequest(ws, data) {
 }
 
 // Обработчик сохранения данных игрока
-function handleSavePlayerData(ws, data) {
+async function handleSavePlayerData(ws, data) {
   const { accountId, gameData } = data;
   
   if (!accountId || !gameData) {
@@ -1080,8 +1098,8 @@ function handleSavePlayerData(ws, data) {
     Object.assign(onlinePlayer, playerData);
   }
   
-  savePlayerToDB(accountId);
-  console.log(`💾 Данные сохранены: ${accountId}, effects=${JSON.stringify(playerData.effects)}`);
+  const saveResult = await savePlayerToDB(accountId);
+  console.log(`💾 savePlayerData ${saveResult ? '✅' : '❌'}: ${accountId}, effects=${JSON.stringify(playerData.effects)}`);
   
   // Отправляем подтверждение
   ws.send(JSON.stringify({ 

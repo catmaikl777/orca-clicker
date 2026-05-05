@@ -421,7 +421,6 @@ class DatabaseAdapter {
     const bannedAt = player.antiCheat?.bannedAt || null;
     const banReason = player.antiCheat?.banReason || null;
     
-    // Отладочный лог
     console.log(`💾 savePlayer: id=${player.id}, coins=${player.coins}, clan=${clan}`);
     
     // Добавляем updatedAt - время последнего сохранения (BIGINT в миллисекундах)
@@ -641,4 +640,5 @@ function startHeartbeat(adapter) {
 }
 
 module.exports = new DatabaseAdapter();
+module.exports.startHeartbeat = startHeartbeat;
 module.exports.startHeartbeat = startHeartbeat;
