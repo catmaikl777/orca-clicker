@@ -888,17 +888,31 @@ function handleClick(ws, payload) {
   
 function handleSaveGame(ws, data) {
   const id = ws.accountId || ws.playerId;
-  if (!id || !db.players[id]) return;
-  if (isPlayerBanned(id)) {
-    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: подозрение на автокликер' }));
-    ws.close(1008, 'Autoclicker banned');
+  
+  // Лог для отладки
+  console.log(`💾 handleSaveGame: id=${id}, db.players[id]=${!!db.players[id]}, coins=${data.coins}, totalCoins=${data.totalCoins}`);
+  
+  if (!id) {
+    console.error(`❌ handleSaveGame: нет id!`);
     return;
   }
+  
+  if (!db.players[id]) {
+    console.error(`❌ handleSaveGame: игрок ${id} не найден в БД! Создаём...`);
+    // Создаём игрока если нет
+    db.players[id] = createDefaultPlayer(id, ws.username || 'Player');
+  }
+  
+  if (isPlayerBanned(id)) {
+    ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: подозрение на автокликер' }));
+    ws.close(1008, 'Autoclicker blocked');
+    return;
+  }
+  
   const p = db.players[id];
   const mem = players.get(id);
   
-  // Лог для отладки
-  console.log(`💾 handleSaveGame: id=${id}, coins=${data.coins}, updatedAt=${data.updatedAt}`);
+  console.log(`💾 handleSaveGame: id=${id}, coins=${data.coins}, totalCoins=${data.totalCoins}, updatedAt=${data.updatedAt}`);
   
   // УБРАНА проверка updatedAt - она работала неправильно!
   // Теперь всегда обновляем данные из клиента (клиент - источник истины для активных сессий)
@@ -939,6 +953,10 @@ p.coins = data.coins ?? p.coins;
     p.pendingBoxes = Array.isArray(data.pendingBoxes) ? data.pendingBoxes : p.pendingBoxes || [];
   }
   p.playTime = data.playTime ?? p.playTime;
+  
+  // ЛОГ для отладки синхронизации
+  console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}`);
+  
   // shopItems: НЕ принимаем от клиента - цены управляются только сервером!
   // p.shopItems = data.shopItems || p.shopItems;  // ЗАКОММЕНТИРОВАНО
   p.questProgress = data.questProgress || p.questProgress;
@@ -952,7 +970,9 @@ p.coins = data.coins ?? p.coins;
   
   updateLeaderboard(p);
   savePlayerToDB(id);
-  console.log(`💾 Автосохранение: ${id}, pendingBoxes=${p.pendingBoxes?.length || 0} шт., coins=${p.coins}, updatedAt=${p.updatedAt.toISOString()}`);
+  
+  // ЛОГ после сохранения
+  console.log(`✅ Автосохранение завершено: ${id}, coins=${p.coins}, totalCoins=${p.totalCoins}, pendingBoxes=${p.pendingBoxes?.length || 0} шт.`);
 }
   
 // Принудительное сохранение ВСЕх данных игрока и клана
@@ -1029,16 +1049,6 @@ function handleSavePlayerData(ws, data) {
   if (!accountId || !gameData) {
     console.error('❌ Неполные данные для сохранения');
     return;
-  }
-  
-  // Защита: если только что загрузили игрока из БД (в течение 2 секунд), игнорируем сохранение от клиента
-  const player = db.players[accountId];
-  if (player && player._justLoadedFromDB) {
-    const timeSinceLoad = Date.now() - player._justLoadedFromDB;
-    if (timeSinceLoad < 2000) {
-      console.log(`⏱️ Игнорируем savePlayerData от клиента (только что загружен из БД: ${timeSinceLoad}мс назад)`);
-      return;
-    }
   }
   
   // Обновляем данные в БД
@@ -1246,7 +1256,7 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
       }
     }, 150);
   }
-  
+      
   broadcastLeaderboard();
   broadcastEventInfo();
 }
