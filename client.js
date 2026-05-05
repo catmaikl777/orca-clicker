@@ -1321,6 +1321,10 @@ case 'joinedClan':
         renderRaidTeam();
       }
       break;
+    case 'raidBattleSearching':
+      showNotification('🔍 ' + (data.message || 'Поиск соперника...'));
+      // Оставляем окно рейда открытым
+      break;
     case 'raidBattleStart':
       showRaidBattleUI(data);
       break;
@@ -1614,6 +1618,7 @@ function showRaidBattleUI(data) {
   currentRaidBattle = {
     battleId: data.battleId,
     team: data.team,
+    opponentTeam: data.opponentTeam || [],
     duration: data.duration,
     timeLeft: data.duration
   };
@@ -1637,10 +1642,17 @@ function renderRaidBattleTeam() {
   
   container.innerHTML = '';
   
+  // Показываем нашу команду
+  const teamHeader = document.createElement('div');
+  teamHeader.style.cssText = 'grid-column: 1/-1; text-align: center; color: #4fc3f7; margin-bottom: 10px;';
+  teamHeader.innerHTML = '<h3>🐋 Наша команда</h3>';
+  container.appendChild(teamHeader);
+  
   currentRaidBattle.team.forEach((player, index) => {
     const role = RAID_ROLES_CLIENT[player.role] || { emoji: '❓', name: player.role };
     const div = document.createElement('div');
     div.className = 'raid-battle-player';
+    div.id = `raidPlayer_${index}`;
     div.innerHTML = `
       <div class="raid-player-role">${role.emoji} ${role.name}</div>
       <div class="raid-player-name">${player.name}</div>
@@ -1649,6 +1661,28 @@ function renderRaidBattleTeam() {
     `;
     container.appendChild(div);
   });
+  
+  // Показываем команду соперника
+  if (currentRaidBattle.opponentTeam && currentRaidBattle.opponentTeam.length > 0) {
+    const opponentHeader = document.createElement('div');
+    opponentHeader.style.cssText = 'grid-column: 1/-1; text-align: center; color: #ff5252; margin: 20px 0 10px;';
+    opponentHeader.innerHTML = '<h3>⚔️ Соперники</h3>';
+    container.appendChild(opponentHeader);
+    
+    currentRaidBattle.opponentTeam.forEach((player, index) => {
+      const role = RAID_ROLES_CLIENT[player.role] || { emoji: '❓', name: player.role };
+      const div = document.createElement('div');
+      div.className = 'raid-battle-player';
+      div.style.opacity = '0.7';
+      div.innerHTML = `
+        <div class="raid-player-role">${role.emoji} ${role.name}</div>
+        <div class="raid-player-name">${player.name}</div>
+        <div class="raid-player-clicks" id="raidOppClicks_${index}">0</div>
+        <div class="raid-player-score" id="raidOppScore_${index}">0</div>
+      `;
+      container.appendChild(div);
+    });
+  }
   
   // Кликер для боя
   const clickerContainer = document.getElementById('raidClickerContainer');
@@ -1666,11 +1700,11 @@ function renderRaidBattleTeam() {
     }
   }
 }
-
+  
 function updateRaidBattleUI(data) {
   if (!currentRaidBattle || data.battleId !== currentRaidBattle.battleId) return;
   
-  // Находим индекс игрока
+  // Находим индекс игрока в нашей команде
   const playerIndex = currentRaidBattle.team.findIndex(p => p.id === data.playerId);
   if (playerIndex >= 0) {
     const clicksEl = document.getElementById(`raidClicks_${playerIndex}`);
@@ -1718,7 +1752,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-  
+
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
@@ -1728,12 +1762,20 @@ function endRaidBattle(data) {
     raidBattleTimer = null;
   }
   
-  // Возвращаемся к главному меню через 3 секунды
+  // Возвращаемся к главному экрану через 3 секунды
   setTimeout(() => {
-    showMainView();
+    if (typeof showGameScreen === 'function') {
+      showGameScreen();
+    } else {
+      // Фоллбек если showGameScreen нет
+      hideAllViews();
+      const gameScreen = document.getElementById('gameScreen');
+      if (gameScreen) gameScreen.classList.add('active');
+      updateUI();
+    }
   }, 3000);
 }
-
+    
 function handleRaidClick() {
   if (!currentRaidBattle || !ws || ws.readyState !== WebSocket.OPEN) return;
   
@@ -1787,7 +1829,7 @@ function activateX2Multiplier() {
       deactivateX2Multiplier();
     }
   }, 1000);
-  
+
   // Автоматическое деактивирование через 30 сек
   setTimeout(deactivateX2Multiplier, x2Duration * 1000);
 }

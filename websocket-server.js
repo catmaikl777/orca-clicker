@@ -2976,14 +2976,30 @@ function handleStartRaidBattle(ws, lobbyId) {
     return;
   }
   
-  // TODO: Поиск соперника (временно - автоматическое начало)
+  // Ищем соперника среди других лобби в ожидании
+  const opponentLobby = Array.from(raidLobbies.values())
+    .find(l => l.id !== lobbyId && l.status === 'waiting' && l.team.length >= 3 && l.team.every(p => p.role));
+  
+  if (!opponentLobby) {
+    // Нет соперника - ставим в очередь
+    lobby.status = 'searching';
+    ws.send(JSON.stringify({ 
+      type: 'raidBattleSearching',
+      message: 'Поиск соперника...',
+      lobbyId: lobbyId
+    }));
+    console.log(`🔍 Капитан ${lobby.captainName} начал поиск соперника для рейда ${lobbyId}`);
+    return;
+  }
+  
+  // Нашли соперника! Начинаем битву
   lobby.status = 'battling';
+  opponentLobby.status = 'battling';
   
   // Создаём битву
   const battleId = generateId();
   const battle = {
     id: battleId,
-    lobbyId: lobbyId,
     team1: lobby.team.map(p => ({ 
       id: p.id, 
       name: p.name, 
@@ -2991,18 +3007,26 @@ function handleStartRaidBattle(ws, lobbyId) {
       clicks: 0,
       multiplier: RAID_ROLES[p.role].multiplier
     })),
-    team2: [], // Будет заполнено при поиске соперника
+    team2: opponentLobby.team.map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      role: p.role,
+      clicks: 0,
+      multiplier: RAID_ROLES[p.role].multiplier
+    })),
     scores: { team1: 0, team2: 0 },
     startTime: Date.now(),
     duration: 60, // 60 секунд
     events: [],
     status: 'active',
-    currentEvent: null
+    currentEvent: null,
+    lobby1Id: lobby.id,
+    lobby2Id: opponentLobby.id
   };
   
   raidBattles.set(battleId, battle);
   
-  // Уведомляем команду
+  // Уведомляем обе команды о начале боя
   lobby.team.forEach(member => {
     const memberWs = players.get(member.id)?.ws;
     if (memberWs && memberWs.readyState === WebSocket.OPEN) {
@@ -3010,12 +3034,26 @@ function handleStartRaidBattle(ws, lobbyId) {
         type: 'raidBattleStart',
         battleId,
         team: battle.team1,
+        opponentTeam: battle.team2,
         duration: 60
       }));
     }
   });
   
-  console.log(`⚔️ Рейдовая битва началась: ${battleId}`);
+  opponentLobby.team.forEach(member => {
+    const memberWs = players.get(member.id)?.ws;
+    if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+      memberWs.send(JSON.stringify({
+        type: 'raidBattleStart',
+        battleId,
+        team: battle.team2,
+        opponentTeam: battle.team1,
+        duration: 60
+      }));
+    }
+  });
+  
+  console.log(`⚔️ Рейдовая битва началась: ${battleId} (${lobby.captainName} vs ${opponentLobby.captainName})`);
 }
 
 // Обработка клика в рейде
