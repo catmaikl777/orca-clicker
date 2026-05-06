@@ -194,6 +194,31 @@ class DatabaseAdapter {
       `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS last_processed_clicks INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
       `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS total_play_time INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
       
+      // Миграция: конвертировать TIMESTAMP в BIGINT если колонка имеет тип TIMESTAMP
+      // Сначала проверяем тип колонки перед изменением
+      `DO $$ 
+      BEGIN 
+        -- created_at
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'players' AND column_name = 'created_at' AND data_type = 'timestamp without time zone') THEN
+          BEGIN ALTER TABLE players ALTER COLUMN created_at TYPE BIGINT USING EXTRACT(EPOCH FROM created_at)::BIGINT * 1000; EXCEPTION WHEN OTHERS THEN NULL; END;
+        END IF;
+        
+        -- last_login
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'players' AND column_name = 'last_login' AND data_type = 'timestamp without time zone') THEN
+          BEGIN ALTER TABLE players ALTER COLUMN last_login TYPE BIGINT USING EXTRACT(EPOCH FROM last_login)::BIGINT * 1000; EXCEPTION WHEN OTHERS THEN NULL; END;
+        END IF;
+        
+        -- updated_at
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'players' AND column_name = 'updated_at' AND data_type = 'timestamp without time zone') THEN
+          BEGIN ALTER TABLE players ALTER COLUMN updated_at TYPE BIGINT USING EXTRACT(EPOCH FROM updated_at)::BIGINT * 1000; EXCEPTION WHEN OTHERS THEN NULL; END;
+        END IF;
+        
+        -- banned_at
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'players' AND column_name = 'banned_at' AND data_type = 'timestamp without time zone') THEN
+          BEGIN ALTER TABLE players ALTER COLUMN banned_at TYPE BIGINT USING EXTRACT(EPOCH FROM banned_at)::BIGINT * 1000; EXCEPTION WHEN OTHERS THEN NULL; END;
+        END IF;
+      END $$;`,
+      
       // Таблица событий
       `CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
