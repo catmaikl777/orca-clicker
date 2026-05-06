@@ -21,7 +21,11 @@ const game = {
   clan: null,
   // Отслеживание кланов для достижений
   clansJoinedHistory: [],
-  ownedClanMemberCount: 0
+  ownedClanMemberCount: 0,
+  // Путь к славе (ранги)
+  totalRankClicks: 0,
+  currentRank: 'novice',
+  rankRewardsClaimed: []
 };
 
 // Глобальные переменные для кланов
@@ -391,6 +395,220 @@ function isEffectEnabled(effectId) {
   return localStorage.getItem(`effect_${effectId}_enabled`) !== 'false';
 }
 
+// ==================== ПУТЬ К СЛАВЕ (Ранги) ====================
+const RANKS = [
+  { id: 'novice', name: 'Новичок', emoji: '🌱', minClicks: 0, reward: { coins: 100, type: 'coins' } },
+  { id: 'apprentice', name: 'Ученик', emoji: '📚', minClicks: 500, reward: { coins: 250, type: 'coins' } },
+  { id: 'fighter', name: 'Боец', emoji: '⚔️', minClicks: 2000, reward: { coins: 500, type: 'coins' } },
+  { id: 'veteran', name: 'Ветеран', emoji: '🛡️', minClicks: 5000, reward: { coins: 1000, type: 'coins' } },
+  { id: 'expert', name: 'Эксперт', emoji: '💪', minClicks: 10000, reward: { coins: 2500, type: 'coins' } },
+  { id: 'master', name: 'Мастер', emoji: '🏆', minClicks: 25000, reward: { coins: 5000, type: 'coins' } },
+  { id: 'grandmaster', name: 'Грандмастер', emoji: '⭐', minClicks: 50000, reward: { coins: 10000, type: 'coins' } },
+  { id: 'legend', name: 'Легенда', emoji: '👑', minClicks: 100000, reward: { coins: 25000, type: 'coins' } },
+  { id: 'mythic', name: 'Мифический', emoji: '🔥', minClicks: 250000, reward: { coins: 50000, type: 'coins' } },
+  { id: 'divine', name: 'Божественный', emoji: '✨', minClicks: 500000, reward: { coins: 100000, type: 'coins' } }
+];
+
+function getCurrentRank(totalClicks) {
+  let currentRank = RANKS[0];
+  for (const rank of RANKS) {
+    if (totalClicks >= rank.minClicks) {
+      currentRank = rank;
+    } else {
+      break;
+    }
+  }
+  return currentRank;
+}
+
+function getNextRank(totalClicks) {
+  const currentRank = getCurrentRank(totalClicks);
+  const currentIndex = RANKS.findIndex(r => r.id === currentRank.id);
+  if (currentIndex < RANKS.length - 1) {
+    return RANKS[currentIndex + 1];
+  }
+  return null;
+}
+
+function getRankProgress(totalClicks) {
+  const currentRank = getCurrentRank(totalClicks);
+  const nextRank = getNextRank(totalClicks);
+  
+  if (!nextRank) {
+    return { current: currentRank, next: null, progress: 100, totalClicks };
+  }
+  
+  const prevRankMin = currentRank.minClicks;
+  const nextRankMin = nextRank.minClicks;
+  const progress = Math.min(100, ((totalClicks - prevRankMin) / (nextRankMin - prevRankMin)) * 100);
+  
+  return { current: currentRank, next: nextRank, progress: Math.round(progress), totalClicks };
+}
+
+// Проверка и выдача наград за ранги
+function checkRankRewards(totalClicks) {
+  const currentRank = getCurrentRank(totalClicks);
+  const claimedRewards = game.rankRewardsClaimed || [];
+  
+  const rewards = [];
+  for (const rank of RANKS) {
+    if (totalClicks >= rank.minClicks && !claimedRewards.includes(rank.id)) {
+      rewards.push(rank);
+    }
+  }
+  
+  return rewards;
+}
+
+function claimRankReward(rankId) {
+  const rank = RANKS.find(r => r.id === rankId);
+  if (!rank) return false;
+  
+  const claimedRewards = game.rankRewardsClaimed || [];
+  if (claimedRewards.includes(rankId)) return false;
+  
+  // Добавляем награду
+  if (rank.reward.type === 'coins') {
+    game.coins += rank.reward.coins;
+  }
+  
+  // Отмечаем как полученное
+  game.rankRewardsClaimed = [...claimedRewards, rankId];
+  saveGame();
+  
+  return true;
+}
+  
+// Проверка прогресса ранга (повышение ранга)
+function checkRankProgress() {
+  const totalClicks = game.totalRankClicks || 0;
+  const currentRank = getCurrentRank(totalClicks);
+  const oldRank = game.currentRank;
+  
+  // Если ранг повысился
+  if (currentRank.id !== oldRank) {
+    game.currentRank = currentRank.id;
+    showNotification(`🎉 Новый ранг: ${currentRank.emoji} ${currentRank.name}!`);
+    playSound('levelSound');
+    
+    // Показываем путь к славе
+    setTimeout(() => {
+      showPathToGlory();
+    }, 500);
+  }
+  
+  // Проверяем доступные награды
+  const availableRewards = checkRankRewards(totalClicks);
+  if (availableRewards.length > 0) {
+    setTimeout(() => {
+      showRankRewardNotification(availableRewards[0]);
+    }, 300);
+  }
+}
+
+function showRankRewardNotification(rank) {
+  const modal = document.createElement('div');
+  modal.className = 'rank-reward-modal';
+  modal.innerHTML = `
+    <div class="rank-reward-overlay"></div>
+    <div class="rank-reward-content">
+      <div class="rank-reward-icon">${rank.emoji}</div>
+      <h2 class="rank-reward-title">Новый ранг достигнут!</h2>
+      <h3 class="rank-reward-name">${rank.name}</h3>
+      <div class="rank-reward-reward">
+        <span class="reward-amount">+${formatNumber(rank.reward.coins)}</span>
+        <span class="reward-icon">🐋</span>
+      </div>
+      <button class="rank-reward-btn" onclick="claimRankRewardAndClose('${rank.id}')">Забрать</button>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  setTimeout(() => {
+    modal.classList.add('show');
+  }, 100);
+}
+
+function claimRankRewardAndClose(rankId) {
+  if (claimRankReward(rankId)) {
+    const modal = document.querySelector('.rank-reward-modal');
+    if (modal) {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 300);
+    }
+    updateUI();
+    renderShop();
+  }
+}
+
+function showPathToGlory() {
+  // Закрываем все модальные окна
+  closeAllModals();
+  
+  const modal = document.createElement('div');
+  modal.className = 'path-to-glory-modal';
+  
+  const progress = getRankProgress(game.totalRankClicks || 0);
+  const claimedRewards = game.rankRewardsClaimed || [];
+  
+  let ranksHtml = RANKS.map(rank => {
+    const isCurrent = rank.id === progress.current.id;
+    const isUnlocked = (game.totalRankClicks || 0) >= rank.minClicks;
+    const isClaimed = claimedRewards.includes(rank.id);
+    const isLocked = !isUnlocked;
+    
+    return `
+      <div class="rank-node ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : ''} ${isClaimed ? 'claimed' : ''} ${isLocked ? 'locked' : ''}">
+        <div class="rank-icon">${rank.emoji}</div>
+        <div class="rank-info">
+          <div class="rank-name">${rank.name}</div>
+          <div class="rank-requirement">${formatNumber(rank.minClicks)} кликов</div>
+          <div class="rank-reward">+${formatNumber(rank.reward.coins)} 🐋</div>
+        </div>
+        <div class="rank-status">
+          ${isClaimed ? '<span class="claimed-badge">✅</span>' : 
+            isLocked ? '<span class="locked-badge">🔒</span>' :
+            '<button class="claim-btn" onclick="claimRankRewardAndClose(\'' + rank.id + '\')">Забрать</button>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  modal.innerHTML = `
+    <div class="path-to-glory-overlay"></div>
+    <div class="path-to-glory-content">
+      <div class="path-to-glory-header">
+        <h2>🔥 'Градиент Хвоста'</h2>
+        <button class="close-btn" onclick="this.closest('.path-to-glory-modal').remove()">&times;</button>
+      </div>
+      <div class="current-rank-display">
+        <div class="current-rank-icon">${progress.current.emoji}</div>
+        <div class="current-rank-name">${progress.current.name}</div>
+        ${progress.next ? `
+          <div class="next-rank-info">
+            <span>Следующий: </span>
+            <strong>${progress.next.emoji} ${progress.next.name}</strong>
+          </div>
+          <div class="rank-progress-bar">
+            <div class="rank-progress-fill" style="width: ${progress.progress}%"></div>
+            <div class="rank-progress-text">${progress.progress}%</div>
+          </div>
+        ` : '<div class="max-rank-badge">👑 Максимальный ранг!</div>'}
+      </div>
+      <div class="ranks-list">
+        ${ranksHtml}
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  setTimeout(() => {
+    modal.classList.add('show');
+  }, 100);
+}
+
 // ==================== WEBSOCKET ====================
 let ws = null;
 window.ws = null;
@@ -596,6 +814,20 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       game.skins = d.skins || { normal: true };
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
+      
+      // Загружаем данные пути к славе (ранги)
+      game.totalRankClicks = Number(d.totalRankClicks) || Number(d.clicks) || 0;
+      game.currentRank = d.currentRank || 'novice';
+      if (d.rankRewardsClaimed) {
+        game.rankRewardsClaimed = typeof d.rankRewardsClaimed === 'string' 
+          ? JSON.parse(d.rankRewardsClaimed) 
+          : d.rankRewardsClaimed;
+      } else {
+        game.rankRewardsClaimed = [];
+      }
+      
+      // Лог для отладки рангов
+      console.log(`🏆 Ранги загружены: totalClicks=${game.totalRankClicks}, currentRank=${game.currentRank}`);
       
 // Загружаем данные для отслеживания кланов (для достижений)
       // Из skills._clanTracking загружаем историю вступлений и количество участников
@@ -2002,6 +2234,10 @@ function handleClick(e) {
   if (game.effects && game.effects['e5'] && isEffectEnabled('e5')) {
     createWaveEffect(e);
   }
+  
+  // Обновляем прогресс пути к славе
+  game.totalRankClicks = (game.totalRankClicks || 0) + 1;
+  checkRankProgress();
   
   updateUI();
   checkAchievements();
@@ -4122,7 +4358,10 @@ window.forceSave = function() {
       dailyQuestDate: game.dailyQuestDate,
       dailyQuestIds: game.dailyQuestIds,
       dailyProgress: game.dailyProgress,
-      clan: game.clan
+      clan: game.clan,
+      totalRankClicks: game.totalRankClicks,
+      currentRank: game.currentRank,
+      rankRewardsClaimed: game.rankRewardsClaimed
     }
   }));
 

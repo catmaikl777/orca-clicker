@@ -219,6 +219,11 @@ class DatabaseAdapter {
         END IF;
       END $$;`,
       
+      // Добавить колонку для отслеживания прогресса ранга
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS total_rank_clicks BIGINT DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS current_rank VARCHAR(50) DEFAULT 'Novice'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS rankRewardsClaimed JSONB DEFAULT '[]'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      
       // Таблица событий
       `CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
