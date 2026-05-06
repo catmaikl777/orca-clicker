@@ -489,8 +489,9 @@ class DatabaseAdapter {
         clicks, level, skills, achievements, skins, current_skin, clan,
         event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, pending_event_clicks, last_processed_clicks,
-        created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+        created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time,
+        total_rank_clicks, current_rank, rankrewardsclaimed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -517,7 +518,10 @@ class DatabaseAdapter {
         banned_at = EXCLUDED.banned_at,
         ban_reason = EXCLUDED.ban_reason,
         effects = EXCLUDED.effects,
-        total_play_time = EXCLUDED.total_play_time
+        total_play_time = EXCLUDED.total_play_time,
+        total_rank_clicks = EXCLUDED.total_rank_clicks,
+        current_rank = EXCLUDED.current_rank,
+        rankrewardsclaimed = EXCLUDED.rankrewardsclaimed
     `;
     
     const values = [
@@ -527,7 +531,11 @@ class DatabaseAdapter {
       player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
       dailyQuestDate, dailyQuestIds, pendingEventClicks, lastProcessedClicks,
       createdAt, lastLogin, updatedAt, bannedAt, banReason, effects,
-      player.playTime || 0
+      player.playTime || 0,
+      // Путь к славе
+      player.totalRankClicks || 0,
+      player.currentRank || 'novice',
+      JSON.stringify(player.rankRewardsClaimed || [])
     ];
     
     console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);

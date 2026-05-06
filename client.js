@@ -3414,6 +3414,17 @@ function startBattleUI(data) {
   if (opponentCpsEl) opponentCpsEl.textContent = `${data.opponentPerSecond || 0} CPS`;
   if (battleTimerEl) battleTimerEl.textContent = data.duration / 1000;
   
+  // Показываем текущий ранг игрока
+  const progress = getRankProgress(game.totalRankClicks || 0);
+  const rankBadge = document.createElement('div');
+  rankBadge.id = 'myBattleRank';
+  rankBadge.style.cssText = 'position:absolute;top:10px;left:10px;background:rgba(52,152,219,0.9);padding:8px 15px;border-radius:12px;font-size:13px;font-weight:bold;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+  rankBadge.innerHTML = `${progress.current.emoji} ${progress.current.name}`;
+  
+  if (battleArena && !battleArena.querySelector('#myBattleRank')) {
+    battleArena.appendChild(rankBadge);
+  }
+  
   // Если это владелец лобби - показываем "Вы" а не имя
   if (data.lobbyId && myBattleScoreEl?.parentNode) {
     const h3 = myBattleScoreEl.parentNode.querySelector('h3');
@@ -3543,7 +3554,12 @@ function endBattleUI(data) {
     const battleLobby = document.getElementById('battleLobby');
     const btn = document.getElementById('battleClickBtn');
     
-    if (battleArena) battleArena.classList.add('hidden');
+    if (battleArena) {
+      battleArena.classList.add('hidden');
+      // Удаляем badge ранга
+      const rankBadge = document.getElementById('myBattleRank');
+      if (rankBadge) rankBadge.remove();
+    }
     if (battleLobbyView) battleLobbyView.classList.add('hidden');
     if (myBattleLobby) myBattleLobby.classList.add('hidden');
     if (battleLobby) battleLobby.classList.remove('hidden');
@@ -4319,7 +4335,11 @@ function saveGameToServer() {
       clansJoinedHistory: game.clansJoinedHistory || [],
       ownedClanMemberCount: game.ownedClanMemberCount || 0,
       skills: game.skills || {},
-      updatedAt: game.updatedAt || Date.now()
+      updatedAt: game.updatedAt || Date.now(),
+      // Путь к славе
+      totalRankClicks: game.totalRankClicks || 0,
+      currentRank: game.currentRank || 'novice',
+      rankRewardsClaimed: game.rankRewardsClaimed || []
     }
   }));
 }
