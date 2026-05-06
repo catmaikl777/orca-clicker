@@ -398,15 +398,15 @@ function isEffectEnabled(effectId) {
 // ==================== ПУТЬ К СЛАВЕ (Ранги) ====================
 const RANKS = [
   { id: 'novice', name: 'Новичок', emoji: '🌱', minClicks: 0, reward: { coins: 100, type: 'coins' } },
-  { id: 'apprentice', name: 'Ученик', emoji: '📚', minClicks: 500, reward: { coins: 250, type: 'coins' } },
-  { id: 'fighter', name: 'Боец', emoji: '⚔️', minClicks: 2000, reward: { coins: 500, type: 'coins' } },
-  { id: 'veteran', name: 'Ветеран', emoji: '🛡️', minClicks: 5000, reward: { coins: 1000, type: 'coins' } },
-  { id: 'expert', name: 'Эксперт', emoji: '💪', minClicks: 10000, reward: { coins: 2500, type: 'coins' } },
-  { id: 'master', name: 'Мастер', emoji: '🏆', minClicks: 25000, reward: { coins: 5000, type: 'coins' } },
-  { id: 'grandmaster', name: 'Грандмастер', emoji: '⭐', minClicks: 50000, reward: { coins: 10000, type: 'coins' } },
-  { id: 'legend', name: 'Легенда', emoji: '👑', minClicks: 100000, reward: { coins: 25000, type: 'coins' } },
-  { id: 'mythic', name: 'Мифический', emoji: '🔥', minClicks: 250000, reward: { coins: 50000, type: 'coins' } },
-  { id: 'divine', name: 'Божественный', emoji: '✨', minClicks: 500000, reward: { coins: 100000, type: 'coins' } }
+  { id: 'apprentice', name: 'Ученик', emoji: '📚', minClicks: 5000, reward: { coins: 250, type: 'coins' } },
+  { id: 'fighter', name: 'Боец', emoji: '⚔️', minClicks: 25000, reward: { coins: 500, type: 'coins' } },
+  { id: 'veteran', name: 'Ветеран', emoji: '🛡️', minClicks: 100000, reward: { coins: 1000, type: 'coins' } },
+  { id: 'expert', name: 'Эксперт', emoji: '💪', minClicks: 500000, reward: { coins: 2500, type: 'coins' } },
+  { id: 'master', name: 'Мастер', emoji: '🏆', minClicks: 1000000, reward: { coins: 5000, type: 'coins' } },
+  { id: 'grandmaster', name: 'Грандмастер', emoji: '⭐', minClicks: 5000000, reward: { coins: 10000, type: 'coins' } },
+  { id: 'legend', name: 'Легенда', emoji: '👑', minClicks: 10000000, reward: { coins: 25000, type: 'coins' } },
+  { id: 'mythic', name: 'Мифический', emoji: '🔥', minClicks: 50000000, reward: { coins: 50000, type: 'coins' } },
+  { id: 'divine', name: 'Божественный', emoji: '✨', minClicks: 100000000, reward: { coins: 100000, type: 'coins' } }
 ];
 
 function getCurrentRank(totalClicks) {
@@ -474,6 +474,16 @@ function claimRankReward(rankId) {
   
   // Отмечаем как полученное
   game.rankRewardsClaimed = [...claimedRewards, rankId];
+  
+  // Сохраняем на сервер
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ 
+      type: 'claimRankReward',
+      rankId: rankId,
+      coins: rank.reward.coins
+    }));
+  }
+  
   saveGame();
   
   return true;
@@ -497,13 +507,7 @@ function checkRankProgress() {
     }, 500);
   }
   
-  // Проверяем доступные награды
-  const availableRewards = checkRankRewards(totalClicks);
-  if (availableRewards.length > 0) {
-    setTimeout(() => {
-      showRankRewardNotification(availableRewards[0]);
-    }, 300);
-  }
+  // НЕ выдаём награды автоматически - только при ручном клике
 }
 
 function showRankRewardNotification(rank) {
@@ -828,6 +832,15 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       
       // Лог для отладки рангов
       console.log(`🏆 Ранги загружены: totalClicks=${game.totalRankClicks}, currentRank=${game.currentRank}`);
+      
+      // Проверяем доступные награды после загрузки
+      const availableRewards = checkRankRewards(game.totalRankClicks || 0);
+      if (availableRewards.length > 0) {
+        console.log(`🎁 Доступны награды за ранги: ${availableRewards.length} шт.`);
+        setTimeout(() => {
+          showPathToGlory();
+        }, 1000);
+      }
       
 // Загружаем данные для отслеживания кланов (для достижений)
       // Из skills._clanTracking загружаем историю вступлений и количество участников
@@ -1227,6 +1240,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       localStorage.setItem('battleLobbiesCache', JSON.stringify(data.lobbies || []));
       updateBattleLobbiesUI(data.lobbies);
       break;
+    case 'rankRewardClaimed':
+      showNotification(`✅ Награда получена: +${formatNumber(data.coins)} 🐋`);
+      playSound('bonusSound');
+      updateUI();
+      renderShop();
+      break;
 case 'lobbyCreated':
       // Показываем код лобби если оно закрыто
       const lobbyMsg = data.lobbyCode 
@@ -1583,7 +1602,7 @@ case 'joinedClan':
       break;
   }
 }
-      
+  
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
   const audioElements = document.querySelectorAll('audio');
@@ -1984,7 +2003,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-
+  
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
@@ -2007,7 +2026,7 @@ function endRaidBattle(data) {
     }
   }, 3000);
 }
-    
+
 function handleRaidClick() {
   if (!currentRaidBattle || !ws || ws.readyState !== WebSocket.OPEN) return;
   

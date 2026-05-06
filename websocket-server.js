@@ -3209,6 +3209,46 @@ setInterval(() => {
   });
 }, 1000);
 
+// ==================== ПУТЬ К СЛАВЕ ====================
+
+// Обработка получения награды за ранг
+function handleClaimRankReward(ws, rankId, coins) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const player = db.players[id];
+  
+  // Проверяем что награда ещё не получена
+  const claimedRewards = player.rankRewardsClaimed || [];
+  if (claimedRewards.includes(rankId)) {
+    console.log(`⚠️ Награда за ранг ${rankId} уже получена: ${id}`);
+    return;
+  }
+  
+  // Добавляем награду
+  player.coins = (player.coins || 0) + coins;
+  player.totalCoins = (player.totalCoins || 0) + coins;
+  
+  // Добавляем в список полученных
+  player.rankRewardsClaimed = [...claimedRewards, rankId];
+  
+  // Сохраняем в БД
+  savePlayerToDB(id).then(() => {
+    console.log(`✅ Награда за ранг ${rankId} получена: ${id}, +${coins} coins`);
+    // Отправляем подтверждение клиенту
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'rankRewardClaimed',
+        rankId: rankId,
+        coins: coins,
+        totalCoins: player.totalCoins
+      }));
+    }
+  }).catch(err => {
+    console.error(`❌ Ошибка сохранения награды за ранг:`, err.message);
+  });
+}
+
 process.on('SIGINT', () => {
   console.log('\n⚠️ SIGINT получен, сервер останавливается...');
   wss.close(() => process.exit(0));
