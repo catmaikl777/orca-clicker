@@ -4932,7 +4932,7 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10000;
+  z-index: 10001;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4956,18 +4956,20 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   height: 100%;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(5px);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .daily-reward-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   background: linear-gradient(145deg, #1a1a2e, #16213e);
   border: 2px solid rgba(255, 215, 0, 0.5);
   border-radius: 20px;
   padding: 30px;
   max-width: 400px;
   width: 100%;
-  margin: 0 auto;
+  margin: auto;
   text-align: center;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 215, 0, 0.3);
   transform: scale(0.9) translateY(-50px);
