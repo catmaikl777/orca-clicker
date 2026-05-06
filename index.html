@@ -86,6 +86,17 @@
           <span id="accountNameDisplay" class="account-name">🐋 Косатка</span>
           <button class="logout-btn" onclick="logout()">Выход</button>
         </div>
+        
+        <!-- Ежедневная серия -->
+        <div class="daily-streak-container">
+          <button id="dailyStreakBtn" class="daily-streak-btn" onclick="claimDailyStreak()" disabled>
+            <span class="streak-fire">🔥</span>
+            <span class="streak-count" id="streakCount">0</span>
+            <span class="streak-label">дней</span>
+            <span class="reward-amount" id="streakReward">+0</span>
+          </button>
+        </div>
+        
         <div class="stats">
           <div class="stat">
             <span class="stat-icon">🐋</span>

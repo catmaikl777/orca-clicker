@@ -25,7 +25,11 @@ const game = {
   // Путь к славе (ранги)
   totalRankClicks: 0,
   currentRank: 'novice',
-  rankRewardsClaimed: []
+  rankRewardsClaimed: [],
+  // Ежедневная серия
+  lastLoginDate: null,
+  loginStreak: 0,
+  lastStreakRewardDate: null
 };
 
 // Глобальные переменные для кланов
@@ -409,121 +413,177 @@ const RANKS = [
   { id: 'divine', name: 'Божественный', emoji: '✨', minClicks: 100000000, reward: { coins: 100000, type: 'coins' } }
 ];
 
-function getCurrentRank(totalClicks) {
-  let currentRank = RANKS[0];
-  for (const rank of RANKS) {
-    if (totalClicks >= rank.minClicks) {
-      currentRank = rank;
+// ==================== ЕЖЕДНЕВНАЯ СЕРИЯ ====================
+const DAILY_REWARDS = [
+  { day: 1, coins: 100, icon: '🎁' },
+  { day: 2, coins: 150, icon: '🎁' },
+  { day: 3, coins: 200, icon: '🎁' },
+  { day: 4, coins: 250, icon: '🎁' },
+  { day: 5, coins: 500, icon: '🎉' },
+  { day: 6, coins: 750, icon: '🎉' },
+  { day: 7, coins: 1500, icon: '👑' },
+  { day: 14, coins: 3000, icon: '👑' },
+  { day: 30, coins: 7500, icon: '💎' },
+  { day: 60, coins: 15000, icon: '💎' },
+  { day: 90, coins: 30000, icon: '💎' }
+];
+
+function getStreakReward(streak) {
+  // Ищем награду для текущей серии
+  let bestReward = DAILY_REWARDS[0];
+  for (const reward of DAILY_REWARDS) {
+    if (streak >= reward.day) {
+      bestReward = reward;
     } else {
       break;
     }
   }
-  return currentRank;
+  return bestReward;
 }
 
-function getNextRank(totalClicks) {
-  const currentRank = getCurrentRank(totalClicks);
-  const currentIndex = RANKS.findIndex(r => r.id === currentRank.id);
-  if (currentIndex < RANKS.length - 1) {
-    return RANKS[currentIndex + 1];
+function getNextStreakReward(streak) {
+  for (const reward of DAILY_REWARDS) {
+    if (reward.day > streak) {
+      return reward;
+    }
   }
-  return null;
+  return DAILY_REWARDS[DAILY_REWARDS.length - 1];
 }
 
-function getRankProgress(totalClicks) {
-  const currentRank = getCurrentRank(totalClicks);
-  const nextRank = getNextRank(totalClicks);
+function checkDailyLogin() {
+  const today = getCurrentDateString();
+  const lastLogin = game.lastLoginDate;
   
-  if (!nextRank) {
-    return { current: currentRank, next: null, progress: 100, totalClicks };
+  // Если уже заходил сегодня - ничего не делаем
+  if (lastLogin === today) {
+    return { isNewDay: false, reward: null, alreadyClaimed: true };
   }
-  
-  const prevRankMin = currentRank.minClicks;
-  const nextRankMin = nextRank.minClicks;
-  const progress = Math.min(100, ((totalClicks - prevRankMin) / (nextRankMin - prevRankMin)) * 100);
-  
-  return { current: currentRank, next: nextRank, progress: Math.round(progress), totalClicks };
-}
 
-// Проверка и выдача наград за ранги
-function checkRankRewards(totalClicks) {
-  const currentRank = getCurrentRank(totalClicks);
-  const claimedRewards = game.rankRewardsClaimed || [];
+  // Проверяем серию
+  let newStreak = 1;
+  let reward = DAILY_REWARDS[0];
   
-  const rewards = [];
-  for (const rank of RANKS) {
-    if (totalClicks >= rank.minClicks && !claimedRewards.includes(rank.id)) {
-      rewards.push(rank);
+  if (lastLogin) {
+    const lastDate = new Date(lastLogin);
+    const todayDate = new Date(today);
+    const diffDays = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      // Продолжаем серию
+      newStreak = (game.loginStreak || 0) + 1;
+      reward = getStreakReward(newStreak);
+    } else if (diffDays > 1) {
+      // Серия прервана
+      newStreak = 1;
+      reward = DAILY_REWARDS[0];
     }
   }
   
-  return rewards;
+  return { 
+    isNewDay: true, 
+    reward: reward,
+    newStreak: newStreak,
+    nextReward: getNextStreakReward(newStreak),
+    alreadyClaimed: false
+  };
 }
-
-function claimRankReward(rankId) {
-  const rank = RANKS.find(r => r.id === rankId);
-  if (!rank) return false;
   
-  const claimedRewards = game.rankRewardsClaimed || [];
-  if (claimedRewards.includes(rankId)) return false;
+function claimDailyReward(streak, reward) {
+  const today = getCurrentDateString();
   
   // Добавляем награду
-  if (rank.reward.type === 'coins') {
-    game.coins += rank.reward.coins;
-  }
+  game.coins += reward.coins;
+  game.lastLoginDate = today;
+  game.loginStreak = streak;
   
-  // Отмечаем как полученное
-  game.rankRewardsClaimed = [...claimedRewards, rankId];
+  // Показываем награду
+  showDailyRewardModal(reward, streak);
   
-  // Сохраняем на сервер
+  // Сохраняем
+  saveGame();
+  
+  // Отправляем на сервер
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ 
-      type: 'claimRankReward',
-      rankId: rankId,
-      coins: rank.reward.coins
+    ws.send(JSON.stringify({
+      type: 'claimDailyReward',
+      streak: streak,
+      coins: reward.coins
     }));
   }
   
-  saveGame();
-  
-  return true;
-}
-  
-// Проверка прогресса ранга (повышение ранга)
-function checkRankProgress() {
-  const totalClicks = game.totalRankClicks || 0;
-  const currentRank = getCurrentRank(totalClicks);
-  const oldRank = game.currentRank;
-  
-  // Если ранг повысился
-  if (currentRank.id !== oldRank) {
-    game.currentRank = currentRank.id;
-    showNotification(`🎉 Новый ранг: ${currentRank.emoji} ${currentRank.name}!`);
-    playSound('levelSound');
-    
-    // Показываем путь к славе
-    setTimeout(() => {
-      showPathToGlory();
-    }, 500);
-  }
-  
-  // НЕ выдаём награды автоматически - только при ручном клике
+  // Обновляем UI
+  updateDailyStreakUI();
 }
 
-function showRankRewardNotification(rank) {
+function claimDailyStreak() {
+  const loginCheck = checkDailyLogin();
+  if (loginCheck.isNewDay && !loginCheck.alreadyClaimed) {
+    claimDailyReward(loginCheck.newStreak, loginCheck.reward);
+  }
+}
+
+function updateDailyStreakUI() {
+  const streakBtn = document.getElementById('dailyStreakBtn');
+  const streakCount = document.getElementById('streakCount');
+  const streakReward = document.getElementById('streakReward');
+  
+  if (!streakBtn || !streakCount || !streakReward) return;
+  
+  const today = getCurrentDateString();
+  const hasClaimedToday = game.lastLoginDate === today;
+  
+  // Обновляем счётчик серии
+  streakCount.textContent = game.loginStreak || 0;
+  
+  // Определяем текущую награду
+  const currentReward = getStreakReward(game.loginStreak || 0);
+  const nextReward = getNextStreakReward(game.loginStreak || 0);
+  
+  // Показываем следующую награду или текущую если ещё не получена
+  if (hasClaimedToday) {
+    streakReward.textContent = '+' + currentReward.coins;
+    streakBtn.classList.add('claimed');
+    streakBtn.disabled = true;
+    streakBtn.querySelector('.streak-label').textContent = 'завтра';
+  } else {
+    streakReward.textContent = '+' + nextReward.coins;
+    streakBtn.classList.remove('claimed');
+    streakBtn.disabled = false;
+    streakBtn.querySelector('.streak-label').textContent = 'дней';
+  }
+}
+
+function showDailyRewardModal(reward, streak) {
+  // Удаляем старое модальное окно если есть
+  const oldModal = document.querySelector('.daily-reward-modal');
+  if (oldModal) oldModal.remove();
+  
   const modal = document.createElement('div');
-  modal.className = 'rank-reward-modal';
+  modal.className = 'daily-reward-modal';
   modal.innerHTML = `
-    <div class="rank-reward-overlay"></div>
-    <div class="rank-reward-content">
-      <div class="rank-reward-icon">${rank.emoji}</div>
-      <h2 class="rank-reward-title">Новый ранг достигнут!</h2>
-      <h3 class="rank-reward-name">${rank.name}</h3>
-      <div class="rank-reward-reward">
-        <span class="reward-amount">+${formatNumber(rank.reward.coins)}</span>
-        <span class="reward-icon">🐋</span>
+    <div class="daily-reward-overlay"></div>
+    <div class="daily-reward-content">
+      <div class="daily-reward-icon">${reward.icon}</div>
+      <h2 class="daily-reward-title">Ежедневная награда!</h2>
+      <div class="daily-reward-streak">
+        <span class="streak-fire">🔥</span>
+        <span class="streak-count">${streak}</span>
+        <span class="streak-days">дней подряд</span>
       </div>
-      <button class="rank-reward-btn" onclick="claimRankRewardAndClose('${rank.id}')">Забрать</button>
+      <div class="daily-reward-amount">
+        +${formatNumber(reward.coins)} 🐋
+      </div>
+      ${getNextStreakReward(streak).day > streak ? `
+        <div class="daily-reward-next">
+          Следующая награда: <strong>${formatNumber(getNextStreakReward(streak).coins)}</strong> 🐋
+          <br>через <strong>${getNextStreakReward(streak).day - streak}</strong> дн.
+        </div>
+      ` : `
+        <div class="daily-reward-next">
+          🎉 Максимальная награда получена!
+        </div>
+      `}
+      <button class="daily-reward-btn" onclick="this.closest('.daily-reward-modal').remove()">Забрать</button>
     </div>
   `;
   
@@ -531,85 +591,7 @@ function showRankRewardNotification(rank) {
   
   setTimeout(() => {
     modal.classList.add('show');
-  }, 100);
-}
-
-function claimRankRewardAndClose(rankId) {
-  if (claimRankReward(rankId)) {
-    const modal = document.querySelector('.rank-reward-modal');
-    if (modal) {
-      modal.classList.remove('show');
-      setTimeout(() => modal.remove(), 300);
-    }
-    updateUI();
-    renderShop();
-  }
-}
-
-function showPathToGlory() {
-  // Закрываем все модальные окна
-  closeAllModals();
-  
-  const modal = document.createElement('div');
-  modal.className = 'path-to-glory-modal';
-  
-  const progress = getRankProgress(game.totalRankClicks || 0);
-  const claimedRewards = game.rankRewardsClaimed || [];
-  
-  let ranksHtml = RANKS.map(rank => {
-    const isCurrent = rank.id === progress.current.id;
-    const isUnlocked = (game.totalRankClicks || 0) >= rank.minClicks;
-    const isClaimed = claimedRewards.includes(rank.id);
-    const isLocked = !isUnlocked;
-    
-    return `
-      <div class="rank-node ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : ''} ${isClaimed ? 'claimed' : ''} ${isLocked ? 'locked' : ''}">
-        <div class="rank-icon">${rank.emoji}</div>
-        <div class="rank-info">
-          <div class="rank-name">${rank.name}</div>
-          <div class="rank-requirement">${formatNumber(rank.minClicks)} кликов</div>
-          <div class="rank-reward">+${formatNumber(rank.reward.coins)} 🐋</div>
-        </div>
-        <div class="rank-status">
-          ${isClaimed ? '<span class="claimed-badge">✅</span>' : 
-            isLocked ? '<span class="locked-badge">🔒</span>' :
-            '<button class="claim-btn" onclick="claimRankRewardAndClose(\'' + rank.id + '\')">Забрать</button>'}
-        </div>
-      </div>
-    `;
-  }).join('');
-  
-  modal.innerHTML = `
-    <div class="path-to-glory-overlay"></div>
-    <div class="path-to-glory-content">
-      <div class="path-to-glory-header">
-        <h2>🔥 'Градиент Хвоста'</h2>
-        <button class="close-btn" onclick="this.closest('.path-to-glory-modal').remove()">&times;</button>
-      </div>
-      <div class="current-rank-display">
-        <div class="current-rank-icon">${progress.current.emoji}</div>
-        <div class="current-rank-name">${progress.current.name}</div>
-        ${progress.next ? `
-          <div class="next-rank-info">
-            <span>Следующий: </span>
-            <strong>${progress.next.emoji} ${progress.next.name}</strong>
-          </div>
-          <div class="rank-progress-bar">
-            <div class="rank-progress-fill" style="width: ${progress.progress}%"></div>
-            <div class="rank-progress-text">${progress.progress}%</div>
-          </div>
-        ` : '<div class="max-rank-badge">👑 Максимальный ранг!</div>'}
-      </div>
-      <div class="ranks-list">
-        ${ranksHtml}
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(modal);
-  
-  setTimeout(() => {
-    modal.classList.add('show');
+    playSound('bonusSound');
   }, 100);
 }
 
@@ -819,6 +801,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       game.currentSkin = d.currentSkin || 'normal';
       game.playTime = d.playTime || 0;
       
+      // Загружаем данные ежедневной серии
+      game.lastLoginDate = d.lastLoginDate || null;
+      game.loginStreak = Number(d.loginStreak) || 0;
+      
       // Загружаем данные пути к славе (ранги)
       game.totalRankClicks = Number(d.totalRankClicks) || Number(d.clicks) || 0;
       game.currentRank = d.currentRank || 'novice';
@@ -966,6 +952,16 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     cleanupIntervals();
     setupAutoClickInterval();
     
+    // Проверка ежедневного входа
+    setTimeout(() => {
+      const loginCheck = checkDailyLogin();
+      if (loginCheck.isNewDay && !loginCheck.alreadyClaimed) {
+        // Предлагаем получить награду
+        console.log(`🎁 Доступна ежедневная награда! Серия: ${loginCheck.newStreak} дн., награда: ${loginCheck.reward.coins} 🐋`);
+      }
+      updateDailyStreakUI();
+    }, 500);
+    
     setTimeout(() => {
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'getClans' }));
@@ -1023,6 +1019,11 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           }
         }
         eventCoins = data.eventCoins || 0;
+        
+        // Загружаем данные ежедневной серии
+        game.lastLoginDate = data.data.lastLoginDate || null;
+        game.loginStreak = Number(data.data.loginStreak) || 0;
+        
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
           playSound('bonusSound');
@@ -1033,6 +1034,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         renderShop();
         renderBoxes();
         applyEffects();
+        
+        // Проверка ежедневного входа для гостей
+        setTimeout(() => {
+          updateDailyStreakUI();
+        }, 500);
+        
         // Если игрок в клане - запрашиваем информацию о клане
         if (game.clan && ws?.readyState === WebSocket.OPEN) {
           setTimeout(() => {
@@ -1152,6 +1159,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         }
         eventCoins = data.eventCoins || 0;
         
+        // Загружаем данные ежедневной серии
+        game.lastLoginDate = data.data.lastLoginDate || null;
+        game.loginStreak = Number(data.data.loginStreak) || 0;
+        
         if (game.coins > oldCoins + 1000) {
           showNotification(`💰 Награда ивента: +${formatNumber(game.coins - oldCoins)}!`);
           playSound('bonusSound');
@@ -1164,6 +1175,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         renderShop();
         renderBoxes();
         applyEffects();
+        
+        // Проверка ежедневного входа для зарегистрированного гостя
+        setTimeout(() => {
+          updateDailyStreakUI();
+        }, 500);
+        
         // Если игрок в клане - запрашиваем информацию о клане
         if (game.clan && ws?.readyState === WebSocket.OPEN) {
           setTimeout(() => {
@@ -1864,7 +1881,7 @@ function startRaidBattle() {
     ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId: currentRaidLobby.lobbyId }));
   }
 }
-  
+
 function showRaidBattleUI(data) {
   currentRaidBattle = {
     battleId: data.battleId,
@@ -2003,7 +2020,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-  
+
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
@@ -4607,6 +4624,9 @@ document.addEventListener('DOMContentLoaded', () => {
     applyEffects();
     effectsApplied = true;
   }
+  
+  // Инициализация UI ежедневной серии
+  updateDailyStreakUI();
   
   connectWebSocket();
   

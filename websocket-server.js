@@ -1167,7 +1167,10 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
         antiCheat: null,
         _pendingEventClicks: Number(dbPlayer.pending_event_clicks) || 0,
         _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0,
-        playTime: Number(dbPlayer.total_play_time) || 0  // Общее время в игры
+        playTime: Number(dbPlayer.total_play_time) || 0,  // Общее время в игре
+        // Ежедневная серия
+        dailyLoginDate: dbPlayer.daily_login_date || null,
+        loginStreak: Number(dbPlayer.login_streak) || 0
       };
       } else {
         console.log(`⚠️ Игрок ${accountId} не найден в БД, создаем нового`);
@@ -1252,7 +1255,10 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
       ...playerData,
       basePerClick: playerData.perClick,
       basePerSecond: playerData.perSecond,
-      clan: finalClanId
+      clan: finalClanId,
+      // Ежедневная серия
+      lastLoginDate: playerData.dailyLoginDate,
+      loginStreak: playerData.loginStreak
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));

@@ -224,6 +224,11 @@ class DatabaseAdapter {
       `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS current_rank VARCHAR(50) DEFAULT 'Novice'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
       `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS rankRewardsClaimed JSONB DEFAULT '[]'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
       
+      // Добавить колонки для ежедневной серии
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS last_login_date VARCHAR(20); EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS login_streak INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      `DO $$ BEGIN ALTER TABLE players ADD COLUMN IF NOT EXISTS last_streak_reward_date VARCHAR(20); EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+      
       // Таблица событий
       `CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
@@ -490,8 +495,8 @@ class DatabaseAdapter {
         event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, pending_event_clicks, last_processed_clicks,
         created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time,
-        total_rank_clicks, current_rank, rankrewardsclaimed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
+        total_rank_clicks, current_rank, rankrewardsclaimed, daily_login_date, login_streak
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -521,7 +526,9 @@ class DatabaseAdapter {
         total_play_time = EXCLUDED.total_play_time,
         total_rank_clicks = EXCLUDED.total_rank_clicks,
         current_rank = EXCLUDED.current_rank,
-        rankrewardsclaimed = EXCLUDED.rankrewardsclaimed
+        rankrewardsclaimed = EXCLUDED.rankrewardsclaimed,
+        daily_login_date = EXCLUDED.daily_login_date,
+        login_streak = EXCLUDED.login_streak
     `;
     
     const values = [
@@ -535,7 +542,10 @@ class DatabaseAdapter {
       // Путь к славе
       player.totalRankClicks || 0,
       player.currentRank || 'novice',
-      JSON.stringify(player.rankRewardsClaimed || [])
+      JSON.stringify(player.rankRewardsClaimed || []),
+      // Ежедневная серия
+      player.dailyLoginDate || null,
+      player.loginStreak || 0
     ];
     
     console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);
@@ -561,18 +571,20 @@ class DatabaseAdapter {
       console.log(`🔧 Пробуем упрощённое сохранение...`);
       
       const simpleQuery = `
-        INSERT INTO players (id, account_id, name, coins, total_coins, per_click, per_second, clicks, level, clan, created_at, last_login)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO players (id, account_id, name, coins, total_coins, per_click, per_second, clicks, level, clan, created_at, last_login, daily_login_date, login_streak)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (id) DO UPDATE SET
           coins = EXCLUDED.coins,
           total_coins = EXCLUDED.total_coins,
-          last_login = EXCLUDED.last_login
+          last_login = EXCLUDED.last_login,
+          daily_login_date = EXCLUDED.daily_login_date,
+          login_streak = EXCLUDED.login_streak
       `;
       
       const simpleValues = [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
-        clan, createdAt, lastLogin
+        clan, createdAt, lastLogin, player.dailyLoginDate || null, player.loginStreak || 0
       ];
       
       try {
