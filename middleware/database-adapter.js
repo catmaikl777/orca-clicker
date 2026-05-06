@@ -456,11 +456,11 @@ class DatabaseAdapter {
     const query = `
       INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
-        clicks, level, skills, achievements, skins, current_skin, effects,
-        clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
-        daily_quest_date, daily_quest_ids, created_at, last_login, updated_at,
-        banned_at, ban_reason, pending_event_clicks, last_processed_clicks, total_play_time
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+        clicks, level, skills, achievements, skins, current_skin, clan,
+        event_rewards, pending_boxes, quest_progress, daily_quest_progress,
+        daily_quest_date, daily_quest_ids, pending_event_clicks, last_processed_clicks,
+        created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -472,7 +472,6 @@ class DatabaseAdapter {
         achievements = EXCLUDED.achievements,
         skins = EXCLUDED.skins,
         current_skin = EXCLUDED.current_skin,
-        effects = EXCLUDED.effects,
         clan = EXCLUDED.clan,
         event_rewards = EXCLUDED.event_rewards,
         pending_boxes = EXCLUDED.pending_boxes,
@@ -480,22 +479,24 @@ class DatabaseAdapter {
         daily_quest_progress = EXCLUDED.daily_quest_progress,
         daily_quest_date = EXCLUDED.daily_quest_date,
         daily_quest_ids = EXCLUDED.daily_quest_ids,
+        pending_event_clicks = EXCLUDED.pending_event_clicks,
+        last_processed_clicks = EXCLUDED.last_processed_clicks,
+        created_at = EXCLUDED.created_at,
         last_login = EXCLUDED.last_login,
         updated_at = EXCLUDED.updated_at,
         banned_at = EXCLUDED.banned_at,
         ban_reason = EXCLUDED.ban_reason,
-        pending_event_clicks = EXCLUDED.pending_event_clicks,
-        last_processed_clicks = EXCLUDED.last_processed_clicks,
+        effects = EXCLUDED.effects,
         total_play_time = EXCLUDED.total_play_time
     `;
     
     const values = [
       player.id, accountId, player.name, player.coins, player.totalCoins,
       player.perClick, player.perSecond, player.clicks, player.level,
-      skills, achievements, skins, player.currentSkin || 'normal', effects,
-      clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
-      dailyQuestDate, dailyQuestIds, createdAt, lastLogin, updatedAt,
-      bannedAt, banReason, pendingEventClicks, lastProcessedClicks,
+      skills, achievements, skins, player.currentSkin || 'normal', clan,
+      player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
+      dailyQuestDate, dailyQuestIds, pendingEventClicks, lastProcessedClicks,
+      createdAt, lastLogin, updatedAt, bannedAt, banReason, effects,
       player.playTime || 0
     ];
     
