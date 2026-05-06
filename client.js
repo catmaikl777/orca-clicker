@@ -589,10 +589,11 @@ function showDailyRewardModal(reward, streak) {
   
   document.body.appendChild(modal);
   
-  setTimeout(() => {
+  // Небольшая задержка для анимации
+  requestAnimationFrame(() => {
     modal.classList.add('show');
     playSound('bonusSound');
-  }, 100);
+  });
 }
 
 // ==================== WEBSOCKET ====================
