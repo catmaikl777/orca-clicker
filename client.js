@@ -805,28 +805,28 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       game.lastLoginDate = d.lastLoginDate || null;
       game.loginStreak = Number(d.loginStreak) || 0;
       
-      // Загружаем данные пути к славе (ранги)
-      game.totalRankClicks = Number(d.totalRankClicks) || Number(d.clicks) || 0;
-      game.currentRank = d.currentRank || 'novice';
-      if (d.rankRewardsClaimed) {
-        game.rankRewardsClaimed = typeof d.rankRewardsClaimed === 'string' 
-          ? JSON.parse(d.rankRewardsClaimed) 
-          : d.rankRewardsClaimed;
-      } else {
-        game.rankRewardsClaimed = [];
-      }
+      // // Загружаем данные пути к славе (ранги)
+      // game.totalRankClicks = Number(d.totalRankClicks) || Number(d.clicks) || 0;
+      // game.currentRank = d.currentRank || 'novice';
+      // if (d.rankRewardsClaimed) {
+      //   game.rankRewardsClaimed = typeof d.rankRewardsClaimed === 'string' 
+      //     ? JSON.parse(d.rankRewardsClaimed) 
+      //     : d.rankRewardsClaimed;
+      // } else {
+      //   game.rankRewardsClaimed = [];
+      // }
       
-      // Лог для отладки рангов
-      console.log(`🏆 Ранги загружены: totalClicks=${game.totalRankClicks}, currentRank=${game.currentRank}`);
+      // // Лог для отладки рангов
+      // console.log(`🏆 Ранги загружены: totalClicks=${game.totalRankClicks}, currentRank=${game.currentRank}`);
       
-      // Проверяем доступные награды после загрузки
-      const availableRewards = checkRankRewards(game.totalRankClicks || 0);
-      if (availableRewards.length > 0) {
-        console.log(`🎁 Доступны награды за ранги: ${availableRewards.length} шт.`);
-        setTimeout(() => {
-          showPathToGlory();
-        }, 1000);
-      }
+      // // Проверяем доступные награды после загрузки
+      // const availableRewards = checkRankRewards(game.totalRankClicks || 0);
+      // if (availableRewards.length > 0) {
+      //   console.log(`🎁 Доступны награды за ранги: ${availableRewards.length} шт.`);
+      //   setTimeout(() => {
+      //     showPathToGlory();
+      //   }, 1000);
+      // }
       
       // Проверяем ежедневный вход
       const dailyLogin = checkDailyLogin();
