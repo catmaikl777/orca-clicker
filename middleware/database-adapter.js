@@ -242,8 +242,13 @@ class DatabaseAdapter {
     for (const query of queries) {
       try {
         await this.pool.query(query);
+        // Логирование только для миграций колонок
+        if (query.includes('ADD COLUMN')) {
+          const colName = query.match(/ADD COLUMN IF NOT EXISTS (\w+)/)?.[1];
+          if (colName) console.log(`✅ Миграция: колонка ${colName}`);
+        }
       } catch (error) {
-        console.error('❌ Ошибка создания таблицы:', error.message);
+        console.error(`❌ Ошибка создания таблицы:`, error.message);
       }
     }
     
