@@ -426,8 +426,9 @@ class DatabaseAdapter {
     // Добавляем updatedAt - время последнего сохранения (BIGINT в миллисекундах)
     const updatedAt = Date.now();
     
-await this.pool.query(
-      `INSERT INTO players (
+    // Формируем запрос с подробным логированием
+    const query = `
+      INSERT INTO players (
         id, account_id, name, coins, total_coins, per_click, per_second,
         clicks, level, skills, achievements, skins, current_skin, effects,
         clan, event_rewards, pending_boxes, quest_progress, daily_quest_progress,
@@ -459,17 +460,55 @@ await this.pool.query(
         ban_reason = EXCLUDED.ban_reason,
         pending_event_clicks = EXCLUDED.pending_event_clicks,
         last_processed_clicks = EXCLUDED.last_processed_clicks,
-        total_play_time = EXCLUDED.total_play_time`,
-      [
+        total_play_time = EXCLUDED.total_play_time
+    `;
+    
+    const values = [
+      player.id, accountId, player.name, player.coins, player.totalCoins,
+      player.perClick, player.perSecond, player.clicks, player.level,
+      skills, achievements, skins, player.currentSkin || 'normal', effects,
+      clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
+      dailyQuestDate, dailyQuestIds, createdAt, lastLogin, updatedAt,
+      bannedAt, banReason, pendingEventClicks, lastProcessedClicks,
+      player.playTime || 0
+    ];
+    
+    console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);
+    
+    try {
+      await this.pool.query(query, values);
+    } catch (insertError) {
+      console.error(`❌ savePlayer INSERT ОШИБКА:`, insertError.message);
+      console.error(`❌ Ошибка DETAIL:`, insertError.detail);
+      console.error(`❌ Ошибка HINT:`, insertError.hint);
+      console.error(`❌ Позиция ошибки:`, insertError.position);
+      
+      // Пробуем упрощённый INSERT без проблемных полей
+      console.log(`🔧 Пробуем упрощённое сохранение...`);
+      
+      const simpleQuery = `
+        INSERT INTO players (id, account_id, name, coins, total_coins, per_click, per_second, clicks, level, clan, created_at, last_login)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          coins = EXCLUDED.coins,
+          total_coins = EXCLUDED.total_coins,
+          last_login = EXCLUDED.last_login
+      `;
+      
+      const simpleValues = [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
-        skills, achievements, skins, player.currentSkin || 'normal', effects,
-        clan, player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
-        dailyQuestDate, dailyQuestIds, createdAt, lastLogin, updatedAt,
-        bannedAt, banReason, pendingEventClicks, lastProcessedClicks,
-        player.playTime || 0
-      ]
-    );
+        clan, createdAt, lastLogin
+      ];
+      
+      try {
+        await this.pool.query(simpleQuery, simpleValues);
+        console.log(`✅ Упрощённое сохранение УСПЕШНО: ${player.id}`);
+      } catch (simpleError) {
+        console.error(`❌ Упрощённое сохранение тоже FAILED:`, simpleError.message);
+        throw insertError; // Возвращаем оригинальную ошибку
+      }
+    }
     
     console.log(`💾 savePlayer DEBUG: pending_event_clicks=${pendingEventClicks}, last_processed_clicks=${lastProcessedClicks}`);
     console.log(`💾 savePlayer УСПЕХ: ${player.id} сохранён в PostgreSQL`);
