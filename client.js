@@ -819,8 +819,23 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       // Лог для отладки рангов
       console.log(`🏆 Ранги загружены: totalClicks=${game.totalRankClicks}, currentRank=${game.currentRank}`);
       
-      // Проверяем доступные награды после загрузки (функция пока не реализована)
-      // const availableRewards = checkRankRewards(game.totalRankClicks || 0);
+      // Проверяем доступные награды после загрузки
+      const availableRewards = checkRankRewards(game.totalRankClicks || 0);
+      if (availableRewards.length > 0) {
+        console.log(`🎁 Доступны награды за ранги: ${availableRewards.length} шт.`);
+        setTimeout(() => {
+          showPathToGlory();
+        }, 1000);
+      }
+      
+      // Проверяем ежедневный вход
+      const dailyLogin = checkDailyLogin();
+      if (dailyLogin.isNewDay && dailyLogin.reward) {
+        console.log(`🎁 Новый день! Серия: ${dailyLogin.newStreak}, награда: ${dailyLogin.reward.coins}`);
+        setTimeout(() => {
+          showDailyRewardModal(dailyLogin.reward, dailyLogin.newStreak);
+        }, 1500);
+      }
       
 // Загружаем данные для отслеживания кланов (для достижений)
       // Из skills._clanTracking загружаем историю вступлений и количество участников
@@ -1256,6 +1271,9 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       playSound('bonusSound');
       updateUI();
       renderShop();
+      break;
+    case 'dailyRewardClaimed':
+      console.log(`✅ Ежедневная награда сохранена: +${data.coins}`);
       break;
 case 'lobbyCreated':
       // Показываем код лобби если оно закрыто
@@ -1875,7 +1893,7 @@ function startRaidBattle() {
     ws.send(JSON.stringify({ type: 'startRaidBattle', lobbyId: currentRaidLobby.lobbyId }));
   }
 }
-
+  
 function showRaidBattleUI(data) {
   currentRaidBattle = {
     battleId: data.battleId,
@@ -2014,7 +2032,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-
+  
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
@@ -4369,7 +4387,10 @@ function saveGameToServer() {
       // Путь к славе
       totalRankClicks: game.totalRankClicks || 0,
       currentRank: game.currentRank || 'novice',
-      rankRewardsClaimed: game.rankRewardsClaimed || []
+      rankRewardsClaimed: game.rankRewardsClaimed || [],
+      // Ежедневная серия
+      lastLoginDate: game.lastLoginDate,
+      loginStreak: game.loginStreak || 0
     }
   }));
 }

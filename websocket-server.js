@@ -757,6 +757,10 @@ case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'getRaidLobbies': handleGetRaidLobbies(ws); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
     case 'forceSaveAll': handleForceSaveAll(ws); break;
+    // Ежедневная серия
+    case 'claimDailyReward': handleClaimDailyReward(ws, data.streak, data.coins); break;
+    // Путь к славе
+    case 'claimRankReward': handleClaimRankReward(ws, data.rankId, data.coins); break;
   }
 }
   
@@ -3253,6 +3257,44 @@ function handleClaimRankReward(ws, rankId, coins) {
   }).catch(err => {
     console.error(`❌ Ошибка сохранения награды за ранг:`, err.message);
   });
+}
+
+// Обработка получения ежедневной награды
+function handleClaimDailyReward(ws, streak, coins) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const player = db.players[id];
+  const today = getCurrentDateString();
+  
+  // Добавляем награду
+  player.coins = (player.coins || 0) + coins;
+  player.totalCoins = (player.totalCoins || 0) + coins;
+  player.lastLoginDate = today;
+  player.loginStreak = streak;
+  
+  // Сохраняем в БД
+  savePlayerToDB(id).then(() => {
+    console.log(`✅ Ежедневная награда получена: ${id}, серия=${streak}, +${coins} coins`);
+    // Отправляем подтверждение клиенту
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'dailyRewardClaimed',
+        streak: streak,
+        coins: coins,
+        totalCoins: player.totalCoins
+      }));
+    }
+  }).catch(err => {
+    console.error(`❌ Ошибка сохранения ежедневной награды:`, err.message);
+  });
+}
+
+function getCurrentDateString() {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
 }
 
 process.on('SIGINT', () => {
