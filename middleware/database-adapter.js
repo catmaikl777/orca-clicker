@@ -501,6 +501,15 @@ class DatabaseAdapter {
     
     console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);
     
+    // Проверяем структуру таблицы
+    try {
+      const tableInfo = await this.pool.query('SELECT column_name FROM information_schema.columns WHERE table_name = \'players\' ORDER BY ordinal_position');
+      console.log(`💾 savePlayer: Таблица players имеет ${tableInfo.rows.length} колонок:`);
+      console.log(`💾 savePlayer: ${tableInfo.rows.map(r => r.column_name).join(', ')}`);
+    } catch (err) {
+      console.error(`💾 savePlayer: Не удалось получить информацию о таблице:`, err.message);
+    }
+    
     try {
       await this.pool.query(query, values);
     } catch (insertError) {
