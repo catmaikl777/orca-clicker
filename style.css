@@ -4939,6 +4939,8 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .daily-reward-modal.show {
@@ -4947,7 +4949,7 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
 }
 
 .daily-reward-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
@@ -4964,14 +4966,18 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   border-radius: 20px;
   padding: 30px;
   max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
   text-align: center;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 215, 0, 0.3);
-  transform: scale(0.9);
+  transform: scale(0.9) translateY(-50px);
   transition: transform 0.3s ease;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .daily-reward-modal.show .daily-reward-content {
-  transform: scale(1);
+  transform: scale(1) translateY(0);
 }
 
 .daily-reward-icon {
@@ -5067,10 +5073,35 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+  width: 100%;
 }
 
 .daily-reward-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 25px rgba(255, 215, 0, 0.6);
+}
+
+/* Адаптив для мобильных */
+@media (max-width: 768px) {
+  .daily-reward-content {
+    padding: 20px;
+    max-width: 90%;
+  }
+  
+  .daily-reward-title {
+    font-size: 24px;
+  }
+  
+  .daily-reward-icon {
+    font-size: 60px;
+  }
+  
+  .streak-count {
+    font-size: 28px;
+  }
+  
+  .daily-reward-amount {
+    font-size: 32px;
+  }
 }
 
