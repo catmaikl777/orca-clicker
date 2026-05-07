@@ -692,8 +692,28 @@ function connectWebSocket() {
   cleanupIntervals();
   
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
-  ws = new WebSocket(WS_SERVER_URL);
-  window.ws = ws;
+  
+  try {
+    ws = new WebSocket(WS_SERVER_URL);
+    window.ws = ws;
+  } catch (error) {
+    console.error('❌ Ошибка создания WebSocket:', error);
+    // Пробуем альтернативный URL если основной не работает
+    if (WS_SERVER_URL.includes('onrender.com')) {
+      console.log('🔄 Пробуем альтернативный сервер...');
+      try {
+        ws = new WebSocket('wss://qr-games.ru:443');
+        window.ws = ws;
+      } catch (altError) {
+        console.error('❌ Альтернативный сервер тоже недоступен:', altError);
+        showNotification('❌ Не удается подключиться к серверу');
+        return;
+      }
+    } else {
+      showNotification('❌ Ошибка подключения к серверу');
+      return;
+    }
+  }
   
   ws.onopen = () => {
     console.log('✅ Подключено к серверу');
@@ -1414,18 +1434,18 @@ case 'joinedClan':
       break;
     case 'boxBought':
       // Сервер подтвердил покупку - обновляем данные
+      console.log(`📦 Сервер подтвердил покупку бокса:`, data);
       if (data.boxId) {
         pendingBoxes.push(data.boxId);
+        console.log(`📦 Добавлен бокс ${data.boxId}, всего боксов: ${pendingBoxes.length}`);
       }
       if (data.coins !== undefined) {
         if (Number.isFinite(data.coins) && data.coins >= 0) {
           game.coins = data.coins;
+          console.log(`💰 Обновлен баланс: ${game.coins}`);
         } else {
           console.warn(`WARNING: Invalid coins from server: ${data.coins}`);
         }
-      }
-      if (data.pendingBoxes !== undefined) {
-        pendingBoxes = [];
       }
       updateUI();
       updateBoxUI();
@@ -1453,6 +1473,7 @@ case 'joinedClan':
       saveGame();
       break;
     case 'boxOpened':
+      console.log(`📦 Бокс открыт на сервере:`, data);
       if (currentBoxOpenTimeout) {
         clearTimeout(currentBoxOpenTimeout);
         currentBoxOpenTimeout = null;
@@ -1462,14 +1483,23 @@ case 'joinedClan':
       showBoxReward(data.reward);
       if (data.reward.type === 'skin') {
         game.skins[data.reward.skinId] = true;
+        console.log(`🎨 Получен скин: ${data.reward.skinName}`);
       } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
         game.coins += data.reward.amount;
         game.totalCoins += data.reward.amount;
+        console.log(`💰 Получено монет: ${data.reward.amount}`);
       } else {
         console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
       }
+      // Обновляем количество боксов с сервера
       if (data.pendingBoxes !== undefined) {
-        pendingBoxes = [];
+        // Пересчитываем массив боксов на основе количества с сервера
+        const newBoxCount = data.pendingBoxes;
+        if (newBoxCount < pendingBoxes.length) {
+          // Удаляем первый бокс (который был открыт)
+          pendingBoxes.splice(0, 1);
+        }
+        console.log(`📦 Обновлено количество боксов: ${pendingBoxes.length}`);
       }
       updateUI();
       updateBoxUI();
@@ -3872,9 +3902,25 @@ let activeBoxCutscene = null;
 let activeFishBoxCutscene = null;
 
 function buyBox() {
-  if (isOpeningBox) return;
+  if (isOpeningBox) {
+    console.log('⚠️ Покупка бокса отменена: уже открывается бокс');
+    return;
+  }
+  
+  const boxPrice = 8500;
+  if (game.coins < boxPrice) {
+    showNotification('❌ Недостаточно косаток');
+    return;
+  }
+  
+  console.log(`📦 Покупка бокса: баланс=${game.coins}, цена=${boxPrice}`);
+  
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'buyBox' }));
+    console.log('📤 Отправлен запрос на покупку бокса');
+  } else {
+    console.error('❌ Нет соединения с сервером');
+    showNotification('❌ Нет соединения с сервером');
   }
 }
 

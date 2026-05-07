@@ -2433,31 +2433,42 @@ function handleBuyBox(ws) {
   // Берем актуальные данные из памяти если есть
   const coins = playerMem ? playerMem.coins : playerDB.coins;
   
+  console.log(`💰 Попытка покупки бокса: игрок=${id}, coins=${coins}, цена=${boxPrice}`);
+  
   if (coins < boxPrice) {
+    console.log(`❌ Недостаточно монет: нужно ${boxPrice}, есть ${coins}`);
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно косаток' }));
     return;
   }
   
-  // Вычитаем деньги
-  playerDB.coins = coins - boxPrice;
-  if (playerMem) {
-    playerMem.coins = playerDB.coins;
-  }
-  
-  // Добавляем бокс
+  // Инициализируем pendingBoxes если нет
   if (!playerDB.pendingBoxes) {
     playerDB.pendingBoxes = [];
   }
+  
+  // Генерируем ID бокса
   const boxId = generateId();
+  
+  // СНАЧАЛА добавляем бокс
   playerDB.pendingBoxes.push(boxId);
   
-  // Синхронизируем pendingBoxes в памяти
+  // ПОТОМ вычитаем деньги
+  playerDB.coins = coins - boxPrice;
+  
+  // Синхронизируем в памяти
   if (playerMem) {
+    playerMem.coins = playerDB.coins;
     playerMem.pendingBoxes = [...playerDB.pendingBoxes];
   }
   
+  console.log(`✅ Бокс добавлен: ${boxId}, новый баланс: ${playerDB.coins}, всего боксов: ${playerDB.pendingBoxes.length}`);
+  
   // Сохраняем СРАЗУ в PostgreSQL
-  savePlayerToDB(id);
+  savePlayerToDB(id).then(() => {
+    console.log(`💾 Данные сохранены в БД для игрока ${id}`);
+  }).catch(err => {
+    console.error(`❌ Ошибка сохранения в БД:`, err.message);
+  });
   
   // Отправляем подтверждение с актуальными данными
   ws.send(JSON.stringify({ 
@@ -2467,7 +2478,7 @@ function handleBuyBox(ws) {
     pendingBoxes: playerDB.pendingBoxes.length
   }));
   
-  console.log(`📦 Игрок ${id} купил бокс. Всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`📦 Игрок ${id} купил бокс ${boxId}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 function handleOpenBox(ws, boxId) {
@@ -2476,6 +2487,7 @@ function handleOpenBox(ws, boxId) {
   
   if (!id || !db.players[id]) {
     console.error(`❌ openBox: игрок ${id} не найден`);
+    ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
     return;
   }
   
@@ -2483,6 +2495,12 @@ function handleOpenBox(ws, boxId) {
   const playerMem = players.get(id);
   const pendingBoxes = playerDB.pendingBoxes || [];
   console.log(`📦 Текущие боксы игрока: ${pendingBoxes.length} шт., массив:`, pendingBoxes);
+  
+  if (pendingBoxes.length === 0) {
+    console.error(`❌ Нет боксов для открытия`);
+    ws.send(JSON.stringify({ type: 'error', message: 'Нет боксов для открытия' }));
+    return;
+  }
   
   // Ищем бокс - сначала по точному совпадению ID, потом по шаблону 'box_*'
   let boxIndex = pendingBoxes.indexOf(boxId);
@@ -2496,13 +2514,10 @@ function handleOpenBox(ws, boxId) {
     }
   }
   
+  // Если всё ещё не нашли, берём первый бокс
   if (boxIndex === -1) {
-    console.error(`❌ Бокс не найден: ${boxId}`);
-    ws.send(JSON.stringify({ 
-      type: 'error', 
-      message: 'Бокс не найден' 
-    }));
-    return;
+    boxIndex = 0;
+    console.log(`📦 Бокс не найден по ID, берём первый: ${boxIndex}`);
   }
   
   // Получаем реальный ID бокса
@@ -2519,7 +2534,13 @@ function handleOpenBox(ws, boxId) {
   }
   
   console.log(`💾 Удаляю бокс ${realBoxId}, осталось: ${pendingBoxes.length}`);
-  savePlayerToDB(id);
+  
+  // Сохраняем сразу
+  savePlayerToDB(id).then(() => {
+    console.log(`💾 Данные сохранены после открытия бокса`);
+  }).catch(err => {
+    console.error(`❌ Ошибка сохранения:`, err.message);
+  });
   
   // Генерируем награду
   const isLegendary = Math.random() < 0.05; // 5% шанс
@@ -2530,9 +2551,9 @@ function handleOpenBox(ws, boxId) {
   const unlockedSkins = skins.filter(s => playerDB.skins[s]);
   
   let reward;
-  if (isLegendary && unlockedSkins.length < skinsData.length) {
+  if (isLegendary && unlockedSkins.length < boxRewards.skins.length) {
     // Легендарка - новый скин
-    const availableSkins = skinsData.filter(s => !unlockedSkins.includes(s.id));
+    const availableSkins = boxRewards.skins.filter(s => !unlockedSkins.includes(s.id));
     if (availableSkins.length > 0) {
       const randomSkin = availableSkins[Math.floor(Math.random() * availableSkins.length)];
       reward = {
@@ -2541,13 +2562,18 @@ function handleOpenBox(ws, boxId) {
         skinId: randomSkin.id,
         skinName: randomSkin.name
       };
+      if (!playerDB.skins) playerDB.skins = { normal: true };
       playerDB.skins[randomSkin.id] = true;
-      if (playerMem) playerMem.skins[randomSkin.id] = true;
+      if (playerMem) {
+        if (!playerMem.skins) playerMem.skins = { normal: true };
+        playerMem.skins[randomSkin.id] = true;
+      }
       console.log(`🎨 Легендарный скин: ${randomSkin.name}`);
     } else {
       // Все скины открыты - даём много монет
       reward = { type: 'whale', rarity: 'legendary', amount: 1000000 };
       playerDB.coins += 1000000;
+      if (playerMem) playerMem.coins = playerDB.coins;
       console.log(`💰 Все скины открыты! +1000000 монет`);
     }
   } else if (isEpic) {
@@ -2555,12 +2581,14 @@ function handleOpenBox(ws, boxId) {
     const amount = 50000;
     reward = { type: 'whale', rarity: 'epic', amount };
     playerDB.coins += amount;
+    if (playerMem) playerMem.coins = playerDB.coins;
     console.log(`🐋 Эпическая награда: +${amount} косаток`);
   } else {
     // Обычная - обычные косатки
     const amount = 1000 + Math.floor(Math.random() * 5000);
     reward = { type: 'whale', rarity: 'rare', amount };
     playerDB.coins += amount;
+    if (playerMem) playerMem.coins = playerDB.coins;
     console.log(`🐋 Обычная награда: +${amount} косаток`);
   }
   
