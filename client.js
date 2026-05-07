@@ -2231,6 +2231,12 @@ function cleanupIntervals() {
 
 function handleClick(e) {
   const now = Date.now();
+
+  // Ранги PvP отключены: функция-заглушка (чтобы не падал скрипт)
+  // checkRankProgress() оставляем пустым.
+  if (typeof checkRankProgress !== 'function') {
+    window.checkRankProgress = function() {};
+  }
   if (now - lastClickTime >= 1000) {
     clicksThisSecond = 0;
     lastClickTime = now;
