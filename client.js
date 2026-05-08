@@ -975,6 +975,16 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     
     playerId = data.accountId;
     wsConnected = true;
+    
+    // Устанавливаем текущего пользователя в auth-client
+    if (typeof window.currentUser !== 'undefined') {
+      window.currentUser = { id: data.accountId, username: data.username || 'Player' };
+      window.isGuest = false;
+      if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+      if (typeof closeAuthScreen === 'function') closeAuthScreen();
+      showNotification(`✅ Добро пожаловать, ${window.currentUser.username}!`);
+    }
+    
     updateUI();
     if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
     if (typeof showGameScreen === 'function') showGameScreen();
@@ -1008,6 +1018,19 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     if (typeof showAuthError === 'function') showAuthError(data.message);
     return;
   }
+
+  if (data.type === 'authSuccess') {
+    // Успешная авторизация
+    console.log('✅ Авторизация успешна:', data);
+    window.currentUser = { id: data.accountId, username: data.username };
+    window.isGuest = false;
+    if (typeof closeAuthScreen === 'function') closeAuthScreen();
+    if (typeof showNotification === 'function') showNotification(`✅ Добро пожаловать, ${data.username}!`);
+    if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+    return;
+  }
+  
+  if (data.type === 'authError') {
 
   switch (data.type) {
     case 'connected':
@@ -1049,7 +1072,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           }
         }
         eventCoins = data.eventCoins || 0;
-        
+  
         // Загружаем данные ежедневной серии
         game.lastLoginDate = data.data.lastLoginDate || null;
         game.loginStreak = Number(data.data.loginStreak) || 0;
@@ -1661,6 +1684,7 @@ case 'joinedClan':
       }
       break;
   }
+}
 }
   
 // Разблокировка аудио на мобильных устройствах

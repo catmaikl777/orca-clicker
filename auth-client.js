@@ -1,7 +1,7 @@
 // ==================== СИСТЕМА АККАУНТОВ ====================
 
-let currentUser = null;
-let isGuest = true; // По умолчанию играем как гость
+window.currentUser = null;
+window.isGuest = true; // По умолчанию играем как гость
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Запуск игры в гостевом режиме
 function startGameAsGuest() {
-  isGuest = true;
-  currentUser = null;
+  window.isGuest = true;
+  window.currentUser = null;
   console.log('👤 Игра началась в гостевом режиме');
   
   // Скрываем экран авторизации если есть
@@ -408,10 +408,10 @@ function updateAccountDisplay() {
   const logoutBtn = document.getElementById('logoutBtn');
   
   if (accountNameDisplay) {
-    if (currentUser && currentUser.username) {
-      accountNameDisplay.textContent = `👤 ${currentUser.username}`;
+    if (window.currentUser && window.currentUser.username) {
+      accountNameDisplay.textContent = `👤 ${window.currentUser.username}`;
       if (logoutBtn) logoutBtn.style.display = 'block';
-    } else if (isGuest) {
+    } else if (window.isGuest) {
       accountNameDisplay.textContent = '👤 Гость';
       if (logoutBtn) logoutBtn.style.display = 'none';
     } else {
@@ -423,20 +423,20 @@ function updateAccountDisplay() {
     
 // Выход из аккаунта
 function logout() {
-  if (isGuest) {
+  if (window.isGuest) {
     showNotification('👤 Вы играете в гостевом режиме');
     return;
   }
   
   if (confirm('Вы уверены что хотите выйти?')) {
     // Сохраняем прогресс перед выходом
-    if (window.ws && window.ws.readyState === WebSocket.OPEN && currentUser) {
+    if (window.ws && window.ws.readyState === WebSocket.OPEN && window.currentUser) {
       saveGameData();
     }
     
     // Очищаем сессию
-    currentUser = null;
-    isGuest = true;
+    window.currentUser = null;
+    window.isGuest = true;
     
     // Возвращаемся в игру
     closeAuthScreen();
@@ -459,13 +459,13 @@ function logout() {
 
 // Сохранение игровых данных на сервер
 function saveGameData() {
-  if (!currentUser || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
+  if (!window.currentUser || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
   
   if (typeof game === 'undefined') return;
   
   ws.send(JSON.stringify({
     type: 'savePlayerData',
-    accountId: currentUser.id,
+    accountId: window.currentUser.id,
     gameData: {
       coins: Math.floor(game.coins),
       totalCoins: Math.floor(game.totalCoins),
@@ -486,14 +486,14 @@ function saveGameData() {
 
 // Автосохранение каждые 30 секунд
 setInterval(() => {
-  if (currentUser && !isGuest) {
+  if (window.currentUser && !window.isGuest) {
     saveGameData();
   }
 }, 30000);
 
 // Сохранение перед закрытием вкладки
 window.addEventListener('beforeunload', () => {
-  if (currentUser && !isGuest) {
+  if (window.currentUser && !window.isGuest) {
     saveGameData();
   }
 });
