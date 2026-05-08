@@ -155,25 +155,105 @@ function showAuthForms() {
   const modal = document.querySelector('.auth-info-modal');
   if (modal) modal.remove();
   
-  showAuthScreen();
+  // Создаём экран авторизации если его нет
+  let authScreen = document.getElementById('authScreen');
+  if (!authScreen) {
+    authScreen = document.createElement('div');
+    authScreen.id = 'authScreen';
+    authScreen.className = 'auth-screen active';
+    authScreen.innerHTML = `
+      <div class="auth-container">
+        <div class="auth-card">
+          <div class="auth-header">
+            <h1>🐋 Косатка Клик</h1>
+            <p>Сохраняй свой прогресс в аккаунте</p>
+          </div>
+          
+          <div id="authForms">
+            <!-- Форма входа -->
+            <form id="loginForm" class="auth-form active">
+              <h2>Вход в Аккаунт</h2>
+              <div class="form-group">
+                <label for="loginUsername">Имя пользователя:</label>
+                <input type="text" id="loginUsername" placeholder="Введите имя" required>
+              </div>
+              <div class="form-group">
+                <label for="loginPassword">Пароль:</label>
+                <input type="password" id="loginPassword" placeholder="Введите пароль" required>
+              </div>
+              <button type="submit" class="auth-btn">Войти</button>
+              <p class="auth-toggle">Нет аккаунта? <a href="#" onclick="toggleAuthForms()">Создать</a></p>
+              <div id="authError" class="auth-error" style="display: none;"></div>
+            </form>
+            
+            <!-- Форма регистрации -->
+            <form id="registerForm" class="auth-form">
+              <h2>Создать Аккаунт</h2>
+              <div class="form-group">
+                <label for="regUsername">Имя пользователя:</label>
+                <input type="text" id="regUsername" placeholder="3-16 символов" required minlength="3" maxlength="16">
+              </div>
+              <div class="form-group">
+                <label for="regPassword">Пароль:</label>
+                <input type="password" id="regPassword" placeholder="Минимум 4 символа" required minlength="4">
+              </div>
+              <div class="form-group">
+                <label for="regPasswordConfirm">Повторить пароль:</label>
+                <input type="password" id="regPasswordConfirm" placeholder="Повторите пароль" required>
+              </div>
+              <button type="submit" class="auth-btn">Создать</button>
+              <p class="auth-toggle">Уже есть аккаунт? <a href="#" onclick="toggleAuthForms()">Войти</a></p>
+              <div id="authError" class="auth-error" style="display: none;"></div>
+            </form>
+            
+            <!-- Форма пропуска (локальная игра) -->
+            <div class="auth-form auth-guest">
+              <h2>Или продолжи без аккаунта</h2>
+              <p style="margin-bottom: 20px; opacity: 0.8;">Прогресс сохранится только локально на этом устройстве</p>
+              <button onclick="closeAuthScreen()" class="auth-btn-guest">Играть без аккаунта</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(authScreen);
+  }
+  
+  authScreen.classList.add('active');
+  authScreen.style.display = 'flex';
+  
+  // Убедимся что форма входа активна
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  if (loginForm) loginForm.classList.add('active');
+  if (registerForm) registerForm.classList.remove('active');
+  
+  // Очистить ошибки
+  document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
 }
 
 // Показ экрана авторизации
 function showAuthScreen() {
-  const authScreen = document.getElementById('authScreen');
-  if (authScreen) {
-    authScreen.classList.add('active');
-    authScreen.style.display = 'flex';
-    
-    // Убедимся что форма входа активна
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    if (loginForm) loginForm.classList.add('active');
-    if (registerForm) registerForm.classList.remove('active');
-    
-    // Очистить ошибки
-    document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
+  let authScreen = document.getElementById('authScreen');
+  if (!authScreen) {
+    // Создаём если нет
+    authScreen = document.createElement('div');
+    authScreen.id = 'authScreen';
+    authScreen.className = 'auth-screen';
+    document.body.appendChild(authScreen);
   }
+  
+  authScreen.classList.add('active');
+  authScreen.style.display = 'flex';
+  
+  // Убедимся что форма входа активна
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  if (loginForm) loginForm.classList.add('active');
+  if (registerForm) registerForm.classList.remove('active');
+  
+  // Очистить ошибки
+  document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
 }
 
 // Закрыть экран авторизации
