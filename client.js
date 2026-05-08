@@ -1019,11 +1019,22 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     return;
   }
 
+  // Обработка всех типов сообщений для отладки
+  console.log('📨 Получено сообщение:', data.type, data);
+  
   if (data.type === 'authSuccess') {
     // Успешная авторизация
     console.log('✅ Авторизация успешна:', data);
     window.currentUser = { id: data.accountId, username: data.username };
     window.isGuest = false;
+    
+    // Сохраняем в localStorage
+    try {
+      localStorage.setItem('orca_user', JSON.stringify(window.currentUser));
+    } catch (e) {
+      console.warn('⚠️ Ошибка сохранения аккаунта:', e);
+    }
+    
     if (typeof closeAuthScreen === 'function') closeAuthScreen();
     if (typeof showNotification === 'function') showNotification(`✅ Добро пожаловать, ${data.username}!`);
     if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
@@ -1037,6 +1048,22 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       break;
     case 'registered':
       playerId = data.playerId;
+      
+      // Устанавливаем текущего пользователя при входе
+      window.currentUser = { id: data.playerId, username: data.data?.username || 'Player' };
+      window.isGuest = false;
+      
+      // Сохраняем в localStorage
+      try {
+        localStorage.setItem('orca_user', JSON.stringify(window.currentUser));
+      } catch (e) {
+        console.warn('⚠️ Ошибка сохранения аккаунта:', e);
+      }
+      
+      if (typeof showNotification === 'function') showNotification(`✅ Добро пожаловать, ${window.currentUser.username}!`);
+      if (typeof closeAuthScreen === 'function') closeAuthScreen();
+      if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+      
       if (data.data) {
         const oldCoins = game.coins;
         game.coins = Number.isFinite(data.data.coins) && data.data.coins >= 0 ? data.data.coins : 0;
@@ -1072,7 +1099,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           }
         }
         eventCoins = data.eventCoins || 0;
-  
+        
         // Загружаем данные ежедневной серии
         game.lastLoginDate = data.data.lastLoginDate || null;
         game.loginStreak = Number(data.data.loginStreak) || 0;
@@ -1162,6 +1189,25 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     case 'registered':
       // Гость зарегистрирован
       // КРИТИЧНО: всегда загружаем данные с сервера (сервер - источник истины)
+      
+      // Устанавливаем текущего пользователя
+      window.currentUser = { id: data.playerId, username: data.username || 'Player' };
+      window.isGuest = false;
+      
+      // Сохраняем в localStorage
+      try {
+        localStorage.setItem('orca_user', JSON.stringify(window.currentUser));
+      } catch (e) {
+        console.warn('⚠️ Ошибка сохранения аккаунта:', e);
+      }
+      
+      if (typeof showNotification === 'function') showNotification(`✅ Аккаунт создан! Добро пожаловать, ${data.username || 'Player'}!`);
+      if (typeof closeAuthScreen === 'function') closeAuthScreen();
+      if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+      
+      // Конец новой обработки
+      
+      playerId = data.playerId;
       if (data.data) {
         const oldCoins = game.coins;
         game.coins = Number.isFinite(data.data.coins) && data.data.coins >= 0 ? data.data.coins : 0;

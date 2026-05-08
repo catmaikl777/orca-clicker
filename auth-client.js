@@ -3,6 +3,18 @@
 window.currentUser = null;
 window.isGuest = true; // По умолчанию играем как гость
 
+// Восстанавливаем состояние из localStorage
+try {
+  const savedUser = localStorage.getItem('orca_user');
+  if (savedUser) {
+    window.currentUser = JSON.parse(savedUser);
+    window.isGuest = false;
+    console.log('👤 Восстановлен аккаунт из localStorage:', window.currentUser.username);
+  }
+} catch (e) {
+  console.warn('⚠️ Ошибка восстановления аккаунта:', e);
+}
+
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
   // Никогда не показываем экран авторизации автоматически!
