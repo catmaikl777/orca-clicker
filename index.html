@@ -7,70 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0a1628">
-  <meta http-equiv="Content-Security-Policy" content="connect-src 'self' *.allwebgames.com *.eponesh.com *.gameanalytics.com *.games.yango.com *.gametok.com *.gametok.tech *.igrotok.com *.juegocasa.com *.playhop.com *.unity3d.com *.website.yandexcloud.net *.wowspiele.de *.yandex.az *.yandex.by *.yandex.co.il *.yandex.com *.yandex.com.am *.yandex.com.ge *.yandex.com.tr *.yandex.ee *.yandex.fr *.yandex.kg *.yandex.kz *.yandex.lt *.yandex.lv *.yandex.md *.yandex.net *.yandex.ru *.yandex.tj *.yandex.tm *.yandex.ua *.yandex.uz *.yango.games-store.net *.onrender.com allwebgames.com blob: data: games.yango.com gametok.com igrotok.com juegocasa.com playhop.com storage.yandexcloud.net wowspiele.de wss://*.eponesh.com:* wss://qr-games.ru:* wss://*.onrender.com:* www.google-analytics.com www.googletagmanager.com yandex.az yandex.by yandex.co.il yandex.com yandex.com.am yandex.com.ge yandex.com.tr yandex.ee yandex.fr yandex.kg yandex.kz yandex.lt yandex.lv yandex.md yandex.ru yandex.tj yandex.tm yandex.ua yandex.uz yandexmetrica.com yastatic.net">
   <title>🐋 Косатка Клик!</title>
   <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-sunny">
-  <!-- === ЭКРАН ВХОДА/РЕГИСТРАЦИИ === -->
-  <div id="authScreen" class="auth-screen active">
-    <div class="auth-container">
-      <div class="auth-card">
-        <div class="auth-header">
-          <h1>🐋 Косатка Клик</h1>
-          <p>Сохраняй свой прогресс в аккаунте</p>
-        </div>
-        
-        <div id="authForms">
-          <!-- Форма входа -->
-          <form id="loginForm" class="auth-form active">
-            <h2>Вход в Аккаунт</h2>
-            <div class="form-group">
-              <label for="loginUsername">Имя пользователя:</label>
-              <input type="text" id="loginUsername" placeholder="Введите имя" required>
-            </div>
-            <div class="form-group">
-              <label for="loginPassword">Пароль:</label>
-              <input type="password" id="loginPassword" placeholder="Введите пароль" required>
-            </div>
-            <button type="submit" class="auth-btn">Войти</button>
-            <p class="auth-toggle">Нет аккаунта? <a href="#" onclick="toggleAuthForms()">Создать</a></p>
-            <div id="authError" class="auth-error" style="display: none;"></div>
-          </form>
-          
-          <!-- Форма регистрации -->
-          <form id="registerForm" class="auth-form">
-            <h2>Создать Аккаунт</h2>
-            <div class="form-group">
-              <label for="regUsername">Имя пользователя:</label>
-              <input type="text" id="regUsername" placeholder="3-16 символов" required minlength="3" maxlength="16">
-            </div>
-            <div class="form-group">
-              <label for="regPassword">Пароль:</label>
-              <input type="password" id="regPassword" placeholder="Минимум 4 символа" required minlength="4">
-            </div>
-            <div class="form-group">
-              <label for="regPasswordConfirm">Повторить пароль:</label>
-              <input type="password" id="regPasswordConfirm" placeholder="Повторите пароль" required>
-            </div>
-            <button type="submit" class="auth-btn">Создать</button>
-            <p class="auth-toggle">Уже есть аккаунт? <a href="#" onclick="toggleAuthForms()">Войти</a></p>
-            <div id="authError" class="auth-error" style="display: none;"></div>
-          </form>
-          
-          <!-- Форма пропуска (локальная игра) -->
-          <div class="auth-form auth-guest">
-            <h2>Или продолжи без аккаунта</h2>
-            <p style="margin-bottom: 20px; opacity: 0.8;">Прогресс сохранится только локально на этом устройстве</p>
-            <button onclick="playAsGuest()" class="auth-btn-guest">Играть без аккаунта</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- === ОСНОВНАЯ ИГРА === -->
+  <!-- === ЭКРАН ЗАГРУЗКИ ИГРЫ (без авторизации!) === -->
   <div id="gameScreen" class="game-screen">
     <div id="clickEffects" class="click-effects"></div>
 
@@ -84,8 +26,9 @@
       <!-- Верхняя панель -->
       <header class="top-bar">
         <div class="account-info">
-          <span id="accountNameDisplay" class="account-name">🐋 Косатка</span>
-          <button class="logout-btn" onclick="logout()">Выход</button>
+          <span id="accountNameDisplay" class="account-name">👤 Гость</span>
+          <button class="auth-btn" onclick="showAuthModal()">🔐 Авторизация</button>
+          <button class="logout-btn" id="logoutBtn" style="display:none" onclick="logout()">Выход</button>
         </div>
         
         <!-- Ежедневная серия -->
@@ -161,7 +104,6 @@
       <button class="menu-btn" onclick="showModal('leaderboard')">📊 Лидеры</button>
       <button class="menu-btn" onclick="showModal('battle')">⚔️ PvP</button>
       <button class="menu-btn" onclick="showRaidView()" style="display:none;">🎮 3x3 Рейд</button>
-      <button class="menu-btn" onclick="showPathToGlory()">🔥 'Градиент Хвоста'</button>
       <button class="menu-btn" onclick="showModal('clans')">👥 Кланы</button>
       <button class="menu-btn" onclick="openEventModal()">🎉 Ивент</button>
       <button class="menu-btn" onclick="showModal('effectsModal')">✨ Эффекты</button>
@@ -515,6 +457,18 @@
         <h3>💾 Сохранение</h3>
         <button class="action-btn" style="background:linear-gradient(145deg,rgba(0,212,255,0.4),rgba(0,153,204,0.3))" onclick="forceSave()">💾 Сохранить прогресс</button>
         <p id="saveStatus" style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px;text-align:center;">💾 Автосохранение включено</p>
+      </div>
+      <div class="settings-section">
+        <h3>🔐 Аккаунт</h3>
+        <p style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:12px;">
+          🌟 <strong>Войдите в аккаунт чтобы:</strong><br>
+          • Сохранять прогресс в облаке<br>
+          • Играть с любого устройства<br>
+          • Участвовать в кланах и батлах
+        </p>
+        <button class="action-btn" onclick="showAuthScreen()" style="width:100%;background:linear-gradient(145deg,rgba(32,178,170,0.4),rgba(72,209,204,0.3));">
+          🔐 Войти в аккаунт
+        </button>
       </div>
       <div class="settings-section">
         <button class="action-btn" style="background:linear-gradient(145deg,#f44336,#c62828)" onclick="resetGame()">🗑️ Сбросить прогресс</button>

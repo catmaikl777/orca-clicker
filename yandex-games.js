@@ -118,6 +118,12 @@ async function initYandexLeaderboard() {
   
   try {
     // Получаем или создаем лидерборд
+    // В разных версиях SDK API может отличаться (getLeaderboard может быть недоступен)
+    if (typeof ysdk.getLeaderboard !== 'function') {
+      console.warn('⚠️ В текущем SDK ysdk.getLeaderboard не доступен — пропускаю инициалицию лидборда');
+      return;
+    }
+
     const lb = await ysdk.getLeaderboard();
     console.log('✅ Лидерборд Яндекс готов');
   } catch (err) {
@@ -224,9 +230,18 @@ async function setYandexLeaderboardScore(score) {
   if (!ysdk) return;
   
   try {
-    await ysdk.getLeaderboard().then(lb => {
-      lb.setLeaderboardScore('main', score);
-    });
+    if (typeof ysdk.getLeaderboard !== 'function') {
+      console.warn('⚠️ В текущем SDK ysdk.getLeaderboard не доступен — пропускаю обновление лидера');
+      return;
+    }
+
+    const lb = await ysdk.getLeaderboard();
+    if (!lb?.setLeaderboardScore) {
+      console.warn('⚠️ lb.setLeaderboardScore недоступен в текущем SDK — пропускаю');
+      return;
+    }
+
+    lb.setLeaderboardScore('main', score);
     console.log('🏆 Лидерборд обновлен:', score);
   } catch (err) {
     console.error('❌ Ошибка обновления лидерборда:', err);

@@ -1,21 +1,188 @@
 // ==================== СИСТЕМА АККАУНТОВ ====================
 
 let currentUser = null;
-let isGuest = false;
+let isGuest = true; // По умолчанию играем как гость
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-  checkAuthStatus();
+  // Никогда не показываем экран авторизации автоматически!
+  // Игрок сразу начинает в гостевом режиме
+  startGameAsGuest();
   setupAuthListeners();
 });
 
-// Проверка статуса аутентификации
-function checkAuthStatus() {
-  const authScreen = document.getElementById('authScreen');
-  const gameScreen = document.getElementById('gameScreen');
+// Запуск игры в гостевом режиме
+function startGameAsGuest() {
+  isGuest = true;
+  currentUser = null;
+  console.log('👤 Игра началась в гостевом режиме');
   
-  // Сессия теперь только в памяти, всегда показываем экран входа
-  console.log('🔐 Ожидание входа в аккаунт...');
+  // Скрываем экран авторизации если есть
+  closeAuthScreen();
+  
+  // Обновляем отображение
+  updateAccountDisplay();
+  
+  // Показываем уведомление о преимуществах авторизации (необязательно)
+  showGuestModeNotification();
+}
+
+// Уведомление о преимуществах авторизации
+function showGuestModeNotification() {
+  // Создаём плавающее уведомление с кнопкой "Узнать больше"
+  const notification = document.createElement('div');
+  notification.id = 'guestModeNotification';
+  notification.className = 'guest-mode-notification';
+  notification.innerHTML = `
+    <div class="guest-mode-content">
+      <div class="guest-mode-icon">💾</div>
+      <div class="guest-mode-text">
+        <strong>Вы играете в гостевом режиме</strong>
+        <p>Прогресс сохранится только на этом устройстве</p>
+      </div>
+      <button class="guest-mode-btn" onclick="showAuthModal()">Узнать больше</button>
+      <button class="guest-mode-close" onclick="document.getElementById('guestModeNotification').remove()">×</button>
+    </div>
+  `;
+  
+  // Добавляем только если его ещё нет
+  if (!document.getElementById('guestModeNotification')) {
+    document.body.appendChild(notification);
+    
+    // Автоматически скрываем через 10 секунд
+    setTimeout(() => {
+      const notif = document.getElementById('guestModeNotification');
+      if (notif) {
+        notif.style.opacity = '0';
+        setTimeout(() => notif.remove(), 300);
+      }
+    }, 10000);
+  }
+}
+
+// Показать модальное окно с информацией об авторизации
+function showAuthModal() {
+  // Удаляем старое модальное окно если есть
+  const oldModal = document.querySelector('.auth-info-modal');
+  if (oldModal) oldModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.className = 'auth-info-modal';
+  modal.innerHTML = `
+    <div class="auth-info-overlay"></div>
+    <div class="auth-info-content">
+      <button class="auth-info-close" onclick="this.closest('.auth-info-modal').remove()">×</button>
+      
+      <div class="auth-info-header">
+        <div class="auth-info-icon">👤</div>
+        <h2>Авторизация в игре</h2>
+      </div>
+      
+      <div class="auth-info-body">
+        <p class="auth-info-intro">
+          Вы можете создать аккаунт, чтобы сохранить прогресс и получить дополнительные возможности!
+        </p>
+        
+        <div class="auth-info-benefits">
+          <h3>✨ Преимущества авторизации:</h3>
+          
+          <div class="auth-info-benefit">
+            <div class="benefit-icon">💾</div>
+            <div class="benefit-text">
+              <strong>Облачное сохранение</strong>
+              <p>Ваш прогресс будет сохраняться автоматически и доступен на любом устройстве</p>
+            </div>
+          </div>
+          
+          <div class="auth-info-benefit">
+            <div class="benefit-icon">🎁</div>
+            <div class="benefit-text">
+              <strong>Ежедневные награды</strong>
+              <p>Получайте бонусы за ежедневный вход и сохраняйте серию даже после смены устройства</p>
+            </div>
+          </div>
+          
+          <div class="auth-info-benefit">
+            <div class="benefit-icon">🏆</div>
+            <div class="benefit-text">
+              <strong>Участие в лидерборде</strong>
+              <p>Соревнуйтесь с другими игроками и становитесь лучшими!</p>
+            </div>
+          </div>
+          
+          <div class="auth-info-benefit">
+            <div class="benefit-icon">👥</div>
+            <div class="benefit-text">
+              <strong>Кланы и PvP баттлы</strong>
+              <p>Создавайте кланы, вступайте в команды и сражайтесь с другими игроками онлайн</p>
+            </div>
+          </div>
+          
+          <div class="auth-info-benefit">
+            <div class="benefit-icon">🎮</div>
+            <div class="benefit-text">
+              <strong>Участие в событиях</strong>
+              <p>Получайте доступ к специальным ивентам и сезонным наградам</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="auth-info-actions">
+          <button class="auth-info-btn-primary" onclick="showAuthForms()">
+            Создать аккаунт
+          </button>
+          <button class="auth-info-btn-secondary" onclick="this.closest('.auth-info-modal').remove()">
+            Продолжить без аккаунта
+          </button>
+        </div>
+        
+        <p class="auth-info-note">
+          💡 Вы можете создать аккаунт в любой момент во время игры!
+        </p>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  setTimeout(() => {
+    modal.classList.add('show');
+  }, 10);
+}
+
+// Показать формы входа/регистрации
+function showAuthForms() {
+  const modal = document.querySelector('.auth-info-modal');
+  if (modal) modal.remove();
+  
+  showAuthScreen();
+}
+
+// Показ экрана авторизации
+function showAuthScreen() {
+  const authScreen = document.getElementById('authScreen');
+  if (authScreen) {
+    authScreen.classList.add('active');
+    authScreen.style.display = 'flex';
+    
+    // Убедимся что форма входа активна
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    if (loginForm) loginForm.classList.add('active');
+    if (registerForm) registerForm.classList.remove('active');
+    
+    // Очистить ошибки
+    document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
+  }
+}
+
+// Закрыть экран авторизации
+function closeAuthScreen() {
+  const authScreen = document.getElementById('authScreen');
+  if (authScreen) {
+    authScreen.classList.remove('active');
+    authScreen.style.display = 'none';
+  }
 }
 
 // Установка слушателей
@@ -33,7 +200,7 @@ function setupAuthListeners() {
   if (registerForm) {
     registerForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      handleLogin();
+      handleRegister();
     });
   }
 }
@@ -55,23 +222,8 @@ function toggleAuthForms() {
 
 // Обработка входа
 function handleLogin() {
-  const isRegister = document.getElementById('registerForm')?.classList.contains('active');
-  
-  let username, password;
-  
-  if (isRegister) {
-    username = document.getElementById('regUsername')?.value.trim();
-    password = document.getElementById('regPassword')?.value;
-    const confirmPassword = document.getElementById('regPasswordConfirm')?.value;
-    
-    if (password !== confirmPassword) {
-      showAuthError('Пароли не совпадают');
-      return;
-    }
-  } else {
-    username = document.getElementById('loginUsername')?.value.trim();
-    password = document.getElementById('loginPassword')?.value;
-  }
+  const username = document.getElementById('loginUsername')?.value.trim();
+  const password = document.getElementById('loginPassword')?.value;
   
   if (!username || !password) {
     showAuthError('Заполните все поля');
@@ -85,6 +237,10 @@ function handleLogin() {
   
   // Отправляем на WebSocket сервер
   if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+    // Блокируем кнопку чтобы не было двойного клика
+    const forms = document.querySelectorAll('.auth-form.active button');
+    forms.forEach(btn => btn.disabled = true);
+    
     ws.send(JSON.stringify({
       type: 'authRequest',
       username,
@@ -92,6 +248,50 @@ function handleLogin() {
     }));
   } else {
     showAuthError('Ошибка подключения к серверу');
+    forms?.forEach(btn => btn.disabled = false);
+  }
+}
+
+// Обработка регистрации
+function handleRegister() {
+  const username = document.getElementById('regUsername')?.value.trim();
+  const password = document.getElementById('regPassword')?.value;
+  const confirmPassword = document.getElementById('regPasswordConfirm')?.value;
+  
+  if (!username || !password || !confirmPassword) {
+    showAuthError('Заполните все поля');
+    return;
+  }
+  
+  if (username.length < 3 || username.length > 16) {
+    showAuthError('Имя пользователя: 3-16 символов');
+    return;
+  }
+  
+  if (password.length < 4) {
+    showAuthError('Пароль минимум 4 символа');
+    return;
+  }
+  
+  if (password !== confirmPassword) {
+    showAuthError('Пароли не совпадают');
+    return;
+  }
+  
+  // Отправляем на WebSocket сервер
+  if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+    // Блокируем кнопку чтобы не было двойного клика
+    const forms = document.querySelectorAll('.auth-form.active button');
+    forms.forEach(btn => btn.disabled = true);
+    
+    ws.send(JSON.stringify({
+      type: 'register',
+      username,
+      password
+    }));
+  } else {
+    showAuthError('Ошибка подключения к серверу');
+    forms?.forEach(btn => btn.disabled = false);
   }
 }
 
@@ -125,20 +325,29 @@ function showGameScreen() {
 // Обновление отображения аккаунта
 function updateAccountDisplay() {
   const accountNameDisplay = document.getElementById('accountNameDisplay');
+  const logoutBtn = document.getElementById('logoutBtn');
   
   if (accountNameDisplay) {
     if (currentUser && currentUser.username) {
       accountNameDisplay.textContent = `👤 ${currentUser.username}`;
+      if (logoutBtn) logoutBtn.style.display = 'block';
     } else if (isGuest) {
       accountNameDisplay.textContent = '👤 Гость';
+      if (logoutBtn) logoutBtn.style.display = 'none';
     } else {
       accountNameDisplay.textContent = '👤 Неизвестный';
+      if (logoutBtn) logoutBtn.style.display = 'none';
     }
   }
 }
-
+    
 // Выход из аккаунта
 function logout() {
+  if (isGuest) {
+    showNotification('👤 Вы играете в гостевом режиме');
+    return;
+  }
+  
   if (confirm('Вы уверены что хотите выйти?')) {
     // Сохраняем прогресс перед выходом
     if (window.ws && window.ws.readyState === WebSocket.OPEN && currentUser) {
@@ -147,16 +356,10 @@ function logout() {
     
     // Очищаем сессию
     currentUser = null;
-    isGuest = false;
+    isGuest = true;
     
-    // Возвращаемся на экран входа
-    const authScreen = document.getElementById('authScreen');
-    const gameScreen = document.getElementById('gameScreen');
-    
-    if (authScreen && gameScreen) {
-      gameScreen.classList.remove('active');
-      authScreen.classList.add('active');
-    }
+    // Возвращаемся в игру
+    closeAuthScreen();
     
     // Очищаем формы
     const loginForm = document.getElementById('loginForm');
@@ -166,17 +369,12 @@ function logout() {
     if (loginForm) loginForm.classList.add('active');
     if (registerForm) registerForm.classList.remove('active');
     
-    console.log('👋 Вы вышли из аккаунта');
-    showNotification('👋 Вы вышли из аккаунта');
+    // Обновляем отображение
+    updateAccountDisplay();
+    
+    console.log('👤 Вы вернулись в гостевой режим');
+    showNotification('👤 Вы играете в гостевом режиме');
   }
-}
-
-// Игра без аккаунта
-function playAsGuest() {
-  isGuest = true;
-  currentUser = null;
-  console.log('👤 Игра в режиме Гостя (без синхронизации)');
-  showGameScreen();
 }
 
 // Сохранение игровых данных на сервер
@@ -220,26 +418,3 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-// Функция уведомления
-if (typeof showNotification === 'undefined') {
-  function showNotification(text) {
-    const notif = document.createElement('div');
-    notif.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(145deg, #4caf50, #388e3c);
-      padding: 15px 30px;
-      border-radius: 30px;
-      color: #fff;
-      font-weight: bold;
-      z-index: 1000;
-      animation: slideDown 0.5s ease-out;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-    `;
-    notif.textContent = text;
-    document.body.appendChild(notif);
-    setTimeout(() => notif.remove(), 3000);
-  }
-}
