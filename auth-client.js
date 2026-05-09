@@ -279,22 +279,34 @@ function closeAuthScreen() {
 
 // Установка слушателей
 function setupAuthListeners() {
+  console.log('🔧 setupAuthListeners вызван');
+  
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
   
+  console.log('📋 loginForm:', loginForm);
+  console.log('📋 registerForm:', registerForm);
+  
   if (loginForm) {
+    console.log('🔗 Добавляем слушатель для loginForm');
     loginForm.addEventListener('submit', (e) => {
+      console.log('🛡️ submit event для loginForm');
       e.preventDefault();
-      e.stopPropagation(); // Останавливаем всплытие
-      e.stopImmediatePropagation(); // Останавливаем все обработчики
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       console.log('🛡️ Предотвращена перезагрузка страницы');
+      console.log('🔐 Вызываю handleLogin()');
       handleLogin();
       return false;
-    }, true); // Используем capture фазу
+    }, true);
+  } else {
+    console.error('❌ loginForm не найден!');
   }
   
   if (registerForm) {
+    console.log('🔗 Добавляем слушатель для registerForm');
     registerForm.addEventListener('submit', (e) => {
+      console.log('🛡️ submit event для registerForm');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -302,17 +314,11 @@ function setupAuthListeners() {
       handleRegister();
       return false;
     }, true);
+  } else {
+    console.error('❌ registerForm не найден!');
   }
   
-  // Также блокируем любые формы на странице
-  document.addEventListener('submit', (e) => {
-    if (e.target.classList && e.target.classList.contains('auth-form')) {
-      console.log('🛡️ Блокировка формы:', e.target.id);
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-  }, true);
+  console.log('✅ setupAuthListeners завершён');
 }
 
 // Переключение формы входа/регистрации
