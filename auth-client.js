@@ -285,16 +285,34 @@ function setupAuthListeners() {
   if (loginForm) {
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      e.stopPropagation(); // Останавливаем всплытие
+      e.stopImmediatePropagation(); // Останавливаем все обработчики
+      console.log('🛡️ Предотвращена перезагрузка страницы');
       handleLogin();
-    });
+      return false;
+    }, true); // Используем capture фазу
   }
   
   if (registerForm) {
     registerForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      console.log('🛡️ Предотвращена перезагрузка страницы');
       handleRegister();
-    });
+      return false;
+    }, true);
   }
+  
+  // Также блокируем любые формы на странице
+  document.addEventListener('submit', (e) => {
+    if (e.target.classList && e.target.classList.contains('auth-form')) {
+      console.log('🛡️ Блокировка формы:', e.target.id);
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }, true);
 }
 
 // Переключение формы входа/регистрации
@@ -509,4 +527,25 @@ window.addEventListener('beforeunload', () => {
     saveGameData();
   }
 });
+
+// Блокируем случайную перезагрузку страницы
+window.addEventListener('DOMContentLoaded', () => {
+  // Проверяем есть ли другие обработчики form submit
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', (e) => {
+      if (form.id === 'loginForm' || form.id === 'registerForm') {
+        console.log('🛡️ Защитный блок формы:', form.id);
+      }
+    }, true);
+  });
+});
+
+// Отключаем location.reload() для отладки
+const originalReload = window.location.reload;
+window.location.reload = function() {
+  console.error('⛔ ПЫТАЮТСЯ ПЕРЕЗАГРУЗИТЬ СТРАНИЦУ!');
+  console.trace('Стек вызовов reload()');
+  // originalReload.call(window.location); // Раскомментируйте если нужно разрешить
+};
 
