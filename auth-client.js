@@ -498,17 +498,29 @@ function showGameScreen() {
 function updateAccountDisplay() {
   const accountNameDisplay = document.getElementById('accountNameDisplay');
   const logoutBtn = document.getElementById('logoutBtn');
+  const authBtn = document.querySelector('button[onclick="showAuthModal()"]');
+  
+  console.log('👤 updateAccountDisplay:', {
+    currentUser: window.currentUser,
+    isGuest: window.isGuest,
+    accountNameDisplay: !!accountNameDisplay,
+    logoutBtn: !!logoutBtn,
+    authBtn: !!authBtn
+  });
   
   if (accountNameDisplay) {
     if (window.currentUser && window.currentUser.username) {
       accountNameDisplay.textContent = `👤 ${window.currentUser.username}`;
       if (logoutBtn) logoutBtn.style.display = 'block';
+      if (authBtn) authBtn.style.display = 'none';
     } else if (window.isGuest) {
       accountNameDisplay.textContent = '👤 Гость';
       if (logoutBtn) logoutBtn.style.display = 'none';
+      if (authBtn) authBtn.style.display = 'block';
     } else {
       accountNameDisplay.textContent = '👤 Неизвестный';
       if (logoutBtn) logoutBtn.style.display = 'none';
+      if (authBtn) authBtn.style.display = 'block';
     }
   }
 }

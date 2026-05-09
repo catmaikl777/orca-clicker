@@ -499,7 +499,7 @@ function claimDailyReward(streak, reward) {
   // Показываем награду
   showDailyRewardModal(reward, streak);
   
-  // Сохраняем
+  // Сохраняем локально
   saveGame();
   
   // Отправляем на сервер
@@ -509,6 +509,7 @@ function claimDailyReward(streak, reward) {
       streak: streak,
       coins: reward.coins
     }));
+    console.log('📤 Отправлено на сервер: claimDailyReward streak=', streak);
   }
   
   // Обновляем UI
@@ -551,6 +552,8 @@ function updateDailyStreakUI() {
     streakBtn.disabled = false;
     streakBtn.querySelector('.streak-label').textContent = 'дней';
   }
+  
+  console.log('📅 updateDailyStreakUI: lastLoginDate=', game.lastLoginDate, 'today=', today, 'hasClaimed=', hasClaimedToday);
 }
 
 function showDailyRewardModal(reward, streak) {
@@ -983,17 +986,23 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     if (typeof window.currentUser !== 'undefined') {
       window.currentUser = { id: data.accountId, username: data.username || 'Player' };
       window.isGuest = false;
-      if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+      
+      // Сохраняем в localStorage
+      try {
+        localStorage.setItem('orca_user', JSON.stringify(window.currentUser));
+      } catch (e) {
+        console.warn('⚠️ Ошибка сохранения аккаунта:', e);
+      }
+      
+      if (typeof updateAccountDisplay === 'function') {
+        updateAccountDisplay();
+        console.log('✅ updateAccountDisplay вызван после authSuccess');
+      }
       if (typeof closeAuthScreen === 'function') closeAuthScreen();
       showNotification(`✅ Добро пожаловать, ${window.currentUser.username}!`);
     }
     
     updateUI();
-    if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
-    if (typeof showGameScreen === 'function') showGameScreen();
-    applyEffects();
-    cleanupIntervals();
-    setupAutoClickInterval();
     
     // Проверка ежедневного входа
     setTimeout(() => {
@@ -1015,7 +1024,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     
     return;
   }
-  
+
   if (data.type === 'authError') {
     console.error('❌ Ошибка аутентификации:', data.message);
     if (typeof showAuthError === 'function') showAuthError(data.message);
@@ -2136,7 +2145,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-  
+
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
