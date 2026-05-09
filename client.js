@@ -709,11 +709,27 @@ const WS_SERVER_URL = (() => {
   return 'wss://orca-clicker-api.onrender.com';
 })();
 
+async function wakeUpServer() {
+    try {
+        const response = await fetch('https://orca-clicker-api.onrender.com/health', {
+            method: 'GET',
+            mode: 'no-cors' // чтобы не ждать ответа
+        });
+        console.log('👋 Сервер разбужен');
+        // Подождать 1-2 секунды после пробуждения
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch(e) {
+        console.log('Не удалось разбудить сервер:', e);
+    }
+}
+
 function connectWebSocket() {
   // Очищаем старые интервалы перед подключением (защита от дублирования)
   cleanupIntervals();
   
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
+
+  await wakeUpServer();
   
   try {
     ws = new WebSocket(WS_SERVER_URL);
