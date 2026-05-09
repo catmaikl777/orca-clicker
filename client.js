@@ -778,6 +778,9 @@ function connectWebSocket() {
 }
 
 function handleServerMessage(data) {
+  // Печатаем ВСЕ сообщения для отладки
+  console.log('📨 handleServerMessage получил:', data.type, data);
+  
   // Обработка ответа на аутентификацию с аккаунтом (успех)
   if (data.type === 'authSuccess') {
     console.log(`✅ Аутентификация успешна: ${data.username}`);

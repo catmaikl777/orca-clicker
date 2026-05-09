@@ -335,28 +335,45 @@ function handleLogin() {
   const username = document.getElementById('loginUsername')?.value.trim();
   const password = document.getElementById('loginPassword')?.value;
   
+  console.log('🔐 handleLogin вызван');
+  console.log('👤 Username:', username);
+  console.log('🔑 Password length:', password?.length);
+  
   if (!username || !password) {
+    console.error('❌ Пустые данные');
     showAuthError('Заполните все поля');
     return;
   }
   
   if (password.length < 4) {
+    console.error('❌ Пароль слишком короткий');
     showAuthError('Пароль минимум 4 символа');
     return;
   }
+  
+  console.log('📤 Отправка на сервер...');
+  console.log('WebSocket state:', window.ws?.readyState);
   
   // Отправляем на WebSocket сервер
   if (window.ws && window.ws.readyState === WebSocket.OPEN) {
     // Блокируем кнопку чтобы не было двойного клика
     const forms = document.querySelectorAll('.auth-form.active button');
-    forms.forEach(btn => btn.disabled = true);
+    forms.forEach(btn => {
+      btn.disabled = true;
+      console.log('🔒 Кнопка заблокирована');
+    });
     
-    ws.send(JSON.stringify({
+    const authMessage = {
       type: 'authRequest',
       username,
       password
-    }));
+    };
+    
+    console.log('📨 Отправляем:', authMessage);
+    ws.send(JSON.stringify(authMessage));
+    console.log('✅ Сообщение отправлено');
   } else {
+    console.error('❌ WebSocket не подключён!');
     showAuthError('Ошибка подключения к серверу');
     forms?.forEach(btn => btn.disabled = false);
   }
