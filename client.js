@@ -1065,7 +1065,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
   }
   
   if (data.type === 'authError') {
+    console.error('❌ Ошибка аутентификации:', data.message);
+    if (typeof showAuthError === 'function') showAuthError(data.message);
+    return;
+  }
 
+  // Основной switch для обработки всех типов сообщений
   switch (data.type) {
     case 'connected':
       break;
@@ -1122,7 +1127,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
           }
         }
         eventCoins = data.eventCoins || 0;
-        
+  
         // Загружаем данные ежедневной серии
         game.lastLoginDate = data.data.lastLoginDate || null;
         game.loginStreak = Number(data.data.loginStreak) || 0;
@@ -1783,7 +1788,7 @@ case 'joinedClan':
       break;
   }
 }
-}
+
   
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
@@ -2185,7 +2190,7 @@ function startRaidBattleTimer() {
     }
   }, 1000);
 }
-
+  
 function endRaidBattle(data) {
   showNotification(`✅ Рейдовая битва завершена! Счёт: ${formatNumber(data.teamScore)}`);
   
