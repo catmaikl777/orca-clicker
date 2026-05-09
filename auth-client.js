@@ -503,6 +503,7 @@ function updateAccountDisplay() {
   console.log('👤 updateAccountDisplay:', {
     currentUser: window.currentUser,
     isGuest: window.isGuest,
+    guestId: guestId,
     accountNameDisplay: !!accountNameDisplay,
     logoutBtn: !!logoutBtn,
     authBtn: !!authBtn
@@ -514,7 +515,9 @@ function updateAccountDisplay() {
       if (logoutBtn) logoutBtn.style.display = 'block';
       if (authBtn) authBtn.style.display = 'none';
     } else if (window.isGuest) {
-      accountNameDisplay.textContent = '👤 Гость';
+      // Показываем guestId вместо "Гость"
+      const guestName = guestId ? guestId.slice(-8) : 'Гость';
+      accountNameDisplay.textContent = `👤 Гость ${guestName}`;
       if (logoutBtn) logoutBtn.style.display = 'none';
       if (authBtn) authBtn.style.display = 'block';
     } else {
@@ -560,6 +563,30 @@ function logout() {
     showNotification('👤 Вы играете в гостевом режиме');
   }
 }
+
+// Выход из гостевого режима (удаление guestId)
+function exitGuestMode() {
+  if (!window.isGuest) return;
+  
+  if (confirm('Вы хотите перейти в режим аккаунта? Гостевой прогресс может быть потерян.')) {
+    // Удаляем guestId
+    try {
+      localStorage.removeItem('orca_guest_id');
+    } catch (e) {
+      console.warn('⚠️ Ошибка удаления guestId:', e);
+    }
+    
+    // Обновляем состояние
+    window.isGuest = false;
+    window.currentUser = null;
+    
+    // Перезагружаем страницу чтобы переподключиться с новым аккаунтом
+    window.location.reload();
+  }
+}
+
+// Экспорт в global scope
+window.exitGuestMode = exitGuestMode;
 
 // Сохранение игровых данных на сервер
 function saveGameData() {
