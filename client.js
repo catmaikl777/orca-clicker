@@ -1389,7 +1389,13 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       renderShop();
       break;
     case 'dailyRewardClaimed':
-      console.log(`✅ Ежедневная награда сохранена: +${data.coins}`);
+      console.log(`🎁 dailyRewardClaimed получено:`, data);
+      showNotification(`✅ Ежедневная награда получена: +${data.coins} 🐋`);
+      
+      // Обновляем UI серии
+      updateDailyStreakUI();
+      
+      console.log('✅ dailyRewardClaimed обработка завершена');
       break;
 case 'lobbyCreated':
       // Показываем код лобби если оно закрыто
@@ -1630,9 +1636,12 @@ case 'joinedClan':
       break;
     case 'itemBought':
       // Сервер подтвердил покупку предмета
+      console.log('🛒 itemBought получено:', data);
+      
       if (data.coins !== undefined) {
         if (Number.isFinite(data.coins) && data.coins >= 0) {
           game.coins = data.coins;
+          console.log('💰 game.coins обновлён:', data.coins);
         } else {
           console.warn(`WARNING: Invalid coins from server: ${data.coins}`);
         }
@@ -1640,6 +1649,7 @@ case 'joinedClan':
       if (data.perClick !== undefined) {
         if (Number.isFinite(data.perClick) && data.perClick >= 0) {
           game.basePerClick = data.perClick;
+          console.log('👆 game.basePerClick обновлён:', data.perClick);
         } else {
           console.warn(`WARNING: Invalid perClick from server: ${data.perClick}`);
         }
@@ -1647,27 +1657,43 @@ case 'joinedClan':
       if (data.perSecond !== undefined) {
         if (Number.isFinite(data.perSecond) && data.perSecond >= 0) {
           game.basePerSecond = data.perSecond;
+          console.log('⚡ game.basePerSecond обновлён:', data.perSecond);
         } else {
           console.warn(`WARNING: Invalid perSecond from server: ${data.perSecond}`);
         }
       }
       if (data.itemCost !== undefined) {
         const item = shopItems.find(i => i.id === data.itemId);
-        if (item) item.cost = data.itemCost;
+        if (item) {
+          item.cost = data.itemCost;
+          console.log('🏷️ Цена товара обновлена:', item.id, '=', data.itemCost);
+        }
       }
       showNotification(`✅ Куплено: ${data.itemName}`);
       playSound('buySound');
+      
+      console.log('🔄 Вызываю renderShop() и updateUI()');
       renderShop();
       updateUI();
       saveGame();
+      
+      console.log('✅ itemBought обработка завершена');
       break;
     case 'skinEquipped':
       // Сервер подтвердил выбор скина
-      if (data.skinId) game.currentSkin = data.skinId;
+      console.log('🎨 skinEquipped получено:', data);
+      if (data.skinId) {
+        game.currentSkin = data.skinId;
+        console.log('🖼️ game.currentSkin обновлён:', data.skinId);
+      }
       showNotification(`🎨 Скин "${skinsData.find(s => s.id === data.skinId)?.name || data.skinId}" выбран!`);
+      
+      console.log('🔄 Вызываю renderSkins() и updateUI()');
       renderSkins();
       updateUI();
       saveGame();
+      
+      console.log('✅ skinEquipped обработка завершена');
       break;
     case 'autoclickerBlocked':
       showNotification(`🚫 ${data.message || 'Доступ заблокирован'}`);
