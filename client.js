@@ -1003,6 +1003,17 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     }
     
     updateUI();
+    renderShop();
+    renderBoxes();
+    applyEffects();
+    updateEventUI();
+    
+    console.log('🔄 UI обновлён после authSuccess: updateUI, renderShop, renderBoxes, updateEventUI вызваны');
+    
+    if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
+    if (typeof showGameScreen === 'function') showGameScreen();
+    cleanupIntervals();
+    setupAutoClickInterval();
     
     // Проверка ежедневного входа
     setTimeout(() => {
@@ -1024,7 +1035,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     
     return;
   }
-
+  
   if (data.type === 'authError') {
     console.error('❌ Ошибка аутентификации:', data.message);
     if (typeof showAuthError === 'function') showAuthError(data.message);
@@ -1286,6 +1297,9 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         renderShop();
         renderBoxes();
         applyEffects();
+        updateEventUI();
+        
+        console.log('🔄 UI обновлён после registered (guest): updateUI, renderShop, renderBoxes, updateEventUI вызваны');
         
         // Проверка ежедневного входа для зарегистрированного гостя
         setTimeout(() => {
