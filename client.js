@@ -1326,6 +1326,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       eventInfo = data.event;
       eventCoins = data.event.eventCoins || 0;
       // console.log(`🎫 eventInfo получено: eventCoins=${eventCoins}, topPlayers=${eventInfo.topPlayers?.length || 0}`);
+      
+      console.log('📅 eventInfo:', data.event);
+      console.log('📅 eventInfo.endDate:', eventInfo.endDate);
+      console.log('📅 Date.now():', Date.now());
+      console.log('📅 Разница в днях:', Math.ceil((eventInfo.endDate - Date.now()) / (1000 * 60 * 60 * 24)));
+      
       updateEventUI();
       renderEventLeaderboard();
       break;
