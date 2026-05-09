@@ -242,6 +242,43 @@ function showAuthForms() {
   
   // Очистить ошибки
   document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
+  
+  // УСТАНОВКА СЛУШАТЕЛЕЙ (теперь когда формы существуют!)
+  if (loginForm) {
+    // Удаляем старые слушители если есть
+    const newLoginForm = loginForm.cloneNode(true);
+    loginForm.parentNode.replaceChild(newLoginForm, loginForm);
+    
+    newLoginForm.addEventListener('submit', (e) => {
+      console.log('🛡️ submit event для loginForm');
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      console.log('🔐 Вызываю handleLogin()');
+      handleLogin();
+      return false;
+    });
+    
+    console.log('✅ Слушатель для loginForm установлен');
+  }
+  
+  if (registerForm) {
+    // Удаляем старые слушители если есть
+    const newRegisterForm = registerForm.cloneNode(true);
+    registerForm.parentNode.replaceChild(newRegisterForm, registerForm);
+    
+    newRegisterForm.addEventListener('submit', (e) => {
+      console.log('🛡️ submit event для registerForm');
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      console.log('🔐 Вызываю handleRegister()');
+      handleRegister();
+      return false;
+    });
+    
+    console.log('✅ Слушатель для registerForm установлен');
+  }
 }
 
 // Показ экрана авторизации
@@ -266,6 +303,27 @@ function showAuthScreen() {
   
   // Очистить ошибки
   document.querySelectorAll('.auth-error').forEach(err => err.style.display = 'none');
+  
+  // УСТАНОВКА СЛУШАТЕЛЕЙ
+  if (loginForm && !loginForm.hasAttribute('data-listener')) {
+    loginForm.setAttribute('data-listener', 'true');
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleLogin();
+      return false;
+    });
+  }
+  
+  if (registerForm && !registerForm.hasAttribute('data-listener')) {
+    registerForm.setAttribute('data-listener', 'true');
+    registerForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleRegister();
+      return false;
+    });
+  }
 }
 
 // Закрыть экран авторизации
@@ -279,46 +337,8 @@ function closeAuthScreen() {
 
 // Установка слушателей
 function setupAuthListeners() {
-  console.log('🔧 setupAuthListeners вызван');
-  
-  const loginForm = document.getElementById('loginForm');
-  const registerForm = document.getElementById('registerForm');
-  
-  console.log('📋 loginForm:', loginForm);
-  console.log('📋 registerForm:', registerForm);
-  
-  if (loginForm) {
-    console.log('🔗 Добавляем слушатель для loginForm');
-    loginForm.addEventListener('submit', (e) => {
-      console.log('🛡️ submit event для loginForm');
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      console.log('🛡️ Предотвращена перезагрузка страницы');
-      console.log('🔐 Вызываю handleLogin()');
-      handleLogin();
-      return false;
-    }, true);
-  } else {
-    console.error('❌ loginForm не найден!');
-  }
-  
-  if (registerForm) {
-    console.log('🔗 Добавляем слушатель для registerForm');
-    registerForm.addEventListener('submit', (e) => {
-      console.log('🛡️ submit event для registerForm');
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      console.log('🛡️ Предотвращена перезагрузка страницы');
-      handleRegister();
-      return false;
-    }, true);
-  } else {
-    console.error('❌ registerForm не найден!');
-  }
-  
-  console.log('✅ setupAuthListeners завершён');
+  console.log('🔧 setupAuthListeners вызван (заглушка)');
+  // Слушатели будут установлены в showAuthForms() когда формы появятся
 }
 
 // Переключение формы входа/регистрации
@@ -333,6 +353,25 @@ function toggleAuthForms() {
     // Очистка ошибок
     const errors = document.querySelectorAll('.auth-error');
     errors.forEach(err => err.style.display = 'none');
+    
+    // Убедимся что слушатели установлены
+    if (loginForm && !loginForm.hasAttribute('data-listener')) {
+      loginForm.setAttribute('data-listener', 'true');
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleLogin();
+        return false;
+      });
+    }
+    
+    if (registerForm && !registerForm.hasAttribute('data-listener')) {
+      registerForm.setAttribute('data-listener', 'true');
+      registerForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleRegister();
+        return false;
+      });
+    }
   }
 }
 
