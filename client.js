@@ -693,7 +693,6 @@ const clickSounds = ['clickSound', 'mainmeow1', 'mainmeow2', 'mainmeow3', 'mainm
 
 // Настройки WebSocket сервера
 // Для локальной разработки: ws://localhost:3001
-// Для Яндекс Игр: используем HTTP REST API (WebSocket не работает из-за CSP)
 // Для продакшена: используется переменная окружения или автоматическое определение
 const WS_SERVER_URL = (() => {
   // Проверяем переменные окружения
@@ -701,17 +700,63 @@ const WS_SERVER_URL = (() => {
     return process.env.VITE_WS_URL;
   }
   
+  // Локальная разработка
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'ws://localhost:3001';
+  }
+  
+  // Продакшен - используем WSS на том же хосте
+  return 'wss://orca-clicker-api.onrender.com';
+})();
+
+async function wakeUpServer() {
+    try {
+        console.log('👉 Пробуждение сервера Render (попытка 1/3)...');
+        const response = await fetch('https://orca-clicker-api.onrender.com/health', {
+            method: 'GET',
+            mode: 'no-cors',
+            cache: 'no-cache'
+        });
+        console.log('👋 Запрос отправлен, ждём 5 секунд для полной инициализации...');
+        // Ждём 5 секунд чтобы сервер успеть полностью "проснуться"
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log('✅ Сервер разбужен');
+    } catch(e) {
+        console.log('⚠️ Ошибка при пробуждении (попытка 1/3):', e.message);
+        // Пробуем ещё 2 раза с задержкой
+        for (let i = 2; i <= 3; i++) {
+            console.log(`👉 Пробуждение сервера Render (попытка ${i}/3)...`);
+            try {
+                await fetch('https://orca-clicker-api.onrender.com/health', {
+                    method: 'GET',
+                    mode: 'no-cors',
+                    cache: 'no-cache'
+                });
+                console.log('👋 Запрос отправлен, ждём 5 секунд...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                console.log('✅ Сервер разбужен');
+                return;
+            } catch(err) {
+                console.log(`⚠️ Ошибка при пробуждении (попытка ${i}/3):`, err.message);
+                if (i < 3) await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+    }
+}
+
   // Проверяем среду Яндекс Игр по hostname
   const hostname = window.location.hostname;
-  // const isYandexGames = hostname.includes('yandex.ru') || 
-  //                       hostname.includes('games.yandex') || 
-  //                       hostname.includes('yandex.net') ||
-  //                       typeof window.YaGamesInit !== 'undefined';
+  const isYandexGames = hostname.includes('yandex.ru') || 
+                        hostname.includes('games.yandex') || 
+                        hostname.includes('yandex.net') ||
+                        hostname.includes('app-') ||  // app-527609.games.s3.yandex.net
+                        typeof window.ysdk !== 'undefined' ||
+                        typeof YaGames !== 'undefined';
   
-  // if (isYandexGames) {
-  //   console.log('🎮 Обнаружена среда Яндекс Игр - буду использовать HTTP REST API');
-  //   return null; // WebSocket не используем в Яндекс Играх
-  // }
+  if (isYandexGames) {
+    console.log('🎮 Обнаружена среда Яндекс Игр (hostname:', hostname, ') - буду использовать HTTP REST API');
+    return null; // WebSocket не используем в Яндекс Играх
+  }
   
   // Локальная разработка
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -769,95 +814,84 @@ function connectWebSocket() {
   
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
   console.log('📍 Hostname:', window.location.hostname);
-  console.log('🎮 YaGamesInit:', typeof window.YaGamesInit !== 'undefined');
 
-  // Пробуждаем сервер перед подключением
-  wakeUpServer().then(() => {
-    console.log('✅ Сервер разбужен, создаём WebSocket...');
-    try {
-      ws = new WebSocket(WS_SERVER_URL);
-      window.ws = ws;
-      console.log('🔹 WebSocket объект создан');
-    } catch (error) {
-      console.error('❌ Ошибка создания WebSocket:', error);
-      showNotification('❌ Ошибка подключения к серверу');
-      return;
+  try {
+    ws = new WebSocket(WS_SERVER_URL);
+    window.ws = ws;
+    console.log('🔹 WebSocket объект создан');
+  } catch (error) {
+    console.error('❌ Ошибка создания WebSocket:', error);
+    showNotification('❌ Ошибка подключения к серверу');
+    return;
+  }
+  
+  ws.onopen = () => {
+    console.log('✅ WebSocket onopen сработал');
+    console.log('✅ Подключено к серверу');
+    wsConnected = true;
+    
+    // Отправляем данные для восстановления сессии или регистрации
+    if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
+      console.log('📤 Отправляем restoreSession:', window.currentUser);
+      ws.send(JSON.stringify({
+        type: 'restoreSession',
+        accountId: window.currentUser.id,
+        username: window.currentUser.username
+      }));
+    } else {
+      // Гость - используем сохранённый guestId
+      const guestUsername = typeof guestId !== 'undefined' && guestId ? guestId : 'Player_' + Math.random().toString(36).substr(2, 5);
+      console.log('📤 Отправляем register для гостя:', guestUsername);
+      ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
     }
     
-    ws.onopen = () => {
-      console.log('✅ WebSocket onopen сработал');
-      console.log('✅ Подключено к серверу');
-      wsConnected = true;
-      
-      // Отправляем данные для восстановления сессии или регистрации
-      if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
-        console.log('📤 Отправляем restoreSession:', window.currentUser);
-        ws.send(JSON.stringify({
-          type: 'restoreSession',
-          accountId: window.currentUser.id,
-          username: window.currentUser.username
-        }));
-      } else {
-        // Гость - используем сохранённый guestId
-        const guestUsername = typeof guestId !== 'undefined' && guestId ? guestId : 'Player_' + Math.random().toString(36).substr(2, 5);
-        console.log('📤 Отправляем register для гостя:', guestUsername);
-        ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
-      }
-      
-      ws.send(JSON.stringify({ type: 'getLeaderboard' }));
-      ws.send(JSON.stringify({ type: 'getClans' }));
-      
-      setTimeout(() => {
-        if (game.clan && ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'getClanMembers' }));
-        }
-        if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
-          ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
-        }
-      }, 500);
-    };
+    ws.send(JSON.stringify({ type: 'getLeaderboard' }));
+    ws.send(JSON.stringify({ type: 'getClans' }));
     
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('📨 onmessage сработал:', data.type);
-        handleServerMessage(data);
-      } catch (e) {
-        console.error('❌ Ошибка парсинга сообщения:', e);
+    setTimeout(() => {
+      if (game.clan && ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getClanMembers' }));
       }
-    };
-    
-    ws.onclose = (event) => {
-      console.log('🔴 WebSocket onclose сработал:', event);
-      console.log('⚠️ Отключено от сервера, пробуждение и переподключение через 5 секунд...');
-      console.log('⚠️ Close code:', event.code, 'reason:', event.reason);
-      wsConnected = false;
-      
-      // Очищаем интервалы перед переподключением
-      cleanupIntervals();
-      
-      // Обновляем UI лобби если открыто
-      const container = document.getElementById('battleLobbyList');
-      if (container && document.getElementById('battleLobbyView')?.classList.contains('active')) {
-        container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
+      if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
+        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
       }
-      
-      // Пробуждаем сервер перед переподключением
-      wakeUpServer().then(() => {
-        // Пробуем переподключиться через 5 секунд
-        setTimeout(connectWebSocket, 5000);
-      });
-    };
+    }, 500);
+  };
+  
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('📨 onmessage сработал:', data.type);
+      handleServerMessage(data);
+    } catch (e) {
+      console.error('❌ Ошибка парсинга сообщения:', e);
+    }
+  };
+  
+  ws.onclose = (event) => {
+    console.log('🔴 WebSocket onclose сработал:', event);
+    console.log('⚠️ Отключено от сервера, переподключение через 3 секунды...');
+    console.log('⚠️ Close code:', event.code, 'reason:', event.reason);
+    wsConnected = false;
     
-    ws.onerror = (error) => {
-      console.error('❌ WebSocket onerror сработал:', error);
-      console.error('❌ WebSocket error details:', error);
-      wsConnected = false;
-    };
-  }).catch(err => {
-    console.error('❌ Ошибка при пробуждении сервера:', err);
-    showNotification('❌ Ошибка подключения к серверу');
-  });
+    // Очищаем интервалы перед переподключением
+    cleanupIntervals();
+    
+    // Обновляем UI лобби если открыто
+    const container = document.getElementById('battleLobbyList');
+    if (container && document.getElementById('battleLobbyView')?.classList.contains('active')) {
+      container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
+    }
+    
+    // Пробуем переподключиться через 3 секунды
+    setTimeout(connectWebSocket, 3000);
+  };
+  
+  ws.onerror = (error) => {
+    console.error('❌ WebSocket onerror сработал:', error);
+    console.error('❌ WebSocket error details:', error);
+    wsConnected = false;
+  };
 }
 
 function handleServerMessage(data) {
