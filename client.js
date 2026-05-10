@@ -711,15 +711,17 @@ const WS_SERVER_URL = (() => {
 
 async function wakeUpServer() {
     try {
+        console.log('👉 Пробуждение сервера Render...');
         const response = await fetch('https://orca-clicker-api.onrender.com/health', {
             method: 'GET',
-            mode: 'no-cors' // чтобы не ждать ответа
+            mode: 'no-cors',
+            cache: 'no-cache'
         });
-        console.log('👋 Сервер разбужен');
-        // Подождать 1-2 секунды после пробуждения
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('👋 Запрос отправлен на сервер Render');
+        // Ждём 3 секунды чтобы сервер успел "проснуться"
+        await new Promise(resolve => setTimeout(resolve, 3000));
     } catch(e) {
-        console.log('Не удалось разбудить сервер:', e);
+        console.log('⚠️ Ошибка при пробуждении сервера:', e.message);
     }
 }
 
@@ -729,89 +731,81 @@ function connectWebSocket() {
   
   console.log('🔌 Подключение к WebSocket:', WS_SERVER_URL);
 
-  await wakeUpServer();
-  
-  try {
-    ws = new WebSocket(WS_SERVER_URL);
-    window.ws = ws;
-  } catch (error) {
-    console.error('❌ Ошибка создания WebSocket:', error);
-    // Пробуем альтернативный URL если основной не работает
-    if (WS_SERVER_URL.includes('onrender.com')) {
-      console.log('🔄 Пробуем альтернативный сервер...');
-      try {
-        ws = new WebSocket('wss://qr-games.ru:443');
-        window.ws = ws;
-      } catch (altError) {
-        console.error('❌ Альтернативный сервер тоже недоступен:', altError);
-        showNotification('❌ Не удается подключиться к серверу');
-        return;
-      }
-    } else {
+  // Пробуждаем сервер перед подключением
+  wakeUpServer().then(() => {
+    try {
+      ws = new WebSocket(WS_SERVER_URL);
+      window.ws = ws;
+    } catch (error) {
+      console.error('❌ Ошибка создания WebSocket:', error);
       showNotification('❌ Ошибка подключения к серверу');
       return;
     }
-  }
-  
-  ws.onopen = () => {
-    console.log('✅ Подключено к серверу');
-    wsConnected = true;
     
-    // Отправляем данные для восстановления сессии или регистрации
-    if (typeof currentUser !== 'undefined' && currentUser && !isGuest) {
-      ws.send(JSON.stringify({
-        type: 'restoreSession',
-        accountId: currentUser.id,
-        username: currentUser.username
-      }));
-    } else {
-      // Гость - используем сохранённый guestId
-      const guestUsername = guestId || 'Player_' + Math.random().toString(36).substr(2, 5);
-      ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
-    }
-    
-    ws.send(JSON.stringify({ type: 'getLeaderboard' }));
-    ws.send(JSON.stringify({ type: 'getClans' }));
-    
-    setTimeout(() => {
-      if (game.clan && ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'getClanMembers' }));
+    ws.onopen = () => {
+      console.log('✅ Подключено к серверу');
+      wsConnected = true;
+      
+      // Отправляем данные для восстановления сессии или регистрации
+      if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
+        ws.send(JSON.stringify({
+          type: 'restoreSession',
+          accountId: window.currentUser.id,
+          username: window.currentUser.username
+        }));
+      } else {
+        // Гость - используем сохранённый guestId
+        const guestUsername = typeof guestId !== 'undefined' && guestId ? guestId : 'Player_' + Math.random().toString(36).substr(2, 5);
+        ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
       }
-      if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
-        ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+      
+      ws.send(JSON.stringify({ type: 'getLeaderboard' }));
+      ws.send(JSON.stringify({ type: 'getClans' }));
+      
+      setTimeout(() => {
+        if (game.clan && ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+        }
+        if (document.getElementById('battleLobbyView')?.classList.contains('active')) {
+          ws.send(JSON.stringify({ type: 'getBattleLobbies' }));
+        }
+      }, 500);
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleServerMessage(data);
+      } catch (e) {
+        console.error('❌ Ошибка парсинга сообщения:', e);
       }
-    }, 500);
-  };
-  
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      handleServerMessage(data);
-    } catch (e) {
-      console.error('❌ Ошибка парсинга сообщения:', e);
-    }
-  };
-  
-  ws.onclose = () => {
-    console.log('⚠️ Отключено от сервера, переподключение...');
-    wsConnected = false;
+    };
     
-    // КРИТИЧНО: очищаем интервалы перед переподключением чтобы избежать дублирования
-    cleanupIntervals();
+    ws.onclose = () => {
+      console.log('⚠️ Отключено от сервера, пробуждение и переподключение через 5 секунд...');
+      wsConnected = false;
+      
+      // Очищаем интервалы перед переподключением
+      cleanupIntervals();
+      
+      // Обновляем UI лобби если открыто
+      const container = document.getElementById('battleLobbyList');
+      if (container && document.getElementById('battleLobbyView')?.classList.contains('active')) {
+        container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
+      }
+      
+      // Пробуждаем сервер перед переподключением
+      wakeUpServer().then(() => {
+        // Пробуем переподключиться через 5 секунд
+        setTimeout(connectWebSocket, 5000);
+      });
+    };
     
-    // Обновляем UI лобби если открыто
-    const container = document.getElementById('battleLobbyList');
-    if (container && document.getElementById('battleLobbyView')?.classList.contains('active')) {
-      container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
-    }
-    
-    setTimeout(connectWebSocket, 3000);
-  };
-  
-  ws.onerror = (error) => {
-    console.error('❌ WebSocket ошибка:', error);
-    wsConnected = false;
-  };
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket ошибка:', error);
+      wsConnected = false;
+    };
+  });
 }
 
 function handleServerMessage(data) {
