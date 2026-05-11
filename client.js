@@ -306,35 +306,6 @@ const effectsData = [
 function getPerClick() {
   const base = 1 + (game.basePerClick || 0);
   
-  // Эффекты больше не дают бонусы - только визуальные
-  let mult = 1;
-  
-  // Защита от переполнения
-  if (!Number.isFinite(base) || !Number.isFinite(mult)) {
-    console.error('ERROR: Invalid base or mult in getPerClick!', { base, mult });
-    return 1;
-  }
-  
-  const result = base * mult;
-  
-  // Дополнительная защита
-  if (!Number.isFinite(result) || result > 1e15) {
-    console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick });
-    return Math.min(result, 1e15);
-  }
-  
-  // Лог для отладки если basePerClick > 0
-  // if (game.basePerClick > 0 || result > 100) {
-  //   console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}`);
-  // }
-  
-  return result;
-}
-
-// Расчет perClick (без навыков - только апгрейды из магазина)
-function getPerClick() {
-  const base = 1 + (game.basePerClick || 0);
-  
   // Применяем множители эффектов только если они куплены И включены
   let mult = 1;
   if (game.effects && game.effects['e1'] && isEffectEnabled('e1')) mult *= 2;   // e1 - Золотой клик 2x
@@ -358,11 +329,6 @@ function getPerClick() {
     console.error('CRITICAL: getPerClick result too large!', { base, mult, result, basePerClick: game.basePerClick, effects: game.effects });
     return Math.min(result, 1e15);
   }
-  
-  // Лог для отладки если basePerClick > 0
-  // if (game.basePerClick > 0 || result > 100) {
-  //   console.log(`🔍 getPerClick: base=${base}, mult=${mult}, result=${result}, effects=${JSON.stringify(game.effects)}`);
-  // }
   
   return result;
 }
@@ -702,64 +668,6 @@ const WS_SERVER_URL = (() => {
   
   // Локальная разработка
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'ws://localhost:3001';
-  }
-  
-  // Продакшен - используем WSS на том же хосте
-  return 'wss://orca-clicker-api.onrender.com';
-})();
-
-async function wakeUpServer() {
-    try {
-        console.log('👉 Пробуждение сервера Render (попытка 1/3)...');
-        const response = await fetch('https://orca-clicker-api.onrender.com/health', {
-            method: 'GET',
-            mode: 'no-cors',
-            cache: 'no-cache'
-        });
-        console.log('👋 Запрос отправлен, ждём 5 секунд для полной инициализации...');
-        // Ждём 5 секунд чтобы сервер успеть полностью "проснуться"
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        console.log('✅ Сервер разбужен');
-    } catch(e) {
-        console.log('⚠️ Ошибка при пробуждении (попытка 1/3):', e.message);
-        // Пробуем ещё 2 раза с задержкой
-        for (let i = 2; i <= 3; i++) {
-            console.log(`👉 Пробуждение сервера Render (попытка ${i}/3)...`);
-            try {
-                await fetch('https://orca-clicker-api.onrender.com/health', {
-                    method: 'GET',
-                    mode: 'no-cors',
-                    cache: 'no-cache'
-                });
-                console.log('👋 Запрос отправлен, ждём 5 секунд...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                console.log('✅ Сервер разбужен');
-                return;
-            } catch(err) {
-                console.log(`⚠️ Ошибка при пробуждении (попытка ${i}/3):`, err.message);
-                if (i < 3) await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-    }
-}
-
-  // Проверяем среду Яндекс Игр по hostname
-  const hostname = window.location.hostname;
-  const isYandexGames = hostname.includes('yandex.ru') || 
-                        hostname.includes('games.yandex') || 
-                        hostname.includes('yandex.net') ||
-                        hostname.includes('app-') ||  // app-527609.games.s3.yandex.net
-                        typeof window.ysdk !== 'undefined' ||
-                        typeof YaGames !== 'undefined';
-  
-  if (isYandexGames) {
-    console.log('🎮 Обнаружена среда Яндекс Игр (hostname:', hostname, ') - буду использовать HTTP REST API');
-    return null; // WebSocket не используем в Яндекс Играх
-  }
-  
-  // Локальная разработка
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'ws://localhost:3001';
   }
   
@@ -4730,124 +4638,6 @@ function saveGame() {
   // Только серверное сохранение
   scheduleServerSave();
 }
-
-// Принудительное сохранение всех данных на сервер
-window.forceSave = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-
-  showNotification('💾 Сохранение данных...');
-  
-  ws.send(JSON.stringify({
-    type: 'saveGame',
-    data: {
-      coins: game.coins,
-      totalCoins: game.totalCoins,
-      perClick: game.basePerClick,
-      perSecond: game.basePerSecond,
-      clicks: game.clicks,
-      level: game.level,
-      effects: game.effects,
-      skins: game.skins,
-      currentSkin: game.currentSkin,
-      achievements: game.achievements,
-      pendingBoxes: pendingBoxes,
-      playTime: game.playTime,
-      shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
-      dailyQuestDate: game.dailyQuestDate,
-      dailyQuestIds: game.dailyQuestIds,
-      dailyProgress: game.dailyProgress,
-      clan: game.clan,
-      totalRankClicks: game.totalRankClicks,
-      currentRank: game.currentRank,
-      rankRewardsClaimed: game.rankRewardsClaimed
-    }
-  }));
-
-  const saveStatus = document.getElementById('saveStatus');
-  if (saveStatus) {
-    saveStatus.textContent = '💾 Сохранение...';
-    saveStatus.style.color = '#ffd700';
-  }
-
-  setTimeout(() => {
-    if (saveStatus) {
-      saveStatus.textContent = '✅ Сохранено!';
-      saveStatus.style.color = '#4caf50';
-    }
-    setTimeout(() => {
-      if (saveStatus) {
-        saveStatus.textContent = '💾 Автосохранение включено';
-        saveStatus.style.color = 'rgba(255,255,255,0.5)';
-      }
-    }, 2000);
-  }, 1000);
-
-  console.log('💾 Принудительное сохранение инициировано');
-};
-
-function saveGame() {
-  // Только серверное сохранение
-  scheduleServerSave();
-}
-
-// Принудительное сохранение всех данных на сервер
-window.forceSave = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-
-  showNotification('💾 Сохранение данных...');
-  
-  ws.send(JSON.stringify({
-    type: 'saveGame',
-    data: {
-      coins: game.coins,
-      totalCoins: game.totalCoins,
-      perClick: game.basePerClick,
-      perSecond: game.basePerSecond,
-      clicks: game.clicks,
-      level: game.level,
-      effects: game.effects,
-      skins: game.skins,
-      currentSkin: game.currentSkin,
-      achievements: game.achievements,
-      pendingBoxes: pendingBoxes,
-      playTime: game.playTime,
-      shopItems: shopItems.map(i => ({ id: i.id, cost: i.cost })),
-      questProgress: game.quests.map(q => ({ id: q.id, completed: q.completed })),
-      dailyQuestDate: game.dailyQuestDate,
-      dailyQuestIds: game.dailyQuestIds,
-      dailyProgress: game.dailyProgress,
-      clan: game.clan
-    }
-  }));
-
-  const saveStatus = document.getElementById('saveStatus');
-  if (saveStatus) {
-    saveStatus.textContent = '💾 Сохранение...';
-    saveStatus.style.color = '#ffd700';
-  }
-
-  setTimeout(() => {
-    if (saveStatus) {
-      saveStatus.textContent = '✅ Сохранено!';
-      saveStatus.style.color = '#4caf50';
-    }
-    setTimeout(() => {
-      if (saveStatus) {
-        saveStatus.textContent = '💾 Автосохранение включено';
-        saveStatus.style.color = 'rgba(255,255,255,0.5)';
-      }
-    }, 2000);
-  }, 1000);
-
-  console.log('💾 Принудительное сохранение инициировано');
-};
 
 function loadGame() {
   // Данные загружаются с сервера при подключении
