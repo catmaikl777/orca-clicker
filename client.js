@@ -808,6 +808,11 @@ function handleServerMessage(data) {
   // Печатаем ВСЕ сообщения для отладки
   console.log('📨 handleServerMessage получил:', data.type, data);
   
+  // ОСОБАЯ обработка для registered (гости)
+  if (data.type === 'registered') {
+    console.log('🎯 registered получен! Обработка...');
+  }
+  
   // Обработка ответа на аутентификацию с аккаунтом (успех)
   if (data.type === 'authSuccess') {
     console.log(`✅ Аутентификация успешна: ${data.username}`);
@@ -1239,6 +1244,8 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       updateClansUI();
       break;
     case 'registered':
+      console.log('✅ case registered сработал!');
+      console.log('📊 Данные registered:', data);
       // Гость зарегистрирован
       // КРИТИЧНО: всегда загружаем данные с сервера (сервер - источник истины)
       
