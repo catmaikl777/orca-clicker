@@ -671,8 +671,9 @@ const WS_SERVER_URL = (() => {
     return 'ws://localhost:3001';
   }
   
-  // Продакшен - используем WSS на том же хосте
-  return 'wss://orca-clicker-api.onrender.com';
+  // Продакшен - используем WSS
+  const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
+  return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
 })();
 
 // REST API базовый URL для Яндекс Игр
@@ -729,11 +730,25 @@ function connectWebSocket() {
     console.log('🔹 WebSocket объект создан');
   } catch (error) {
     console.error('❌ Ошибка создания WebSocket:', error);
-    showNotification('❌ Ошибка подключения к серверу');
+    console.warn('⚠️ Пробуем HTTP API как fallback...');
+    showNotification('⚠️ WebSocket недоступен, используем оффлайн режим');
     return;
   }
   
+  // Тайм-аут подключения - если за 5 секунд не подключилось, отключаемся
+  const connectionTimeout = setTimeout(() => {
+    if (ws && ws.readyState === WebSocket.CONNECTING) {
+      console.warn('⚠️ WebSocket подключение заняло слишком долго, отключаемся...');
+      ws.close();
+      ws = null;
+      window.ws = null;
+      console.warn('⚠️ Используется оффлайн режим без синхронизации');
+      showNotification('⚠️ Сервер недоступен, игра работает оффлайн');
+    }
+  }, 5000);
+  
   ws.onopen = () => {
+    clearTimeout(connectionTimeout);
     console.log('✅ WebSocket onopen сработал');
     console.log('✅ Подключено к серверу');
     console.log('🔍 guestId на момент onopen:', guestId);
@@ -801,7 +816,29 @@ function connectWebSocket() {
     console.error('❌ WebSocket onerror сработал:', error);
     console.error('❌ WebSocket error details:', error);
     wsConnected = false;
+    
+    // Если ошибка происходит при CONNECTING - пробуем HTTP fallback
+    if (ws && ws.readyState === WebSocket.CONNECTING) {
+      console.warn('⚠️ WebSocket не может подключиться, включаем оффлайн режим');
+      ws = null;
+      window.ws = null;
+    }
   };
+}
+
+// Fallback на HTTP API если WebSocket не работает
+async function httpApiCall(endpoint, data) {
+  try {
+    const response = await fetch(`${REST_API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('❌ HTTP API error:', error);
+    return null;
+  }
 }
 
 function handleServerMessage(data) {

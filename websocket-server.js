@@ -9,6 +9,7 @@ const http = require('http');
 const { handleRegister: handleAuthRegister, createDefaultPlayer, generateId: generateAuthId } = require('./auth');
 const { WebSocketRateLimiter } = require('./middleware/rate-limiter');
 const dbAdapter = require('./middleware/database-adapter');
+const url = require('url');
 
 function checkAdmin(req, res) {
   const auth = req.headers.authorization;
@@ -650,6 +651,17 @@ wss.on('connection', (ws, req) => {
     ws.close(1008, 'Too many connections');
     return;
   }
+
+  const params = url.parse(req.url, true).query;
+  const token = params.token;
+  
+  if (!token) {
+      ws.close(1008, 'HTTP Authentication failed');
+      return;
+  }
+  
+  // Используем token как идентификатор игрока
+  ws.playerId = token;
   
   const playerId = generateId();
   ws.playerId = playerId;
