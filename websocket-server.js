@@ -663,7 +663,7 @@ wss.on('connection', (ws, req) => {
   // Используем token как идентификатор игрока
   ws.playerId = token;
   
-  const playerId = generateId();
+  const playerId = token;
   ws.playerId = playerId;
   ws.ip = ip;
   console.log(`Игрок подключён: ${playerId}`);
