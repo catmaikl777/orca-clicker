@@ -39,27 +39,8 @@
       <header class="top-bar">
         <div class="account-info">
           <span id="accountNameDisplay" class="account-name">👤 Гость</span>
-          <button class="auth-btn" onclick="showAuthModal()">🔐 Авторизация</button>
-          <button class="logout-btn" id="logoutBtn" style="display:none" onclick="logout()">Выход</button>
-        </div>
-        
-        <!-- Ежедневная серия -->
-        <div class="daily-streak-container">
-          <button id="dailyStreakBtn" class="daily-streak-btn" onclick="claimDailyStreak()" disabled>
-            <span class="streak-fire">🔥</span>
-            <span class="streak-count" id="streakCount">0</span>
-            <span class="streak-label">дней</span>
-            <span class="reward-amount" id="streakReward">+0</span>
-          </button>
-        </div>
-        
-        <!-- Кнопка рекламы -->
-        <div class="ad-reward-container">
-          <button class="ad-reward-main-btn" onclick="watchYandexAd()">
-            <span class="ad-icon">📺</span>
-            <span class="ad-label">Награда</span>
-            <span class="ad-reward-text" id="adRewardAmount">+1000</span>
-          </button>
+          <button class="auth-btn-small" id="authBtnSmall" onclick="showAuthModal()">🔐 Войти</button>
+          <button class="logout-btn" id="logoutBtn" style="display:none" onclick="logout()">Выйти</button>
         </div>
         
         <div class="stats">
@@ -115,7 +96,8 @@
       <button class="menu-btn" onclick="showModal('stats')">📈 Статистика</button>
       <button class="menu-btn" onclick="showModal('leaderboard')">📊 Лидеры</button>
       <button class="menu-btn" onclick="showModal('battle')">⚔️ PvP</button>
-      <button class="menu-btn" onclick="showRaidView()" style="display:none;">🎮 3x3 Рейд</button>
+      <button class="menu-btn" onclick="showDailyRewardModal(getStreakReward(game.loginStreak || 0), game.loginStreak || 0)">🔥 Награда</button>
+      <button class="menu-btn" onclick="watchYandexAd()">📺 Реклама</button>
       <button class="menu-btn" onclick="showModal('clans')">👥 Кланы</button>
       <button class="menu-btn" onclick="openEventModal()">🎉 Ивент</button>
       <button class="menu-btn" onclick="showModal('effectsModal')">✨ Эффекты</button>

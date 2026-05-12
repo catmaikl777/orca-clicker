@@ -686,7 +686,7 @@ async function wakeUpServer() {
         console.log('👉 Пробуждение сервера Render (попытка 1/3)...');
         const response = await fetch('https://orca-clicker-api.onrender.com/health', {
             method: 'GET',
-            mode: 'no-cors',
+            // mode: 'no-cors',
             cache: 'no-cache'
         });
         console.log('👋 Запрос отправлен, ждём 5 секунд для полной инициализации...');
@@ -736,6 +736,7 @@ function connectWebSocket() {
   ws.onopen = () => {
     console.log('✅ WebSocket onopen сработал');
     console.log('✅ Подключено к серверу');
+    console.log('🔍 guestId на момент onopen:', guestId);
     wsConnected = true;
     
     // Отправляем данные для восстановления сессии или регистрации
@@ -750,6 +751,7 @@ function connectWebSocket() {
       // Гость - используем сохранённый guestId
       const guestUsername = typeof guestId !== 'undefined' && guestId ? guestId : 'Player_' + Math.random().toString(36).substr(2, 5);
       console.log('📤 Отправляем register для гостя:', guestUsername);
+      console.log('🔐 Тип guestUsername:', typeof guestUsername, 'Длина:', guestUsername.length);
       ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
     }
     

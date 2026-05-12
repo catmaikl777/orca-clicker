@@ -543,6 +543,27 @@ body {
   white-space: nowrap;
 }
 
+.auth-btn-small {
+  padding: 6px 14px;
+  border: 1px solid rgba(32,178,170,0.5);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(32,178,170,0.2), rgba(72,209,204,0.15));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 6px;
+  display: inline-block;
+}
+
+.auth-btn-small:hover {
+  background: linear-gradient(145deg, rgba(32,178,170,0.35), rgba(72,209,204,0.25));
+  border-color: rgba(32,178,170,0.8);
+  box-shadow: 0 4px 15px rgba(32,178,170,0.3);
+  transform: translateY(-1px);
+}
+
 .logout-btn {
   padding: 8px 16px;
   border: 1px solid rgba(255,100,100,0.4);
@@ -564,94 +585,29 @@ body {
   transform: translateY(-2px);
 }
 
-/* === ЕЖЕДНЕВНАЯ СЕРИЯ === */
-.daily-streak-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
-}
-
-/* === РЕКЛАМА НА ГЛАВНОМ ЭКРАНЕ === */
-.ad-reward-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
-}
-
-.ad-reward-main-btn {
-  position: relative;
-  padding: 10px 16px;
-  border: 2px solid rgba(255, 105, 180, 0.8);
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(255, 20, 147, 0.4), rgba(138, 43, 226, 0.4));
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
+/* === КНОПКА АВТОРИЗАЦИИ (маленькая, обычная) === */
+.auth-btn-small {
+  padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.9);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  box-shadow: 
-    0 4px 15px rgba(255, 20, 147, 0.4),
-    0 0 20px rgba(138, 43, 226, 0.3);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  animation: adPulseMain 2s ease-in-out infinite;
+  margin-top: 6px;
+  display: inline-block;
 }
 
-.ad-reward-main-btn:hover {
-  background: linear-gradient(135deg, rgba(255, 20, 147, 0.6), rgba(138, 43, 226, 0.6));
-  border-color: rgba(255, 105, 180, 1);
-  box-shadow: 
-    0 6px 25px rgba(255, 20, 147, 0.6),
-    0 0 30px rgba(138, 43, 226, 0.5);
-  transform: translateY(-2px) scale(1.05);
+.auth-btn-small:hover {
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(255,255,255,0.5);
+  transform: translateY(-1px);
 }
 
-.ad-reward-main-btn:active {
-  transform: translateY(0) scale(1);
-}
-
-@keyframes adPulseMain {
-  0%, 100% { 
-    box-shadow: 
-      0 4px 15px rgba(255, 20, 147, 0.4),
-      0 0 20px rgba(138, 43, 226, 0.3),
-      0 0 8px rgba(255, 105, 180, 0.3);
-  }
-  50% { 
-    box-shadow: 
-      0 4px 20px rgba(255, 20, 147, 0.6),
-      0 0 30px rgba(138, 43, 226, 0.5),
-      0 0 15px rgba(255, 105, 180, 0.5);
-  }
-}
-
-.ad-reward-main-btn .ad-icon {
-  font-size: 18px;
-}
-
-.ad-reward-main-btn .ad-label {
-  font-size: 12px;
-  color: #fff;
-}
-
-.ad-reward-main-btn .ad-reward-text {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: linear-gradient(135deg, #ffd700, #ff69b4);
-  color: #000;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 8px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(255, 215, 0, 0.6);
-  white-space: nowrap;
-  border: 2px solid #fff;
-}
+/* === ЕЖЕДНЕВНАЯ СЕРИЯ (удалено с главной панели) === */
+/* === РЕКЛАМА (удалено с главной панели) === */
 
 /* Кнопка рекламы в меню (устаревшая, для совместимости) */
 /* Кнопка рекламы в настройках */
@@ -662,6 +618,34 @@ body {
     0 6px 25px rgba(255, 20, 147, 0.3),
     inset 0 1px 0 rgba(255,255,255,0.2);
   transition: all 0.3s;
+}
+
+/* Маленькая кнопка авторизации на главной панели */
+.auth-btn-small {
+  padding: 8px 14px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  margin-top: 6px;
+  display: inline-block;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.auth-btn-small:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.auth-btn-small:active {
+  transform: translateY(0);
 }
 
 .ad-settings-btn:hover {
@@ -1627,25 +1611,25 @@ body {
     opacity: 0;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
-
+  
   .modal.active {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
   }
-
+  
   .modal-content { 
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 20px;
   }
-
+  
   /* Кнопки на мобильных больше */
   .modal .action-btn,
   .modal button {
     padding: 14px 20px;
     font-size: 16px;
   }
-
+  
   /* Увеличиваем отступы для удобства нажатия */
   .modal-header {
     padding: 20px;
@@ -1780,12 +1764,51 @@ body {
   
 /* Улучшенный скролл для мобильных */
 @media (max-width: 768px) {
-  .shop-items {
-    height: auto;
-    min-height: 200px;
+  .top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .account-info { 
+    margin-bottom: 0; 
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .account-name {
+    font-size: 16px;
+  }
+  
+  .auth-btn-small {
+    padding: 6px 12px;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+  
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  
+  .stat {
+    padding: 12px 10px;
+  }
+  
+  .stat-icon {
+    font-size: 24px;
+  }
+  
+  .stat-label {
+    font-size: 9px;
+  }
+  
+  .stat-value {
+    font-size: 18px;
   }
 }
-  
+
 .shop-item {
   background: linear-gradient(145deg, rgba(32,178,170,0.15), rgba(72,209,204,0.1));
   border: 1px solid rgba(32,178,170,0.3);
@@ -2079,12 +2102,12 @@ body {
     max-height: 90vh;
   }
 }
-
+  
 @media (max-width: 480px) {
   .stats {
     grid-template-columns: 1fr;
   }
-
+  
   .menu {
     grid-template-columns: 1fr;
   }
@@ -2132,7 +2155,7 @@ body {
       height: -webkit-fill-available;
       padding-bottom: env(safe-area-inset-bottom, 0);
     }
-    
+
     .modal-content {
       height: calc(100% - 70px);
       max-height: calc(100% - 70px);

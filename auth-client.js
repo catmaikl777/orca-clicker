@@ -498,7 +498,7 @@ function showGameScreen() {
 function updateAccountDisplay() {
   const accountNameDisplay = document.getElementById('accountNameDisplay');
   const logoutBtn = document.getElementById('logoutBtn');
-  const authBtn = document.querySelector('button[onclick="showAuthModal()"]');
+  const authBtnSmall = document.getElementById('authBtnSmall');
   
   console.log('👤 updateAccountDisplay:', {
     currentUser: window.currentUser,
@@ -506,24 +506,24 @@ function updateAccountDisplay() {
     guestId: guestId,
     accountNameDisplay: !!accountNameDisplay,
     logoutBtn: !!logoutBtn,
-    authBtn: !!authBtn
+    authBtnSmall: !!authBtnSmall
   });
   
   if (accountNameDisplay) {
     if (window.currentUser && window.currentUser.username) {
       accountNameDisplay.textContent = `👤 ${window.currentUser.username}`;
-      if (logoutBtn) logoutBtn.style.display = 'block';
-      if (authBtn) authBtn.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      if (authBtnSmall) authBtnSmall.style.display = 'none';
     } else if (window.isGuest) {
       // Показываем guestId вместо "Гость"
       const guestName = guestId ? guestId.slice(-8) : 'Гость';
       accountNameDisplay.textContent = `👤 Гость ${guestName}`;
       if (logoutBtn) logoutBtn.style.display = 'none';
-      if (authBtn) authBtn.style.display = 'block';
+      if (authBtnSmall) authBtnSmall.style.display = 'inline-block';
     } else {
       accountNameDisplay.textContent = '👤 Неизвестный';
       if (logoutBtn) logoutBtn.style.display = 'none';
-      if (authBtn) authBtn.style.display = 'block';
+      if (authBtnSmall) authBtnSmall.style.display = 'inline-block';
     }
   }
 }
