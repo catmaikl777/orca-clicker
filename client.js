@@ -530,36 +530,46 @@ function updateDailyStreakUI() {
 }
 
 function showDailyRewardModal(reward, streak) {
+  // Уже получена сегодня - не показываем
+  const today = getCurrentDateString();
+  if (game.lastLoginDate === today) {
+    console.warn('⚠️ Награда уже получена сегодня!');
+    return;
+  }
+
   // Удаляем старое модальное окно если есть
   const oldModal = document.querySelector('.daily-reward-modal');
   if (oldModal) oldModal.remove();
+  
+  // Если streak = 0, значит это первый вход - показываем как 1 день
+  const displayStreak = streak || 1;
   
   const modal = document.createElement('div');
   modal.className = 'daily-reward-modal';
   modal.innerHTML = `
     <div class="daily-reward-overlay"></div>
     <div class="daily-reward-content">
-      <div class="daily-reward-icon">${reward.icon}</div>
+      <div class="daily-reward-icon">${reward.icon || '🎁'}</div>
       <h2 class="daily-reward-title">Ежедневная награда!</h2>
       <div class="daily-reward-streak">
         <span class="streak-fire">🔥</span>
-        <span class="streak-count">${streak}</span>
+        <span class="streak-count">${displayStreak}</span>
         <span class="streak-days">дней подряд</span>
       </div>
       <div class="daily-reward-amount">
         +${formatNumber(reward.coins)} 🐋
       </div>
-      ${getNextStreakReward(streak).day > streak ? `
+      ${getNextStreakReward(displayStreak).day > displayStreak ? `
         <div class="daily-reward-next">
-          Следующая награда: <strong>${formatNumber(getNextStreakReward(streak).coins)}</strong> 🐋
-          <br>через <strong>${getNextStreakReward(streak).day - streak}</strong> дн.
+          Следующая награда: <strong>${formatNumber(getNextStreakReward(displayStreak).coins)}</strong> 🐋
+          <br>через <strong>${getNextStreakReward(displayStreak).day - displayStreak}</strong> дн.
         </div>
       ` : `
         <div class="daily-reward-next">
           🎉 Максимальная награда получена!
         </div>
       `}
-      <button class="daily-reward-btn" onclick="this.closest('.daily-reward-modal').remove()">Забрать</button>
+      <button class="daily-reward-btn" onclick="claimAndCloseDailyReward(${reward.coins}, ${displayStreak})">Забрать</button>
     </div>
   `;
   
@@ -571,6 +581,52 @@ function showDailyRewardModal(reward, streak) {
     playSound('bonusSound');
   });
 }
+
+// Обертка для начисления награды и закрытия модального окна
+function claimAndCloseDailyReward(coins, streak) {
+  // Начисляем награду
+  const today = getCurrentDateString();
+  
+  // Двойная проверка чтобы не получить дважды
+  if (game.lastLoginDate === today) {
+    console.warn('⚠️ Награда уже получена!');
+    const modal = document.querySelector('.daily-reward-modal');
+    if (modal) modal.remove();
+    return;
+  }
+  
+  game.coins += coins;
+  game.lastLoginDate = today;
+  game.loginStreak = streak;
+  
+  // Сохраняем
+  saveGame();
+  
+  // Отправляем на сервер
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'claimDailyReward',
+      streak: streak,
+      coins: coins
+    }));
+  }
+  
+  // Обновляем UI
+  updateDailyStreakUI();
+  updateUI();
+  
+  // Закрываем модальное окно
+  const modal = document.querySelector('.daily-reward-modal');
+  if (modal) modal.remove();
+  
+  showNotification(`✅ Получено +${formatNumber(coins)} 🐋`);
+}
+
+// Экспорт в глобальную область видимости для onclick
+window.claimAndCloseDailyReward = claimAndCloseDailyReward;
+window.showDailyRewardModal = showDailyRewardModal;
+window.getStreakReward = getStreakReward;
+window.getNextStreakReward = getNextStreakReward;
 
 // ==================== WEBSOCKET ====================
 let ws = null;
@@ -4724,11 +4780,32 @@ function saveGameToServer() {
 }
 
 function saveGame() {
-  // Только серверное сохранение
+  // Сохраняем daily streak в localStorage для оффлайн режима
+  try {
+    localStorage.setItem('orca_dailyLoginDate', game.lastLoginDate || null);
+    localStorage.setItem('orca_loginStreak', game.loginStreak || 0);
+  } catch (e) {
+    console.warn('⚠️ Ошибка сохранения daily streak:', e);
+  }
+  
+  // Серверное сохранение
   scheduleServerSave();
 }
 
 function loadGame() {
+  // Загружаем daily streak из localStorage для оффлайн режима
+  try {
+    const savedDate = localStorage.getItem('orca_dailyLoginDate');
+    const savedStreak = localStorage.getItem('orca_loginStreak');
+    
+    if (savedDate) game.lastLoginDate = savedDate;
+    if (savedStreak) game.loginStreak = Number(savedStreak) || 0;
+    
+    console.log('📅 Локальный daily streak загружен:', { lastLoginDate: game.lastLoginDate, loginStreak: game.loginStreak });
+  } catch (e) {
+    console.warn('⚠️ Ошибка загрузки daily streak:', e);
+  }
+  
   // Данные загружаются с сервера при подключении
   console.log('🔄 Ожидание загрузки данных с сервера...');
   game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
