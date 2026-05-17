@@ -3,6 +3,14 @@
 let ysdk = null;
 let yandexPlayer = null;
 
+// Вспомогательная функция для получения даты (YYYY-MM-DD)
+function getCurrentDateString() {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 // Инициализация Яндекс SDK
 function initYandexGames() {
   console.log('📺 Инициализация Яндекс Игр SDK...');
@@ -28,28 +36,80 @@ function initYandexGames() {
     });
 }
 
-// Показ рекламы с наградой
+// Показ рекламы с наградой (видео с вознаграждением)
 function watchYandexAd() {
   if (!ysdk) {
     console.warn('⚠️ Яндекс SDK не инициализирован');
-    showNotification('🔄 Загрузка системы рекламы...');
+    // Для локального режима даем награду без рекламы
+    giveAdReward();
+    return;
+  }
+  
+  // Проверка лимита: максимум 5 раз в день
+  const adData = getAdLimitData();
+  const today = getCurrentDateString();
+  
+  if (adData.date !== today) {
+    // Новый день - сброс счетчика
+    adData.count = 0;
+    adData.date = today;
+    saveAdLimitData(adData);
+  }
+  
+  if (adData.count >= 5) {
+    showNotification('⏰ Сегодня лимит рекламы исчерпан. Заходите завтра!');
+    return;
+  }
+  
+  // Проверка кулдауна: 30 минут между просмотрами
+  if (adData.lastAd && Date.now() - adData.lastAd < 30 * 60 * 1000) {
+    const remaining = Math.ceil((30 * 60 * 1000 - (Date.now() - adData.lastAd)) / 60000);
+    showNotification(`⏳ Подождите ${remaining} мин. перед следующим просмотром`);
     return;
   }
   
   showNotification('📺 Запуск рекламы...');
   
-  ysdk.adv.showFullscreenAdv({
+  // Используем rewarded video вместо интерстишиала
+  ysdk.adv.showRewardedVideo({
     callbacks: {
-      onClose: function(wasShown) {
-        console.log('✅ Реклама закрыта, выдача награды...');
+      onOpen: () => {
+        console.log('📺 Открытие видеорекламы');
+      },
+      onRewarded: () => {
+        console.log('✅ Награда за рекламу');
+        // Увеличиваем счетчик
+        adData.count++;
+        adData.lastAd = Date.now();
+        saveAdLimitData(adData);
         giveAdReward();
       },
-      onError: function(error) {
-        console.error('❌ Ошибка рекламы:', error);
+      onClose: () => {
+        console.log('📺 Закрытие видеорекламы');
+      },
+      onError: (e) => {
+        console.error('❌ Ошибка видеорекламы:', e);
         showNotification('❌ Не удалось показать рекламу');
       }
     }
   });
+}
+
+function getAdLimitData() {
+  try {
+    const data = localStorage.getItem('orca_ad_limits');
+    return data ? JSON.parse(data) : { date: null, count: 0, lastAd: 0 };
+  } catch (e) {
+    return { date: null, count: 0, lastAd: 0 };
+  }
+}
+
+function saveAdLimitData(data) {
+  try {
+    localStorage.setItem('orca_ad_limits', JSON.stringify(data));
+  } catch (e) {
+    console.warn('⚠️ Ошибка сохранения лимитов рекламы:', e);
+  }
 }
 
 // Выдача награды за рекламу

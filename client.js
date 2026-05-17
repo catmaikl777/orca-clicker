@@ -457,6 +457,13 @@ function checkDailyLogin() {
 function claimDailyReward(streak, reward) {
   const today = getCurrentDateString();
   
+  // ПРОВЕРКА: уже получал награду сегодня?
+  if (game.lastLoginDate === today) {
+    console.warn('⚠️ Награда уже получена сегодня!');
+    showNotification('⚠️ Награда уже получена сегодня. Заходите завтра!');
+    return;
+  }
+  
   // Добавляем награду
   game.coins += reward.coins;
   game.lastLoginDate = today;
@@ -470,7 +477,7 @@ function claimDailyReward(streak, reward) {
   
   // Отправляем на сервер
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
+    ws.send(JSON.stringify({ 
       type: 'claimDailyReward',
       streak: streak,
       coins: reward.coins
@@ -481,7 +488,7 @@ function claimDailyReward(streak, reward) {
   // Обновляем UI
   updateDailyStreakUI();
 }
-
+  
 function claimDailyStreak() {
   const loginCheck = checkDailyLogin();
   if (loginCheck.isNewDay && !loginCheck.alreadyClaimed) {
