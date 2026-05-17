@@ -651,6 +651,27 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
   
+  // УДАЛЕНИЕ гостевого аккаунта при закрытии
+  if (typeof isGuest !== 'undefined' && isGuest && guestId && !isSavingOnClose) {
+    isSavingOnClose = true;
+    
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('🗑️ Удаление гостевого аккаунта:', guestId);
+      ws.send(JSON.stringify({
+        type: 'deleteGuestAccount',
+        playerId: guestId
+      }));
+    }
+    
+    // Очищаем guestId из localStorage
+    try {
+      localStorage.removeItem('orca_guest_id');
+      console.log('✅ guestId удалён из localStorage');
+    } catch (err) {
+      console.warn('⚠️ Ошибка удаления guestId:', err);
+    }
+  }
+  
   // Для некоторых браузеров нужно установить returnValue
   e.preventDefault();
   e.returnValue = '';
@@ -742,7 +763,7 @@ function connectWebSocket() {
     showNotification('⚠️ WebSocket недоступен, используем оффлайн режим');
     return;
   }
-  
+
   // Тайм-аут подключения - если за 5 секунд не подключилось, отключаемся
   const connectionTimeout = setTimeout(() => {
     if (ws && ws.readyState === WebSocket.CONNECTING) {

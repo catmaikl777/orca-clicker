@@ -726,37 +726,57 @@ ws.on('message', (message) => {
     }
   });
   
-  ws.on('close', () => {
-    console.log(`Игрок отключён: ${playerId}`);
-    wsRateLimiter.cleanup(ip);
-    clearBattleBuffer(playerId); // Очищаем буфер при отключении
-    players.delete(playerId);
+ws.on('close', () => {
+  console.log(`Игрок отключён: ${playerId}`);
+  wsRateLimiter.cleanup(ip);
+  clearBattleBuffer(playerId); // Очищаем буфер при отключении
+  players.delete(playerId);
+  
+  // УДАЛЕНИЕ гостевого аккаунта при отключении
+  const player = db.players[playerId];
+  if (player && (!player.account_id || player.account_id === null)) {
+    console.log(`🗑️ Удаление гостевого аккаунта при отключении: ${playerId}`);
     
-    // Удаляем из лобби при отключении
-    for (const [lobbyId, lobby] of battleLobbies) {
-      if (lobby.owner === playerId || lobby.opponent === playerId) {
-        // Уведомляем другого игрока если есть
-        const otherId = lobby.owner === playerId ? lobby.opponent : lobby.owner;
-        if (otherId) {
-          const otherWs = players.get(otherId)?.ws;
-          if (otherWs && otherWs.readyState === WebSocket.OPEN) {
-            otherWs.send(JSON.stringify({
-              type: 'opponentDisconnected',
-              lobbyId
-            }));
-          }
+    // Удаляем из БД
+    if (dbAdapter.usePostgreSQL && dbAdapter.initialized) {
+      dbAdapter.pool.query('DELETE FROM players WHERE id = $1 AND account_id IS NULL', [playerId])
+        .then(() => console.log(`✅ Гостевой аккаунт удалён из БД: ${playerId}`))
+        .catch(e => console.error('❌ Ошибка удаления:', e.message));
+    }
+    
+    // Удаляем eventCoins
+    if (db.event.eventCoins && db.event.eventCoins[playerId]) {
+      delete db.event.eventCoins[playerId];
+    }
+    
+    delete db.players[playerId];
+  }
+  
+  // Удаляем из лобби при отключении
+  for (const [lobbyId, lobby] of battleLobbies) {
+    if (lobby.owner === playerId || lobby.opponent === playerId) {
+      // Уведомляем другого игрока если есть
+      const otherId = lobby.owner === playerId ? lobby.opponent : lobby.owner;
+      if (otherId) {
+        const otherWs = players.get(otherId)?.ws;
+        if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+          otherWs.send(JSON.stringify({
+            type: 'opponentDisconnected',
+            lobbyId
+          }));
         }
-        battleLobbies.delete(lobbyId);
       }
+      battleLobbies.delete(lobbyId);
     }
-    
-    for (const [battleId, battle] of battles) {
-      if (battle.players.includes(playerId)) endBattle(battleId, playerId);
-    }
-    
-    // Обновляем список лобби
-    broadcastBattleLobbies();
-  });
+  }
+      
+  for (const [battleId, battle] of battles) {
+    if (battle.players.includes(playerId)) endBattle(battleId, playerId);
+  }
+  
+  // Обновляем список лобби
+  broadcastBattleLobbies();
+});
 });
 
 function handleMessage(ws, data) {
@@ -813,13 +833,15 @@ case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'claimDailyReward': handleClaimDailyReward(ws, data.streak, data.coins); break;
     // Путь к славе
     case 'claimRankReward': handleClaimRankReward(ws, data.rankId, data.coins); break;
+    // Удаление гостевого аккаунта
+    case 'deleteGuestAccount': handleDeleteGuestAccount(ws, data.playerId); break;
   }
 }
   
 function handleClick(ws, payload) {
   const id = ws.accountId || ws.playerId;
   if (!id || !db.players[id]) return;
-
+  
   // если уже бан — сразу выкидываем
   if (isPlayerBanned(id)) {
     ws.send(JSON.stringify({ type: 'autoclickerBlocked', message: 'Доступ заблокирован: подозрение на автокликер' }));
@@ -1451,6 +1473,41 @@ function addEventCoins(playerId, amount) {
   }
 }
 
+// Удаление гостевого аккаунта при закрытии игры
+function handleDeleteGuestAccount(ws, playerId) {
+  if (!playerId) {
+    console.warn('⚠️ handleDeleteGuestAccount: нет playerId');
+    return;
+  }
+  
+  const player = db.players[playerId];
+  
+  // Проверяем что это гостевой аккаунт (нет account_id)
+  if (player && (!player.account_id || player.account_id === null)) {
+    console.log(`🗑️ Удаление гостевого аккаунта: ${playerId} (${player.name})`);
+    
+    // Удаляем из памяти
+    delete db.players[playerId];
+    players.delete(playerId);
+    
+    // Удаляем из БД
+    if (dbAdapter.usePostgreSQL && dbAdapter.initialized) {
+      dbAdapter.pool.query('DELETE FROM players WHERE id = $1 AND account_id IS NULL', [playerId])
+        .then(() => {
+          console.log(`✅ Гостевой аккаунт удалён из БД: ${playerId}`);
+        })
+        .catch(e => console.error('❌ Ошибка удаления гостевого аккаунта из БД:', e.message));
+    }
+    
+    // Удаляем eventCoins если есть
+    if (db.event.eventCoins && db.event.eventCoins[playerId]) {
+      delete db.event.eventCoins[playerId];
+    }
+  } else {
+    console.log(`ℹ️ Не удаляем аккаунт ${playerId}: это не гостевой (account_id=${player?.account_id})`);
+  }
+}
+
 // Генерация кода для лобби (4 цифры)
 function generateLobbyCode() {
   return Math.floor(1000 + Math.random() * 9000).toString();
@@ -1551,7 +1608,7 @@ function handleJoinBattleLobby(ws, data) {
   lobby.opponentName = player.name;
   lobbyWaitingPlayers.delete(id);
   
-  ws.send(JSON.stringify({ 
+  ws.send(JSON.stringify({
     type: 'joinedLobby', 
     lobbyId,
     ownerName: lobby.ownerName,
@@ -1567,7 +1624,7 @@ function handleJoinBattleLobby(ws, data) {
       opponentName: player.name
     }));
   }
-    
+  
   // Обновляем список лобби
   broadcastBattleLobbies();
 }
