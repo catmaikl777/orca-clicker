@@ -455,7 +455,7 @@ setInterval(() => {
 }, 10 * 60 * 1000); // 10 минут
 
 // WebSocket сервер с CORS поддержкой
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // Создаем HTTP сервер для health check
@@ -496,6 +496,9 @@ const wss = new WebSocket.Server({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://yandex.ru',           // ← Добавить
+      'https://games.yandex.ru',      // ← Добавить
+      'https://*.yandex.ru', 
       process.env.FRONTEND_URL
     ].filter(Boolean);
     

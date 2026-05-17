@@ -674,6 +674,7 @@ const WS_SERVER_URL = (() => {
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
   return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
+  //  return `wss://8ab504e7-5682-47f7-94fe-73da43118a5e-00-6ket4fafad35.pike.replit.dev/?token=${encodeURIComponent(guestId)}`;
 })();
 
 // REST API базовый URL для Яндекс Игр
@@ -808,6 +809,20 @@ function connectWebSocket() {
       container.innerHTML = '<p style="text-align:center;padding:20px;color:#ff6b6b">❌ Отключено от сервера. Переподключение...</p>';
     }
     
+    // ПРОВЕРКА: если мы уже пытались 3 раза - прекращаем и переходим в оффлайн
+    if (!window.wsRetryCount) window.wsRetryCount = 0;
+    window.wsRetryCount++;
+    
+    if (window.wsRetryCount >= 3) {
+      console.warn('⚠️ Превышено количество попыток подключения (3). Переход в постоянный оффлайн режим.');
+      console.warn('⚠️ Яндекс Игры блокируют внешние WebSocket подключения.');
+      ws = null;
+      window.ws = null;
+      wsRetryCount = 0;
+      showNotification('⚠️ Сервер недоступен (ограничение Яндекс Игр). Игра работает оффлайн.');
+      return;
+    }
+    
     // Пробуем переподключиться через 3 секунды
     setTimeout(connectWebSocket, 3000);
   };
@@ -825,7 +840,7 @@ function connectWebSocket() {
     }
   };
 }
-
+  
 // Fallback на HTTP API если WebSocket не работает
 async function httpApiCall(endpoint, data) {
   try {
