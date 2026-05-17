@@ -493,16 +493,25 @@ const wss = new WebSocket.Server({
   // CORS для WebSocket
   verifyClient: (info) => {
     const origin = info.origin || info.req.headers.origin;
+    
+    // Разрешаем все поддомены yandex.ru и games.yandex.ru
+    const isYandexOrigin = origin && (
+      origin === 'https://yandex.ru' ||
+      origin === 'https://games.yandex.ru' ||
+      origin.startsWith('https://*.yandex.ru') ||
+      origin.startsWith('https://') && origin.endsWith('.yandex.ru') ||
+      origin.startsWith('https://') && origin.endsWith('.yandex.com') ||
+      origin.includes('games.yandex.ru') ||
+      origin.includes('app-') && origin.includes('.games.s3.yandex.net')
+    );
+    
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://yandex.ru',           // ← Добавить
-      'https://games.yandex.ru',      // ← Добавить
-      'https://*.yandex.ru', 
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
-    return !origin || allowedOrigins.includes(origin);
+    return !origin || isYandexOrigin || allowedOrigins.includes(origin);
   }
 });
   
@@ -658,18 +667,18 @@ wss.on('connection', (ws, req) => {
   const params = url.parse(req.url, true).query;
   const token = params.token;
   
-  if (!token) {
-      ws.close(1008, 'HTTP Authentication failed');
-      return;
-  }
+  // ВРЕМЕННО: отключаем проверку токена для диагностики
+  // if (!token) {
+  //     ws.close(1008, 'HTTP Authentication failed');
+  //     return;
+  // }
   
-  // Используем token как идентификатор игрока
-  ws.playerId = token;
+  // Если токена нет — генерируем временный ID
+  const playerId = token || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  const playerId = token;
   ws.playerId = playerId;
   ws.ip = ip;
-  console.log(`Игрок подключён: ${playerId}`);
+  console.log(`🔌 Игрок подключён: ${playerId}, token=${!!token}, ip=${ip}`);
   ws.send(JSON.stringify({ type: 'connected', playerId }));
   
 ws.on('message', (message) => {

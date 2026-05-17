@@ -667,14 +667,14 @@ const WS_SERVER_URL = (() => {
   }
   
   // Локальная разработка
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'ws://localhost:3001';
-  }
+  // if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  //   return 'ws://localhost:3001';
+  // }
   
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
-  return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
-  //  return `wss://8ab504e7-5682-47f7-94fe-73da43118a5e-00-6ket4fafad35.pike.replit.dev/?token=${encodeURIComponent(guestId)}`;
+  // return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
+  return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
 })();
 
 // REST API базовый URL для Яндекс Игр
