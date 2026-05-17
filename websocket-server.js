@@ -493,25 +493,42 @@ const wss = new WebSocket.Server({
   // CORS для WebSocket
   verifyClient: (info) => {
     const origin = info.origin || info.req.headers.origin;
+    console.log(`🔍 WebSocket verifyClient: origin=${origin}`);
     
-    // Разрешаем все поддомены yandex.ru и games.yandex.ru
-    const isYandexOrigin = origin && (
-      origin === 'https://yandex.ru' ||
-      origin === 'https://games.yandex.ru' ||
-      origin.startsWith('https://*.yandex.ru') ||
-      origin.startsWith('https://') && origin.endsWith('.yandex.ru') ||
-      origin.startsWith('https://') && origin.endsWith('.yandex.com') ||
-      origin.includes('games.yandex.ru') ||
-      origin.includes('app-') && origin.includes('.games.s3.yandex.net')
-    );
+    // Если origin не указан — разрешаем (локальные тесты)
+    if (!origin) {
+      console.log('✅ origin не указан — разрешаем');
+      return true;
+    }
     
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      process.env.FRONTEND_URL
-    ].filter(Boolean);
+    // Разрешаем все домены Яндекса (игры, s3, games)
+    const isYandexDomain = 
+      origin.includes('yandex.') || 
+      origin.includes('.yandex.') ||
+      origin.includes('games.yandex') ||
+      origin.includes('app-') && origin.includes('.games.') ||
+      origin.includes('s3.yandex');
     
-    return !origin || isYandexOrigin || allowedOrigins.includes(origin);
+    if (isYandexDomain) {
+      console.log(`✅ Yandex domain разрешён: ${origin}`);
+      return true;
+    }
+    
+    // Разрешаем localhost для разработки
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    if (isLocalhost) {
+      console.log(`✅ Localhost разрешён: ${origin}`);
+      return true;
+    }
+    
+    // Разрешаем кастомный FRONTEND_URL если указан
+    if (process.env.FRONTEND_URL && origin.includes(process.env.FRONTEND_URL)) {
+      console.log(`✅ FRONTEND_URL разрешён: ${origin}`);
+      return true;
+    }
+    
+    console.log(`❌ Origin запрещён: ${origin}`);
+    return false;
   }
 });
   
