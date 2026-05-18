@@ -839,6 +839,9 @@ function connectWebSocket() {
     console.log('🔍 guestId на момент onopen:', guestId);
     wsConnected = true;
     
+    // Запускаем таймер ивента
+    initEventTimer();
+    
     // Отправляем данные для восстановления сессии или регистрации
     if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
       console.log('📤 Отправляем restoreSession:', window.currentUser);
@@ -857,6 +860,7 @@ function connectWebSocket() {
     
     ws.send(JSON.stringify({ type: 'getLeaderboard' }));
     ws.send(JSON.stringify({ type: 'getClans' }));
+    ws.send(JSON.stringify({ type: 'getEventInfo' })); // Запрашиваем ивент сразу
     
     setTimeout(() => {
       if (game.clan && ws?.readyState === WebSocket.OPEN) {
@@ -4250,6 +4254,15 @@ function stopEventTimer() {
   }
 }
 
+// Запускаем таймер ивента сразу при загрузке (фоновый режим)
+function initEventTimer() {
+  // Запрашиваем данные ивента и запускаем таймер
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'getEventInfo' }));
+  }
+  startEventTimer();
+}
+
 function renderEventLeaderboard() {
   const container = document.getElementById('eventLeaderboard');
   if (!container || !eventInfo) return;
@@ -4289,7 +4302,7 @@ function openEventModal() {
     ws.send(JSON.stringify({ type: 'getEventInfo' }));
   }
   showModal('eventModal');
-  startEventTimer(); // Запускаем динамический таймер
+  // Таймер уже запущен в фоне, не нужно запускать снова
 }
 
 // ==================== БОКСЫ ====================
@@ -4313,7 +4326,7 @@ function buyBox() {
     showNotification('❌ Недостаточно косаток');
     return;
   }
-  
+
   console.log(`📦 Покупка бокса: баланс=${game.coins}, цена=${boxPrice}`);
   
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -4324,7 +4337,7 @@ function buyBox() {
     showNotification('❌ Нет соединения с сервером');
   }
 }
-
+  
 function openBox(boxId) {
   if (isOpeningBox) return;
   
@@ -4397,7 +4410,7 @@ function openFishBox(boxId) {
     showNotification('⚠️ Рыбный бокс не найден');
     return;
   }
-
+  
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showNotification('⚠️ Нет подключения к серверу');
     return;
@@ -4689,7 +4702,7 @@ function showModal(id) {
 function closeAllModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
   document.getElementById('modalOverlay').classList.remove('active');
-  stopEventTimer(); // Останавливаем таймер при закрытии
+  // Не останавливаем таймер - он работает постоянно в фоне
 }
 
 function switchShopTab(tab, btn) {
