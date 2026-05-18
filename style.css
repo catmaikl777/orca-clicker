@@ -3025,7 +3025,54 @@ body {
 .event-timer strong, .event-coins strong {
   font-size: 20px;
   color: var(--accent);
-  text-shadow: 0 0 15px rgba(255,215,0,0.5);
+}
+
+/* Виджет ивента на главном экране */
+.event-widget {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: linear-gradient(145deg, rgba(255,107,107,0.2), rgba(255,107,107,0.1));
+  border: 2px solid rgba(255,107,107,0.4);
+  border-radius: 15px;
+  padding: 10px 20px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(255,107,107,0.3);
+  animation: eventPulse 2s infinite;
+}
+
+.event-widget.hidden {
+  display: none;
+}
+
+.event-widget-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.event-widget-icon {
+  font-size: 20px;
+}
+
+.event-widget-label {
+  color: rgba(255,255,255,0.8);
+}
+
+.event-widget strong {
+  color: #ff6b6b;
+  font-size: 16px;
+  text-shadow: 0 0 10px rgba(255,107,107,0.5);
+}
+
+@keyframes eventPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
 }
 
 .event-rewards {

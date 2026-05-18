@@ -355,7 +355,7 @@ function distributeEventRewards() {
   // Сброс ивента и запуск нового
   db.event.season++;
   db.event.startDate = Date.now();
-  db.event.endDate = Date.now() + 14 * 24 * 60 * 60 * 1000; // 2 недели
+  db.event.endDate = Date.now() + 2 * 60 * 1000; // 2 минуты
   db.event.eventCoins = {};
   
   broadcastEventInfo();
@@ -3403,6 +3403,18 @@ function handleClaimDailyReward(ws, streak, coins) {
   
   const player = db.players[id];
   const today = getCurrentDateString();
+  
+  // ПРОВЕРКА: уже получал награду сегодня?
+  if (player.lastLoginDate === today) {
+    console.warn(`⚠️ Попытка получить ежедневную награду дважды: ${id}`);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Награда уже получена сегодня. Заходите завтра!'
+      }));
+    }
+    return;
+  }
   
   // Добавляем награду
   player.coins = (player.coins || 0) + coins;

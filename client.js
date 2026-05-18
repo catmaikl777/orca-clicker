@@ -1142,6 +1142,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       if (data.eventCoins) eventCoins = data.eventCoins;
       saveGame();
       updateClansUI();
+      
+      // Показать виджет ивента
+      const eventWidget = document.getElementById('eventWidget');
+      if (eventWidget && eventInfo) {
+        eventWidget.classList.remove('hidden');
+      }
     }
     
     playerId = data.accountId;
@@ -1327,6 +1333,11 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
       eventCoins = data.event.eventCoins || 0;
       updateEventUI();
       renderEventLeaderboard();
+      // Показать виджет ивента
+      const eventWidget = document.getElementById('eventWidget');
+      if (eventWidget && eventInfo) {
+        eventWidget.classList.remove('hidden');
+      }
       break;
     case 'leaderboard':
       updateLeaderboardUI(data.data);
@@ -1470,6 +1481,12 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         renderBoxes();
         applyEffects();
         updateEventUI();
+        
+        // Показать виджет ивента
+        const eventWidget = document.getElementById('eventWidget');
+        if (eventWidget) {
+          eventWidget.classList.remove('hidden');
+        }
         
         console.log('🔄 UI обновлён после registered (guest): updateUI, renderShop, renderBoxes, updateEventUI вызваны');
         
@@ -4170,14 +4187,66 @@ function updateEventUI() {
   
   const eventTimerEl = document.getElementById('eventTimer');
   if (eventTimerEl && eventInfo) {
-    const daysLeft = Math.ceil((eventInfo.endDate - Date.now()) / (1000 * 60 * 60 * 24));
-    eventTimerEl.textContent = `${daysLeft} дн.`;
+    const msLeft = Math.max(0, eventInfo.endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    if (secondsLeft > 60) {
+      const minutesLeft = Math.ceil(secondsLeft / 60);
+      eventTimerEl.textContent = `${minutesLeft} мин.`;
+    } else {
+      eventTimerEl.textContent = `${secondsLeft} сек.`;
+    }
   }
   
   const eventTimerDisplay = document.getElementById('eventTimerDisplay');
   if (eventTimerDisplay && eventInfo) {
-    const daysLeft = Math.ceil((eventInfo.endDate - Date.now()) / (1000 * 60 * 60 * 24));
-    eventTimerDisplay.textContent = `${daysLeft} дн.`;
+    const msLeft = Math.max(0, eventInfo.endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    if (secondsLeft > 60) {
+      const minutesLeft = Math.ceil(secondsLeft / 60);
+      eventTimerDisplay.textContent = `${minutesLeft} мин.`;
+    } else {
+      eventTimerDisplay.textContent = `${secondsLeft} сек.`;
+    }
+  }
+  
+  // Обновляем виджет ивента на главном экране
+  const eventWidget = document.getElementById('eventWidget');
+  const eventWidgetTimer = document.getElementById('eventWidgetTimer');
+  if (eventWidget && eventWidgetTimer && eventInfo) {
+    const msLeft = Math.max(0, eventInfo.endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    
+    // Показываем виджет если ивент активен
+    if (msLeft > 0) {
+      eventWidget.classList.remove('hidden');
+      
+      if (secondsLeft > 60) {
+        const minutesLeft = Math.ceil(secondsLeft / 60);
+        eventWidgetTimer.textContent = `${minutesLeft} мин`;
+      } else {
+        eventWidgetTimer.textContent = `${secondsLeft} сек`;
+      }
+    } else {
+      eventWidget.classList.add('hidden');
+    }
+  }
+}
+
+// Динамическое обновление таймера ивента каждую секунду
+let eventTimerInterval = null;
+function startEventTimer() {
+  if (eventTimerInterval) clearInterval(eventTimerInterval);
+  eventTimerInterval = setInterval(() => {
+    if (eventInfo) {
+      updateEventUI();
+    }
+  }, 1000);
+}
+
+function stopEventTimer() {
+  if (eventTimerInterval) {
+    clearInterval(eventTimerInterval);
+    eventTimerInterval = null;
   }
 }
 
@@ -4220,6 +4289,7 @@ function openEventModal() {
     ws.send(JSON.stringify({ type: 'getEventInfo' }));
   }
   showModal('eventModal');
+  startEventTimer(); // Запускаем динамический таймер
 }
 
 // ==================== БОКСЫ ====================
@@ -4237,7 +4307,7 @@ function buyBox() {
     console.log('⚠️ Покупка бокса отменена: уже открывается бокс');
     return;
   }
-  
+
   const boxPrice = 8500;
   if (game.coins < boxPrice) {
     showNotification('❌ Недостаточно косаток');
@@ -4619,6 +4689,7 @@ function showModal(id) {
 function closeAllModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
   document.getElementById('modalOverlay').classList.remove('active');
+  stopEventTimer(); // Останавливаем таймер при закрытии
 }
 
 function switchShopTab(tab, btn) {
