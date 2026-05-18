@@ -3973,43 +3973,6 @@ window.createClan = function() {
   }
   const name = prompt('Введите название клана:');
   if (name) ws.send(JSON.stringify({ type: 'createClan', name }));
-}
-
-window.leaveClan = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-  if (confirm('Вы уверены, что хотите выйти из клана?')) {
-    ws.send(JSON.stringify({ type: 'leaveClan' }));
-  }
-}
-
-window.joinClan = function(clanId) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-  ws.send(JSON.stringify({ type: 'joinClan', clanId }));
-}
-  
-window.deleteClan = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-  if (confirm('Вы уверены, что хотите УДАЛИТЬ свой клан? Это действие необратимо!')) {
-    ws.send(JSON.stringify({ type: 'deleteClan', clanId: game.clan }));
-  }
-}
-  
-window.createClan = function() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
-  const name = prompt('Введите название клана:');
-  if (name) ws.send(JSON.stringify({ type: 'createClan', name }));
 };
 
 window.leaveClan = function() {
@@ -4017,8 +3980,10 @@ window.leaveClan = function() {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
+  console.log('🚪 leaveClan вызван, game.clan:', game.clan);
   if (confirm('Вы уверены, что хотите выйти из клана?')) {
     ws.send(JSON.stringify({ type: 'leaveClan' }));
+    console.log('📤 Отправлен запрос leaveClan');
   }
 };
 
@@ -4035,8 +4000,10 @@ window.deleteClan = function() {
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
+  console.log('🗑️ deleteClan вызван, game.clan:', game.clan);
   if (confirm('Вы уверены, что хотите УДАЛИТЬ свой клан? Это действие необратимо!')) {
     ws.send(JSON.stringify({ type: 'deleteClan', clanId: game.clan }));
+    console.log('📤 Отправлен запрос deleteClan:', game.clan);
   }
 };
   
@@ -4052,11 +4019,14 @@ function updateClansUI() {
   // game.clan может быть null, строкой (clanId) или объектом
   const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
   
-  // console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}, clansList.length=${clansList.length}`);
+  console.log(`🏰 updateClansUI: myClanId=${myClanId}, game.clan=${JSON.stringify(game.clan)}, clansList.length=${clansList.length}`);
+  console.log(`  leaveBtn: ${!!leaveBtn}, deleteBtn: ${!!deleteBtn}, createBtn: ${!!createBtn}`);
   
   if (leaveBtn) leaveBtn.style.display = myClanId ? 'inline-block' : 'none';
   if (deleteBtn) deleteBtn.style.display = myClanId ? 'inline-block' : 'none';
   if (createBtn) createBtn.style.display = myClanId ? 'none' : 'inline-block';
+  
+  console.log(`  Кнопки: leave=${leaveBtn?.style.display}, delete=${deleteBtn?.style.display}, create=${createBtn?.style.display}`);
   
   container.innerHTML = '';
   
