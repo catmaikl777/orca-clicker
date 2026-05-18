@@ -3029,19 +3029,20 @@ body {
 
 /* Виджет ивента на главном экране */
 .event-widget {
-  position: fixed;
-  top: 20px;
-  right: 20px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
   background: linear-gradient(145deg, rgba(255,107,107,0.2), rgba(255,107,107,0.1));
   border: 2px solid rgba(255,107,107,0.4);
   border-radius: 15px;
-  padding: 10px 20px;
+  padding: 8px 15px;
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   box-shadow: 0 4px 20px rgba(255,107,107,0.3);
   animation: eventPulse 2s infinite;
+  pointer-events: none; /* Чтобы не мешал кликам */
 }
 
 .event-widget.hidden {
@@ -3051,13 +3052,13 @@ body {
 .event-widget-content {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: #fff;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .event-widget-icon {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .event-widget-label {
@@ -3066,7 +3067,7 @@ body {
 
 .event-widget strong {
   color: #ff6b6b;
-  font-size: 16px;
+  font-size: 14px;
   text-shadow: 0 0 10px rgba(255,107,107,0.5);
 }
 
