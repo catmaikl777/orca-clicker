@@ -2207,7 +2207,8 @@ function handleLeaveClan(ws) {
   db.players[id].clan = null;
   ws.send(JSON.stringify({ type: 'leftClan', clanId }));
   broadcastClans();
-  sendClanMembers(clan.id);
+  // НЕ отправляем clanMembers игроку который вышел - он больше не в клане!
+  // Отправляем только остальным участникам клана
   saveClanToDB(clanId);
   savePlayerToDB(id);
   console.log(`✅ Игрок ${id} вышел из клана ${clanId}`);

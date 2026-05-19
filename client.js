@@ -1432,6 +1432,10 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         game.playTime = data.data.playTime || 0;
         // Обработка клана для гостей
         game.clan = data.data.clan || null;
+        
+        // Обновляем UI кланов
+        updateClansUI();
+        
         if (data.data?.questProgress || data.data?.dailyQuestIds) {
           initQuests({
             progress: data.data.questProgress,
@@ -1541,21 +1545,31 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     case 'clans':
       console.log(`📊 Получены кланы: ${data.data?.length || 0} шт.`, data.data);
       clansList = data.data || [];
-      // Обновляем UI только если game.clan уже загружен
-      if (typeof game.clan !== 'undefined') {
-        updateClansUI();
-      }
+      // Всегда обновляем UI когда приходят данные о кланах
+      updateClansUI();
       break;
     case 'clanMembers':
       console.log(`👥 Получены участники клана: ${data.members?.length || 0} шт.`, data);
-      // Если пришли данные о клане и game.clan ещё не установлен - устанавливаем
-      if (data.clanId && !game.clan) {
-        console.log(`🏰 Синхронизирую game.clan из clanMembers: ${data.clanId}`);
-        game.clan = data.clanId;
+      
+      // НЕ устанавливаем game.clan если игрок уже не в клане (например после выхода)
+      // Если clanId в сообщении НЕ совпадает с game.clan - игрок вышел из этого клана
+      const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
+      const msgClanId = data.clanId ? String(data.clanId) : null;
+      
+      // Только синхронизируем если clanId совпадает с моим текущим кланом
+      if (msgClanId && msgClanId === myClanId) {
+        console.log(`🏰 Синхронизирую участников клана: ${msgClanId}`);
+        if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      } else if (msgClanId && !myClanId) {
+        // Если game.clan не установлен, но пришёл clanId - устанавливаем
+        console.log(`🏰 Устанавливаю game.clan из clanMembers: ${msgClanId}`);
+        game.clan = msgClanId;
         saveGame();
+        if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      } else {
+        console.log(`⚠️ clanMembers для другого клана: msgClanId=${msgClanId}, myClanId=${myClanId}`);
       }
-      // Обновляем UI участников
-      if (window.updateClanMembersUI) window.updateClanMembersUI(data.members);
+      
       // Всегда обновляем список кланов
       updateClansUI();
       break;
@@ -1650,11 +1664,10 @@ case 'clanCreated':
       // Достижение "Дипломат" считается только по вступлению в чужие кланы
       saveGame();
       updateClansUI();
-      // Обновляем список кланов и участников
+      // Обновляем список кланов
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'getClans' }));
-          ws.send(JSON.stringify({ type: 'getClanMembers' }));
         }
       }, 200);
       break;
@@ -1674,11 +1687,10 @@ case 'joinedClan':
       }
       saveGame();
       updateClansUI();
-      // Обновляем список кланов и участников
+      // Обновляем список кланов
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'getClans' }));
-          ws.send(JSON.stringify({ type: 'getClanMembers' }));
         }
       }, 200);
       break;
@@ -1686,11 +1698,19 @@ case 'joinedClan':
       showNotification('🚪 Вы вышли из клана');
       game.clan = null;
       saveGame();
-      // Обновляем UI
+      updateClansUI();  // Обновляем UI сразу
+      
+      // Сбрасываем tracking если вышли из созданного клана
+      if (game.skills?._clanTracking?.createdClanId) {
+        game.skills._clanTracking.createdClanId = null;
+        saveGame();
+      }
+      
+      // Обновляем список кланов
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'getClans' }));
-          ws.send(JSON.stringify({ type: 'getClanMembers' }));
+          // НЕ запрашиваем clanMembers после выхода!
         }
       }, 200);
       break;
@@ -1698,7 +1718,15 @@ case 'joinedClan':
       showNotification('🗑️ Клан удалён');
       game.clan = null;
       saveGame();
-      // Обновляем UI
+      updateClansUI();  // Обновляем UI сразу
+      
+      // Сбрасываем tracking если клан удалён
+      if (game.skills?._clanTracking?.createdClanId) {
+        game.skills._clanTracking.createdClanId = null;
+        saveGame();
+      }
+      
+      // Обновляем список кланов
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'getClans' }));
@@ -1965,7 +1993,7 @@ case 'joinedClan':
       break;
   }
 }
-
+  
   
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
@@ -4083,13 +4111,13 @@ window.updateClanMembersUI = function(members) {
     return;
   }
 
-  // Обновляем ownedClanMemberCount для достижения "Вождь племени"
-  // Только если игрок владелец своего клана
+  // Проверяем что игрок всё ещё в клане
   const myClanId = typeof game.clan === 'object' ? game.clan?.id : game.clan;
   const tracking = game.skills?._clanTracking || {};
   const createdClanId = tracking.createdClanId;
   
-  if (myClanId === createdClanId) {
+  // Обновляем ownedClanMemberCount ТОЛЬКО если игрок владелец И в клане
+  if (myClanId === createdClanId && members.some(m => m.id === window.currentUser?.id)) {
     // Игрок владелец созданного клана - обновляем количество участников
     const newCount = members.length;
     if (game.ownedClanMemberCount !== newCount) {
@@ -4933,6 +4961,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Инициализация UI ежедневной серии
   updateDailyStreakUI();
+  
+  // Явная привязка кнопок кланов
+  const leaveClanBtn = document.getElementById('leaveClanBtn');
+  const deleteClanBtn = document.getElementById('deleteClanBtn');
+  const createClanBtn = document.getElementById('createClanBtn');
+  
+  if (leaveClanBtn) leaveClanBtn.onclick = () => window.leaveClan();
+  if (deleteClanBtn) deleteClanBtn.onclick = () => window.deleteClan();
+  if (createClanBtn) createClanBtn.onclick = () => window.createClan();
   
   connectWebSocket();
   
