@@ -45,25 +45,30 @@ function watchYandexAd() {
     return;
   }
   
-  // Проверка лимита: максимум 5 раз в день
-  const adData = getAdLimitData();
-  const today = getCurrentDateString();
-  
-  if (adData.date !== today) {
-    // Новый день - сброс счетчика
-    adData.count = 0;
-    adData.date = today;
-    saveAdLimitData(adData);
+  // Инициализация таймеров если не загружены
+  if (window.adLastView === undefined) {
+    window.adLastView = localStorage.getItem('orca_ad_lastView') || null;
+    window.adViewCount = Number(localStorage.getItem('orca_ad_viewCount')) || 0;
   }
   
-  if (adData.count >= 5) {
+  // Проверка лимита: максимум 5 раз в день
+  const today = getCurrentDateString();
+  const lastViewDate = localStorage.getItem('orca_ad_viewDate');
+  
+  // Сброс счетчика если новый день
+  if (lastViewDate !== today) {
+    window.adViewCount = 0;
+    localStorage.setItem('orca_ad_viewDate', today);
+  }
+  
+  if (window.adViewCount >= 5) {
     showNotification('⏰ Сегодня лимит рекламы исчерпан. Заходите завтра!');
     return;
   }
   
   // Проверка кулдауна: 30 минут между просмотрами
-  if (adData.lastAd && Date.now() - adData.lastAd < 30 * 60 * 1000) {
-    const remaining = Math.ceil((30 * 60 * 1000 - (Date.now() - adData.lastAd)) / 60000);
+  if (window.adLastView && Date.now() - Number(window.adLastView) < 30 * 60 * 1000) {
+    const remaining = Math.ceil((30 * 60 * 1000 - (Date.now() - Number(window.adLastView))) / 60000);
     showNotification(`⏳ Подождите ${remaining} мин. перед следующим просмотром`);
     return;
   }
@@ -79,9 +84,9 @@ function watchYandexAd() {
       onRewarded: () => {
         console.log('✅ Награда за рекламу');
         // Увеличиваем счетчик
-        adData.count++;
-        adData.lastAd = Date.now();
-        saveAdLimitData(adData);
+        window.adViewCount++;
+        window.adLastView = Date.now();
+        saveGame();  // Сохраняем таймеры
         giveAdReward();
       },
       onClose: () => {

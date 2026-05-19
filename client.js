@@ -1329,8 +1329,22 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     case 'eventInfo':
       eventInfo = data.event;
       eventCoins = data.event.eventCoins || 0;
+      
+      // Сохраняем endTime ивента в localStorage
+      if (eventInfo && eventInfo.endDate) {
+        window.eventEndTime = eventInfo.endDate;
+        localStorage.setItem('orca_event_endTime', eventInfo.endDate);
+        console.log('🎉 Ивент сохранён, конец:', new Date(eventInfo.endDate));
+      }
+      
       updateEventUI();
       renderEventLeaderboard();
+      
+      // Показать виджет ивента
+      const eventWidget = document.getElementById('eventWidget');
+      if (eventWidget && eventInfo) {
+        eventWidget.classList.remove('hidden');
+      }
       break;
     case 'leaderboard':
       updateLeaderboardUI(data.data);
@@ -4160,6 +4174,60 @@ function updateEventUI() {
   }
   
   const eventTimerEl = document.getElementById('eventTimer');
+  
+  // Используем eventEndTime если eventInfo ещё не загружен
+  let endDate = eventInfo?.endDate;
+  if (!endDate && window.eventEndTime) {
+    endDate = Number(window.eventEndTime);
+  }
+  
+  if (eventTimerEl && endDate) {
+    const msLeft = Math.max(0, endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    if (secondsLeft > 60) {
+      const minutesLeft = Math.ceil(secondsLeft / 60);
+      eventTimerEl.textContent = `${minutesLeft} мин.`;
+    } else {
+      eventTimerEl.textContent = `${secondsLeft} сек.`;
+    }
+  }
+  
+  const eventTimerDisplay = document.getElementById('eventTimerDisplay');
+  if (eventTimerDisplay && endDate) {
+    const msLeft = Math.max(0, endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    if (secondsLeft > 60) {
+      const minutesLeft = Math.ceil(secondsLeft / 60);
+      eventTimerDisplay.textContent = `${minutesLeft} мин.`;
+    } else {
+      eventTimerDisplay.textContent = `${secondsLeft} сек.`;
+    }
+  }
+  
+  // Обновляем виджет ивента на главном экране
+  const eventWidget = document.getElementById('eventWidget');
+  const eventWidgetTimer = document.getElementById('eventWidgetTimer');
+  if (eventWidget && eventWidgetTimer && endDate) {
+    const msLeft = Math.max(0, endDate - Date.now());
+    const secondsLeft = Math.ceil(msLeft / 1000);
+    
+    // Показываем виджет если ивент активен
+    if (msLeft > 0) {
+      eventWidget.classList.remove('hidden');
+      
+      if (secondsLeft > 60) {
+        const minutesLeft = Math.ceil(secondsLeft / 60);
+        eventWidgetTimer.textContent = `${minutesLeft} мин`;
+      } else {
+        eventWidgetTimer.textContent = `${secondsLeft} сек`;
+      }
+    } else {
+      eventWidget.classList.add('hidden');
+    }
+  }
+}
+  
+  const eventTimerEl = document.getElementById('eventTimer');
   if (eventTimerEl && eventInfo) {
     const msLeft = Math.max(0, eventInfo.endDate - Date.now());
     const secondsLeft = Math.ceil(msLeft / 1000);
@@ -4182,7 +4250,7 @@ function updateEventUI() {
       eventTimerDisplay.textContent = `${secondsLeft} сек.`;
     }
   }
-}
+
 
 // Динамическое обновление таймера ивента каждую секунду
 let eventTimerInterval = null;
@@ -4208,6 +4276,12 @@ function initEventTimer() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'getEventInfo' }));
   }
+  
+  // Инициализация eventEndTime если не загружен
+  if (window.eventEndTime === undefined) {
+    window.eventEndTime = localStorage.getItem('orca_event_endTime') || null;
+  }
+  
   startEventTimer();
 }
 
@@ -4806,7 +4880,11 @@ function saveGameToServer() {
       rankRewardsClaimed: game.rankRewardsClaimed || [],
       // Ежедневная серия
       lastLoginDate: game.lastLoginDate,
-      loginStreak: game.loginStreak || 0
+      loginStreak: game.loginStreak || 0,
+      // Таймеры (сохраняем в localStorage для простоты)
+      adLastView: localStorage.getItem('orca_ad_lastView'),
+      adViewCount: localStorage.getItem('orca_ad_viewCount'),
+      eventEndTime: localStorage.getItem('orca_event_endTime')
     }
   }));
 }
@@ -4818,6 +4896,15 @@ function saveGame() {
     localStorage.setItem('orca_loginStreak', game.loginStreak || 0);
   } catch (e) {
     console.warn('⚠️ Ошибка сохранения daily streak:', e);
+  }
+  
+  // Сохраняем таймеры
+  try {
+    if (window.adLastView !== undefined) localStorage.setItem('orca_ad_lastView', window.adLastView);
+    if (window.adViewCount !== undefined) localStorage.setItem('orca_ad_viewCount', window.adViewCount);
+    if (window.eventEndTime !== undefined) localStorage.setItem('orca_event_endTime', window.eventEndTime);
+  } catch (e) {
+    console.warn('⚠️ Ошибка сохранения таймеров:', e);
   }
   
   // Серверное сохранение
@@ -4842,6 +4929,16 @@ function loadGame() {
   console.log('🔄 Ожидание загрузки данных с сервера...');
   game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
   initQuests();
+  
+  // Загружаем таймеры из localStorage
+  try {
+    window.adLastView = localStorage.getItem('orca_ad_lastView') || null;
+    window.adViewCount = Number(localStorage.getItem('orca_ad_viewCount')) || 0;
+    window.eventEndTime = localStorage.getItem('orca_event_endTime') || null;
+    console.log('⏱️ Таймеры загружены:', { adLastView: window.adLastView, adViewCount: window.adViewCount, eventEndTime: window.eventEndTime });
+  } catch (e) {
+    console.warn('⚠️ Ошибка загрузки таймеров:', e);
+  }
 }
 
 function resetGame() {

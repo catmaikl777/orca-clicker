@@ -223,12 +223,13 @@ let db = {
   stats: { totalBattles: 0, totalClans: 0, totalPlayers: 0 },
   accounts: {},
   event: { 
-    eventCoins: {}, 
-    active: true, 
-    season: 1,
-    startDate: now,
-    endDate: now + 14 * 24 * 60 * 60 * 1000 // 2 недели
-  }
+    startDate: Date.now(),
+    endDate: Date.now() + 14 * 24 * 60 * 60 * 1000,  // 14 дней
+    topPlayers: []
+  },
+  eventCoins: {},
+  // Таймеры для игроков
+  playerTimers: {}  // { playerId: { eventEndTime: timestamp, adLastView: timestamp } }
 };
 
 // Буфер обновлений для батлов (чтобы не терять обновления при быстрых кликах)
