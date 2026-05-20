@@ -2533,7 +2533,10 @@ const fishBoxRewards = {
 
 function handleBuyBox(ws) {
   const id = ws.accountId || ws.playerId;
+  console.log(`📦 [handleBuyBox] Начал обработку для игрока: ${id}`);
+  
   if (!id || !db.players[id]) {
+    console.error(`❌ [handleBuyBox] Игрок не найден: ${id}`);
     ws.send(JSON.stringify({ type: 'error', message: 'Игрок не найден' }));
     return;
   }
@@ -2544,10 +2547,10 @@ function handleBuyBox(ws) {
   // Берем актуальные данные из памяти если есть
   const coins = playerMem ? playerMem.coins : playerDB.coins;
   
-  console.log(`💰 Попытка покупки бокса: игрок=${id}, coins=${coins}, цена=${boxPrice}`);
+  console.log(`💰 [handleBuyBox] Попытка покупки бокса: игрок=${id}, coins=${coins}, цена=${boxPrice}`);
   
   if (coins < boxPrice) {
-    console.log(`❌ Недостаточно монет: нужно ${boxPrice}, есть ${coins}`);
+    console.log(`❌ [handleBuyBox] Недостаточно монет: нужно ${boxPrice}, есть ${coins}`);
     ws.send(JSON.stringify({ type: 'error', message: 'Недостаточно косаток' }));
     return;
   }
@@ -2572,14 +2575,16 @@ function handleBuyBox(ws) {
     playerMem.pendingBoxes = [...playerDB.pendingBoxes];
   }
   
-  console.log(`✅ Бокс добавлен: ${boxId}, новый баланс: ${playerDB.coins}, всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`✅ [handleBuyBox] Бокс добавлен: ${boxId}, новый баланс: ${playerDB.coins}, всего боксов: ${playerDB.pendingBoxes.length}`);
   
   // Сохраняем СРАЗУ в PostgreSQL
   savePlayerToDB(id).then(() => {
-    console.log(`💾 Данные сохранены в БД для игрока ${id}`);
+    console.log(`💾 [handleBuyBox] Данные сохранены в БД для игрока ${id}`);
   }).catch(err => {
-    console.error(`❌ Ошибка сохранения в БД:`, err.message);
+    console.error(`❌ [handleBuyBox] Ошибка сохранения в БД:`, err.message);
   });
+  
+  console.log(`📤 [handleBuyBox] Отправляем ответ клиенту:`, { boxId, coins: playerDB.coins, pendingBoxes: playerDB.pendingBoxes.length });
   
   // Отправляем подтверждение с актуальными данными
   ws.send(JSON.stringify({ 
@@ -2589,7 +2594,7 @@ function handleBuyBox(ws) {
     pendingBoxes: playerDB.pendingBoxes.length
   }));
   
-  console.log(`📦 Игрок ${id} купил бокс ${boxId}. Всего боксов: ${playerDB.pendingBoxes.length}`);
+  console.log(`📦 [handleBuyBox] Игрок ${id} купил бокс ${boxId}. Всего боксов: ${playerDB.pendingBoxes.length}`);
 }
 
 function handleOpenBox(ws, boxId) {
