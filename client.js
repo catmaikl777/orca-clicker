@@ -4549,10 +4549,6 @@ function openBox(boxId) {
   
 // ==================== CATDROP АНИМАЦИЯ ====================
 
-let catdropAnimation = null;
-let catdropMouseDownTime = null;
-let catdropRarity = null;
-let catdropScale = 1;
 let catdropTargetScale = 1.5;
 let dataRewardFromServer = null;  // Храним награду от сервера
 
