@@ -1,0 +1,311 @@
+/* === CATDROP АНИМАЦИЯ === */
+
+.catdrop-cutscene {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.catdrop-cutscene-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(50,50,80,0.95) 0%, rgba(20,20,40,1) 70%);
+  backdrop-filter: blur(10px);
+}
+
+.catdrop-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.catdrop {
+  width: 200px;
+  height: 200px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.1s ease-out;
+  filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
+  position: relative;
+}
+
+.catdrop-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.catdrop-progress-ring {
+  fill: transparent;
+  stroke: rgba(255,215,0,0.8);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.catdrop-progress-ring-bg {
+  fill: transparent;
+  stroke: rgba(255,255,255,0.1);
+  stroke-width: 6;
+}
+
+.catdrop:active {
+  cursor: grabbing;
+}
+
+.catdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+.catdrop-hint {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255,215,0,0.8);
+  animation: hintPulse 1.5s ease-in-out infinite;
+  text-align: center;
+}
+
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Редкость Catdrop */
+.catdrop.legendary {
+  filter: drop-shadow(0 0 40px rgba(255,107,107,0.9)) drop-shadow(0 0 80px rgba(255,107,107,0.5));
+}
+
+.catdrop.epic {
+  filter: drop-shadow(0 0 30px rgba(168,85,247,0.8)) drop-shadow(0 0 60px rgba(168,85,247,0.4));
+}
+
+.catdrop.rare {
+  filter: drop-shadow(0 0 25px rgba(59,130,246,0.7)) drop-shadow(0 0 50px rgba(59,130,246,0.3));
+}
+
+.catdrop.common {
+  filter: drop-shadow(0 0 20px rgba(34,197,94,0.6)) drop-shadow(0 0 40px rgba(34,197,94,0.2));
+}
+
+/* === CATDROP НАГРАДА === */
+
+.catdrop-reward-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.catdrop-reward-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.catdrop-reward-modal .reward-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.catdrop-reward-content {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(145deg, rgba(20,40,70,0.98), rgba(10,30,50,0.99));
+  border-radius: 32px;
+  padding: 50px 40px;
+  text-align: center;
+  min-width: 380px;
+  max-width: 500px;
+  box-shadow: 
+    0 30px 80px rgba(0,0,0,0.9),
+    inset 0 2px 10px rgba(255,255,255,0.1);
+  transform: scale(0.7);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.catdrop-reward-modal.show .catdrop-reward-content {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.catdrop-reward-icon {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 25px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  animation: rewardIconBounce 1s ease-in-out infinite;
+}
+
+@keyframes rewardIconBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.05); }
+}
+
+.catdrop-reward-title {
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 40px currentColor;
+}
+
+.catdrop-reward-title.legendary {
+  color: #ff6b6b;
+}
+
+.catdrop-reward-title.epic {
+  color: #a855f7;
+}
+
+.catdrop-reward-title.rare {
+  color: #3b82f6;
+}
+
+.catdrop-reward-title.common {
+  color: #22c55e;
+}
+
+.catdrop-reward-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+  text-shadow: 0 0 20px rgba(255,255,255,0.5);
+}
+
+.catdrop-reward-rarity {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 15px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+.catdrop-reward-rarity.legendary {
+  background: linear-gradient(145deg, #ff6b6b, #c92a2a);
+  color: #fff;
+}
+
+.catdrop-reward-rarity.epic {
+  background: linear-gradient(145deg, #a855f7, #7c3aed);
+  color: #fff;
+}
+
+.catdrop-reward-rarity.rare {
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  color: #fff;
+}
+
+.catdrop-reward-rarity.common {
+  background: linear-gradient(145deg, #22c55e, #16a34a);
+  color: #fff;
+}
+
+.catdrop-reward-desc {
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 25px;
+}
+
+.catdrop-reward-skin {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin: 0 auto 25px;
+  display: block;
+  animation: skinFloat 2s ease-in-out infinite;
+}
+
+@keyframes skinFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.catdrop-reward-btn {
+  width: 100%;
+  padding: 18px 35px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,215,0,0.6), rgba(255,140,0,0.5));
+  color: #000;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  box-shadow: 0 10px 30px rgba(255,215,0,0.5);
+}
+
+.catdrop-reward-btn:hover {
+  background: linear-gradient(145deg, rgba(255,215,0,0.8), rgba(255,140,0,0.7));
+  box-shadow: 0 15px 40px rgba(255,215,0,0.7);
+  transform: translateY(-3px);
+}
+
+.catdrop-reward-btn:active {
+  transform: translateY(0);
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 600px) {
+  .catdrop {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .catdrop-hint {
+    font-size: 16px;
+  }
+  
+  .catdrop-reward-content {
+    min-width: 300px;
+    padding: 40px 25px;
+  }
+  
+  .catdrop-reward-title {
+    font-size: 26px;
+  }
+  
+  .catdrop-reward-value {
+    font-size: 24px;
+  }
+  
+  .catdrop-reward-btn {
+    font-size: 18px;
+    padding: 16px 30px;
+  }
+}

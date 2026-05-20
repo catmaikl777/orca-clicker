@@ -1798,38 +1798,77 @@ case 'joinedClan':
       saveGame();
       break;
     case 'boxOpened':
-      console.log(`📦 Бокс открыт на сервере:`, data);
-      if (currentBoxOpenTimeout) {
-        clearTimeout(currentBoxOpenTimeout);
-        currentBoxOpenTimeout = null;
-      }
-      removeActiveCutscene('box');
-      isOpeningBox = false;
-      showBoxReward(data.reward);
-      if (data.reward.type === 'skin') {
-        game.skins[data.reward.skinId] = true;
-        console.log(`🎨 Получен скин: ${data.reward.skinName}`);
-      } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
-        game.coins += data.reward.amount;
-        game.totalCoins += data.reward.amount;
-        console.log(`💰 Получено монет: ${data.reward.amount}`);
-      } else {
-        console.warn(`WARNING: Invalid reward amount from server: ${data.reward.amount}`);
-      }
-      // Обновляем количество боксов с сервера
-      if (data.pendingBoxes !== undefined) {
-        // Пересчитываем массив боксов на основе количества с сервера
-        const newBoxCount = data.pendingBoxes;
-        if (newBoxCount < pendingBoxes.length) {
-          // Удаляем первый бокс (который был открыт)
-          pendingBoxes.splice(0, 1);
+      console.log(`🎁 Catdrop открыт на сервере:`, data);
+      
+      // Если запущена Catdrop анимация - используем новый обработчик
+      if (isOpeningBox && activeBoxCutscene) {
+        // Устанавливаем редкость для анимации
+        catdropRarity = data.reward?.rarity || 'common';
+        
+        // Обновляем количество боксов с сервера
+        if (data.pendingBoxes !== undefined) {
+          const newBoxCount = data.pendingBoxes;
+          if (newBoxCount < pendingBoxes.length) {
+            pendingBoxes.splice(0, 1);
+          }
         }
-        console.log(`📦 Обновлено количество боксов: ${pendingBoxes.length}`);
+        
+        // Ждём окончания анимации перед показом награды
+        if (currentBoxOpenTimeout) {
+          clearTimeout(currentBoxOpenTimeout);
+          currentBoxOpenTimeout = null;
+        }
+        
+        setTimeout(() => {
+          stopCatdropAnimation();
+          showCatdropReward(data.reward);
+          renderBoxes();
+          updateBoxUI();
+          isOpeningBox = false;
+          
+          // Применяем награду
+          if (data.reward.type === 'skin') {
+            game.skins[data.reward.skinId] = true;
+            console.log(`🎨 Получен скин: ${data.reward.skinName}`);
+          } else if (data.reward.type === 'visualEffect') {
+            if (!game.effects) game.effects = {};
+            game.effects[data.reward.effectId] = true;
+            console.log(`✨ Получен эффект: ${data.reward.effectId}`);
+          } else if (data.reward.type === 'coins' && Number.isFinite(data.reward.amount)) {
+            game.coins += data.reward.amount;
+            game.totalCoins += data.reward.amount;
+            console.log(`💰 Получено: ${data.reward.amount} косаток`);
+          }
+          
+          updateUI();
+          saveGame();
+        }, 800);
+      } else {
+        // Старый способ обработки (без анимации)
+        if (currentBoxOpenTimeout) {
+          clearTimeout(currentBoxOpenTimeout);
+          currentBoxOpenTimeout = null;
+        }
+        removeActiveCutscene('box');
+        isOpeningBox = false;
+        showBoxReward(data.reward);
+        if (data.reward.type === 'skin') {
+          game.skins[data.reward.skinId] = true;
+        } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
+          game.coins += data.reward.amount;
+          game.totalCoins += data.reward.amount;
+        }
+        if (data.pendingBoxes !== undefined) {
+          const newBoxCount = data.pendingBoxes;
+          if (newBoxCount < pendingBoxes.length) {
+            pendingBoxes.splice(0, 1);
+          }
+        }
+        updateUI();
+        updateBoxUI();
+        renderBoxes();
+        saveGame();
       }
-      updateUI();
-      updateBoxUI();
-      renderBoxes();
-      saveGame();
       break;
     case 'fishBoxOpened':
       if (currentFishBoxOpenTimeout) {
@@ -2947,58 +2986,132 @@ function renderBoxes() {
   
   container.innerHTML = '';
   
-  // Тайный Бокс
-  const boxDiv = document.createElement('div');
-  boxDiv.className = 'box-item';
-  boxDiv.innerHTML = `
+  // Catdrop (бывший обычный бокс)
+  const catdropDiv = document.createElement('div');
+  catdropDiv.className = 'box-item';
+  catdropDiv.innerHTML = `
     <div class="box-icon">
-      <svg viewBox="0 0 100 100" class="svg-box-icon">
-        <rect x="15" y="30" width="70" height="60" rx="5" fill="none" stroke="currentColor" stroke-width="4"/>
-        <rect x="45" y="30" width="10" height="60" stroke="currentColor" stroke-width="4"/>
-        <rect x="15" y="25" width="70" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="4"/>
-        <rect x="42" y="15" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="4"/>
-      </svg>
+      <img src="catdrop.png" alt="Catdrop" style="width:80px;height:80px;object-fit:contain;">
     </div>
-    <h4>Тайный Бокс</h4>
-    <p>Скин или косатки!</p>
+    <h4>Catdrop</h4>
+    <p>Скины, косатки и эффекты навсегда!</p>
     <div class="box-price">🐋 ${formatNumber(8500)}</div>
     <button class="box-buy-btn" onclick="buyBox()">Купить</button>
     <div class="box-inventory">
-      <p>У вас есть: <strong id="boxCount">${pendingBoxes.length}</strong> бокс(ов)</p>
+      <p>У вас есть: <strong id="boxCount">${pendingBoxes.length}</strong> Catdrop(s)</p>
       <button class="box-open-btn" onclick="tryOpenBox()" ${pendingBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
     </div>
   `;
-  container.appendChild(boxDiv);
-  
-  // Рыбный Бокс
-  const fishBoxDiv = document.createElement('div');
-  fishBoxDiv.className = 'box-item fish-box';
-  fishBoxDiv.innerHTML = `
-    <div class="box-icon">
-      <svg viewBox="0 0 100 100" class="svg-box-icon fish-icon">
-        <path d="M80 50 Q95 35 90 20 Q75 25 70 35 Q85 40 85 50 Q85 60 70 65 Q75 75 90 80 Q95 65 80 50" fill="none" stroke="currentColor" stroke-width="3"/>
-        <ellipse cx="45" cy="50" rx="30" ry="25" fill="none" stroke="currentColor" stroke-width="4"/>
-        <circle cx="35" cy="45" r="3" fill="currentColor"/>
-        <path d="M20 50 L5 35 L5 65 Z" fill="none" stroke="currentColor" stroke-width="3"/>
-        <path d="M45 25 L45 15 M40 30 L38 20 M50 30 L52 20" stroke="currentColor" stroke-width="2"/>
-      </svg>
-    </div>
-    <h4>Рыбный Бокс</h4>
-    <p>Эффекты навсегда + временные баффы!</p>
-    <div class="box-price">🐋 ${formatNumber(12500)}</div>
-    <button class="box-buy-btn" onclick="buyFishBox()">Купить</button>
-    <div class="box-inventory">
-      <p>У вас есть: <strong id="fishBoxCount">${pendingFishBoxes.length}</strong> бокс(ов)</p>
-      <button class="box-open-btn" onclick="tryOpenFishBox()" ${pendingFishBoxes.length === 0 ? 'disabled' : ''}>Открыть</button>
-    </div>
-  `;
-  container.appendChild(fishBoxDiv);
+  container.appendChild(catdropDiv);
 }
   
 function tryOpenBox() {
   if (isOpeningBox || pendingBoxes.length === 0) return;
-  // Открываем первый бокс из массива
   openBox(pendingBoxes[0]);
+}
+
+function buyBox() {
+  if (isOpeningBox) {
+    console.log('⚠️ Покупка Catdrop отменена: уже открыт Catdrop');
+    return;
+  }
+
+  const boxPrice = 8500;
+  if (game.coins < boxPrice) {
+    showNotification('❌ Недостаточно косаток');
+    return;
+  }
+
+  console.log(`🎁 Покупка Catdrop: баланс=${game.coins}, цена=${boxPrice}`);
+  
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'buyBox' }));
+    console.log('📤 Отправлен запрос на покупку Catdrop');
+  } else {
+    console.error('❌ Нет соединения с сервером');
+    showNotification('❌ Нет соединения с сервером');
+  }
+}
+  
+// Catdrop награда
+function showCatdropReward(reward) {
+  const rewardModal = document.createElement('div');
+  rewardModal.className = 'catdrop-reward-modal';
+  
+  const rarityColors = {
+    legendary: '#ff6b6b',
+    epic: '#a855f7',
+    rare: '#3b82f6',
+    common: '#22c55e'
+  };
+  
+  const rarityGlow = {
+    legendary: '0 0 80px rgba(255,107,107,0.9)',
+    epic: '0 0 60px rgba(168,85,247,0.8)',
+    rare: '0 0 40px rgba(59,130,246,0.7)',
+    common: '0 0 20px rgba(34,197,94,0.6)'
+  };
+  
+  const rarityTitles = {
+    legendary: 'ЛЕГЕНДАРНО!',
+    epic: 'ЭПИЧЕСКИЙ!',
+    rare: 'РЕДКИЙ!',
+    common: 'ОБЫЧНЫЙ'
+  };
+  
+  let icon = '';
+  let title = '';
+  let value = '';
+  let description = '';
+  
+  if (reward.type === 'skin') {
+    icon = '🎨';
+    title = 'Новый Скин!';
+    value = reward.skinName || 'Unknown Skin';
+    description = 'Скин добавлен в коллекцию!';
+  } else if (reward.type === 'coins') {
+    icon = '🐋';
+    title = 'Косатки!';
+    value = `+${formatNumber(reward.amount)}`;
+    description = 'Отличная награда!';
+  } else if (reward.type === 'visualEffect') {
+    icon = '✨';
+    title = 'Визуальный Эффект!';
+    value = getEffectName(reward.effectId);
+    description = 'Эффект получен навсегда!';
+  } else if (reward.type === 'tempBuff') {
+    icon = '⭐';
+    title = 'Временный Бафф!';
+    value = `X${reward.mult} на ${reward.duration} сек`;
+    description = 'Множитель кликов!';
+  } else {
+    icon = '🎁';
+    title = 'Награда!';
+    value = 'Спасибо!';
+    description = 'Открыт Catdrop!';
+  }
+  
+  const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
+  
+  rewardModal.innerHTML = `
+    <div class="reward-overlay"></div>
+    <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
+      <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity]}; box-shadow: 0 0 30px ${rarityColors[reward.rarity]}">${icon}</div>
+      <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
+      <p class="catdrop-reward-value">${value}</p>
+      <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
+      <p class="catdrop-reward-desc">${description}</p>
+      ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
+      <button class="catdrop-reward-btn" onclick="this.closest('.catdrop-reward-modal').remove()">Забрать</button>
+    </div>
+  `;
+  
+  document.body.appendChild(rewardModal);
+  
+  setTimeout(() => {
+    rewardModal.classList.add('show');
+    playSound('levelSound');
+  }, 100);
 }
 
 function tryOpenFishBox() {
@@ -3042,8 +3155,8 @@ function renderSkins() {
   const header = document.createElement('div');
   header.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 20px; background: rgba(255,215,0,0.1); border: 2px solid rgba(255,215,0,0.3); border-radius: 16px; margin-bottom: 20px;';
   header.innerHTML = `
-    <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🎁 Все скины получаются из Тайного бокса!</p>
-    <p style="font-size: 14px; opacity: 0.8;">Откройте Тайный бокс чтобы получить новые скины навсегда.</p>
+    <p style="font-size: 18px; color: var(--accent); margin-bottom: 10px;">🎁 Все скины получаются из Catdrop!</p>
+    <p style="font-size: 14px; opacity: 0.8;">Откройте Catdrop чтобы получить новые скины навсегда.</p>
   `;
   container.appendChild(header);
   
@@ -3104,11 +3217,11 @@ function buyOrEquipSkin(skin) {
       saveGame();
     }
   } else {
-    // Скины ТОЛЬКО из боксов!
-    showNotification('🎁 Скины можно получить только из Тайного бокса!');
+    // Скины ТОЛЬКО из Catdrop!
+    showNotification('🎁 Скины можно получить только из Catdrop!');
   }
 }
-    
+
 // ==================== КВЕСТЫ ====================
 function getCurrentDateString() {
   const d = new Date();
@@ -4328,14 +4441,17 @@ function openEventModal() {
 }
 
 // ==================== БОКСЫ ====================
-let pendingBoxes = [];
-let pendingFishBoxes = [];
+let pendingBoxes = [];  // Catdrops
 let isOpeningBox = false;
-let isOpeningFishBox = false;
-let currentBoxOpenTimeout = null;
-let currentFishBoxOpenTimeout = null;
 let activeBoxCutscene = null;
-let activeFishBoxCutscene = null;
+let currentBoxOpenTimeout = null;
+
+// Переменные для Catdrop анимации
+let catdropAnimation = null;
+let catdropMouseDownTime = null;
+let catdropScale = 1;
+let catdropTargetScale = 1;
+let catdropRarity = null;
 
 function buyBox() {
   if (isOpeningBox) {
@@ -4365,8 +4481,8 @@ function openBox(boxId) {
   
   const boxIndex = pendingBoxes.indexOf(boxId);
   if (boxIndex === -1) {
-    console.error('❌ Бокс не найден в массиве!', { boxId, pendingBoxes });
-    showNotification('⚠️ Бокс не найден');
+    console.error('❌ Catdrop не найден!', { boxId, pendingBoxes });
+    showNotification('⚠️ Catdrop не найден');
     return;
   }
 
@@ -4379,211 +4495,264 @@ function openBox(boxId) {
   const openingBoxId = boxId;
   const openingBoxIndex = boxIndex;
 
-  console.log(`📦 ОТКРЫТИЕ БОКСА: index=${boxIndex}, id=${boxId}, всего боксов=${pendingBoxes.length}`);
-  console.log('📤 Отправка openBox на сервер:', { boxId, boxIndex });
+  console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex });
+  
+  // Отправляем запрос на сервер
   ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
 
-  showBoxOpeningCutscene('box');
+  // Запускаем анимацию Catdrop
+  startCatdropAnimation();
 
-  if (currentBoxOpenTimeout) {
-    clearTimeout(currentBoxOpenTimeout);
-  }
-  
-  // Увеличенный таймаут до 15 секунд для медленных соединений
+  // Тайм-аут если сервер не ответит
+  if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
-      console.error('⚠️ Тайм-аут открытия бокса!', { boxId });
-      console.log('📦 Текущие pendingBoxes после тайм-аута:', pendingBoxes);
-      
-      // Возвращаем бокс в инвентарь
+      console.error('⚠️ Тайм-аут открытия Catdrop!');
       isOpeningBox = false;
       currentBoxOpenTimeout = null;
-      removeActiveCutscene('box');
+      stopCatdropAnimation();
       
-      // Проверяем что бокс действительно исчез из массива
       if (pendingBoxes.indexOf(openingBoxId) === -1) {
         pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
-        console.log(`✅ Бокс возвращён в массив после тайм-аута: index=${openingBoxIndex}, id=${openingBoxId}`);
-      } else {
-        console.log('⚠️ Бокс уже есть в массиве, не дублируем');
       }
-      
       renderBoxes();
       updateBoxUI();
-      
-      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
+      showNotification('⚠️ Ошибка открытия. Попробуйте снова.');
     }
   }, 15000);
 }
   
-function buyFishBox() {
-  if (isOpeningFishBox) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'buyFishBox' }));
-  }
-}
-  
-function openFishBox(boxId) {
-  if (isOpeningFishBox) return;
-  
-  const boxIndex = pendingFishBoxes.indexOf(boxId);
-  if (boxIndex === -1) {
-    console.error('❌ Рыбный бокс не найден в массиве!', { boxId, pendingFishBoxes });
-    showNotification('⚠️ Рыбный бокс не найден');
-    return;
-  }
-  
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showNotification('⚠️ Нет подключения к серверу');
-    return;
-  }
+// ==================== CATDROP АНИМАЦИЯ ====================
 
-  isOpeningFishBox = true;
-  const openingFishBoxId = boxId;
-  const openingFishBoxIndex = boxIndex;
-
-  console.log('📤 Отправка openFishBox на сервер:', { boxId, boxIndex });
-  ws.send(JSON.stringify({ type: 'openFishBox', boxId }));
-
-  showBoxOpeningCutscene('fish');
-
-  if (currentFishBoxOpenTimeout) {
-    clearTimeout(currentFishBoxOpenTimeout);
-  }
+function startCatdropAnimation() {
+  // Удаляем старую если есть
+  if (activeBoxCutscene) activeBoxCutscene.remove();
   
-  // Увеличенный таймаут до 15 секунд
-  currentFishBoxOpenTimeout = setTimeout(() => {
-    if (isOpeningFishBox) {
-      console.error('⚠️ Тайм-аут открытия рыбного бокса!', { boxId });
-      
-      // Возвращаем бокс в инвентарь
-      isOpeningFishBox = false;
-      currentFishBoxOpenTimeout = null;
-      removeActiveCutscene('fish');
-      
-      // Проверяем что бокс действительно исчез из массива
-      if (pendingFishBoxes.indexOf(openingFishBoxId) === -1) {
-        pendingFishBoxes.splice(openingFishBoxIndex, 0, openingFishBoxId);
-        console.log('✅ Рыбный бокс возвращён в массив после тайм-аута');
-      } else {
-        console.log('⚠️ Рыбный бокс уже есть в массиве, не дублируем');
-      }
-      
-      renderBoxes();
-      updateFishBoxUI();
-      
-      showNotification('⚠️ Ошибка открытия бокса. Попробуйте снова.');
-    }
-  }, 15000);
-}
-  
-function openFishBoxUI() {
-  if (pendingFishBoxes.length > 0) {
-    openFishBox(pendingFishBoxes[0]);
-  }
-}
-  
-function showBoxOpeningCutscene(type) {
+  // Создаем контейнер для анимации
   const cutscene = document.createElement('div');
-  cutscene.className = 'box-cutscene';
+  cutscene.className = 'catdrop-cutscene';
   cutscene.innerHTML = `
-    <div class="box-cutscene-bg"></div>
-    <div class="box-cutscene-content">
-      <div class="mystery-box">
-        <svg viewBox="0 0 100 100" class="svg-box-icon-large">
-          <rect x="15" y="30" width="70" height="60" rx="5" fill="none" stroke="currentColor" stroke-width="4"/>
-          <rect x="45" y="30" width="10" height="60" stroke="currentColor" stroke-width="4"/>
-          <rect x="15" y="25" width="70" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="4"/>
-          <rect x="42" y="15" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="4"/>
+    <div class="catdrop-cutscene-bg"></div>
+    <div class="catdrop-container">
+      <div class="catdrop" id="catdropElement">
+        <svg viewBox="0 0 200 200" class="catdrop-svg">
+          <!-- Прогресс бар обводки -->
+          <circle class="catdrop-progress-ring" cx="100" cy="100" r="90" 
+            stroke="rgba(255,215,0,0.5)" stroke-width="6" fill="transparent"
+            stroke-dasharray="565.48" stroke-dashoffset="565.48"
+            style="transition: stroke-dashoffset 0.1s linear"/>
+          <circle class="catdrop-progress-ring-bg" cx="100" cy="100" r="90" 
+            stroke="rgba(255,255,255,0.1)" stroke-width="6" fill="transparent"/>
         </svg>
+        <img src="catdrop.png" alt="Catdrop" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:160px;height:160px;object-fit:contain;">
       </div>
-      <div class="box-shake"></div>
-      <div class="box-light"></div>
+      <div class="catdrop-hint">Зажми чтобы открыть!</div>
     </div>
-    <div class="box-particles"></div>
   `;
   document.body.appendChild(cutscene);
+  activeBoxCutscene = cutscene;
 
-  if (type === 'box') {
-    activeBoxCutscene = cutscene;
-  } else if (type === 'fish') {
-    activeFishBoxCutscene = cutscene;
-  }
+  // Получаем элемент Catdrop
+  const catdropEl = document.getElementById('catdropElement');
   
-  setTimeout(() => {
-    cutscene.classList.add('shaking');
-    playSound('clickSound');
-  }, 500);
+  // Добавляем обработчики для зажатия
+  catdropEl.addEventListener('mousedown', startCatdropHold);
+  catdropEl.addEventListener('touchstart', (e) => { e.preventDefault(); startCatdropHold(e); }, { passive: false });
   
-  setTimeout(() => {
-    cutscene.classList.add('glowing');
-  }, 1500);
+  document.addEventListener('mouseup', stopCatdropHold);
+  document.addEventListener('touchend', stopCatdropHold);
   
-  setTimeout(() => {
-    cutscene.classList.add('exploding');
-    playSound('bonusSound');
-  }, 2000);
-  
-  setTimeout(() => {
-    cutscene.remove();
-    if (type === 'box') activeBoxCutscene = null;
-    if (type === 'fish') activeFishBoxCutscene = null;
-  }, 3500);
+  // Показываем подсказку
+  const hint = cutscene.querySelector('.catdrop-hint');
+  if (hint) hint.style.display = 'block';
 }
 
-function removeActiveCutscene(type) {
-  if (type === 'box' && activeBoxCutscene) {
+function startCatdropHold(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  catdropMouseDownTime = Date.now();
+  catdropScale = 1;
+  catdropTargetScale = 1.5;  // Максимальный масштаб
+  
+  const catdropEl = document.getElementById('catdropElement');
+  if (!catdropEl) return;
+  
+  // Запускаем анимацию увеличения
+  catdropAnimation = requestAnimationFrame(catdropAnimationLoop);
+  
+  // Скрываем подсказку
+  const hint = document.querySelector('.catdrop-hint');
+  if (hint) hint.style.display = 'none';
+}
+
+function catdropAnimationLoop() {
+  if (!catdropMouseDownTime || !catdropRarity) {
+    // Если награда ещё не получена - просто анимируем зажатие
+    const timeHeld = Date.now() - catdropMouseDownTime;
+    
+    // Получаем базовое время для редкости
+    let baseTime = 2000;  // common = 2 сек
+    if (catdropRarity === 'rare') baseTime = 4000;   // 4 сек
+    else if (catdropRarity === 'epic') baseTime = 5000;   // 5 сек
+    else if (catdropRarity === 'legendary') baseTime = 7000;  // 7 сек
+    
+    if (timeHeld < baseTime) {
+      const progress = timeHeld / baseTime;
+      
+      // Замедление ближе к концу (ease-out эффект)
+      // Используем формулу: scale = 1 + (1 - (1-progress)^2) * 0.5
+      // Это даёт быстрое начало и плавное замедление к концу
+      const easedProgress = 1 - Math.pow(1 - progress, 2);
+      catdropScale = 1 + (easedProgress * 0.5);  // От 1 до 1.5
+      
+      const catdropEl = document.getElementById('catdropElement');
+      if (catdropEl) {
+        catdropEl.style.transform = `scale(${catdropScale})`;
+        catdropEl.style.transition = 'none';
+        
+        // Обновляем прогресс бар обводки
+        const progressRing = catdropEl.querySelector('.catdrop-progress-ring');
+        if (progressRing) {
+          const circumference = 2 * Math.PI * 90; // радиус 90
+          const offset = circumference - (progress * circumference);
+          progressRing.style.strokeDashoffset = offset;
+        }
+      }
+      
+      catdropAnimation = requestAnimationFrame(catdropAnimationLoop);
+    }
+    return;
+  }
+  
+  // Если награда получена - анимируем раскрытие в зависимости от редкости
+  const timeHeld = Date.now() - catdropMouseDownTime;
+  
+  // Получаем базовое время для редкости
+  let baseTime = 2000;  // common = 2 сек
+  if (catdropRarity === 'rare') baseTime = 4000;   // 4 сек
+  else if (catdropRarity === 'epic') baseTime = 5000;   // 5 сек
+  else if (catdropRarity === 'legendary') baseTime = 7000;  // 7 сек
+  
+  // Замедление ближе к концу
+  if (timeHeld < baseTime && catdropScale < catdropTargetScale) {
+    const progress = timeHeld / baseTime;
+    const easedProgress = 1 - Math.pow(1 - progress, 2);
+    catdropScale = 1 + (easedProgress * 0.5);
+    
+    const catdropEl = document.getElementById('catdropElement');
+    if (catdropEl) {
+      catdropEl.style.transform = `scale(${catdropScale}) rotate(${Math.sin(progress * Math.PI) * 10}deg)`;
+      catdropEl.style.transition = 'none';
+      
+      // Обновляем прогресс бар
+      const progressRing = catdropEl.querySelector('.catdrop-progress-ring');
+      if (progressRing) {
+        const circumference = 2 * Math.PI * 90;
+        const offset = circumference - (progress * circumference);
+        progressRing.style.strokeDashoffset = offset;
+      }
+    }
+    
+    catdropAnimation = requestAnimationFrame(catdropAnimationLoop);
+  } else {
+    // Достигли максимального размера - показываем награду
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+    
+    const catdropEl = document.getElementById('catdropElement');
+    if (catdropEl) {
+      catdropEl.style.transition = 'transform 0.3s ease-out';
+      catdropEl.style.transform = `scale(${catdropTargetScale})`;
+    }
+    
+    // Небольшая задержка перед показом награды
+    setTimeout(() => {
+      if (catdropRarity && activeBoxCutscene) {
+        showCatdropExplosion(catdropRarity);
+      }
+    }, 300);
+  }
+}
+  
+function stopCatdropHold(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  if (catdropAnimation) {
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+  }
+  
+  const catdropEl = document.getElementById('catdropElement');
+  if (catdropEl) {
+    catdropEl.style.transition = 'transform 0.2s ease-out';
+    catdropEl.style.transform = 'scale(1) rotate(0deg)';
+  }
+  
+  catdropMouseDownTime = null;
+  catdropScale = 1;
+  catdropTargetScale = 1.5;
+}
+
+function stopCatdropAnimation() {
+  if (catdropAnimation) {
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+  }
+  
+  if (activeBoxCutscene) {
     activeBoxCutscene.remove();
     activeBoxCutscene = null;
   }
-  if (type === 'fish' && activeFishBoxCutscene) {
-    activeFishBoxCutscene.remove();
-    activeFishBoxCutscene = null;
-  }
+  
+  // Убираем обработчики
+  document.removeEventListener('mouseup', stopCatdropHold);
+  document.removeEventListener('touchend', stopCatdropHold);
+  
+  catdropMouseDownTime = null;
+  catdropRarity = null;
+  catdropScale = 1;
 }
 
-function showBoxReward(reward) {
-  const rewardModal = document.createElement('div');
-  rewardModal.className = 'box-reward-modal';
+function showCatdropExplosion(rarity) {
+  const catdropEl = document.getElementById('catdropElement');
+  if (catdropEl) {
+    catdropEl.style.transition = 'transform 0.1s ease-in, opacity 0.3s ease-in';
+    catdropEl.style.transform = 'scale(2)';
+    catdropEl.style.opacity = '0';
+  }
   
-  const rarityColors = {
-    legendary: '#ff6b6b',
-    epic: '#a855f7',
-    rare: '#3b82f6',
-    common: '#22c55e'
-  };
+  // Создаем эффект взрыва
+  const cutscene = activeBoxCutscene;
+  if (cutscene) {
+    const bg = cutscene.querySelector('.catdrop-cutscene-bg');
+    if (bg) {
+      bg.style.transition = 'background 0.3s ease-out';
+      
+      const colors = {
+        legendary: 'radial-gradient(circle, #ff6b6b 0%, #8b0000 70%)',
+        epic: 'radial-gradient(circle, #a855f7 0%, #4a148c 70%)',
+        rare: 'radial-gradient(circle, #3b82f6 0%, #0d47a1 70%)',
+        common: 'radial-gradient(circle, #22c55e 0%, #1b5e20 70%)'
+      };
+      bg.style.background = colors[rarity] || colors.common;
+    }
+  }
   
-  const rarityGlow = {
-    legendary: '0 0 50px rgba(255,107,107,0.8)',
-    epic: '0 0 50px rgba(168,85,247,0.8)',
-    rare: '0 0 50px rgba(59,130,246,0.8)',
-    common: '0 0 50px rgba(34,197,94,0.8)'
-  };
+  // Звук взрыва
+  playSound('bonusSound');
   
-  const icon = reward.type === 'skin' ? '🎨' : '🐋';
-  const title = reward.type === 'skin' ? 'Новый скин!' : 'Косатки!';
-  const value = reward.type === 'skin' ? reward.skinName : `+${formatNumber(reward.amount)}`;
-  const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
-  
-  rewardModal.innerHTML = `
-    <div class="reward-overlay"></div>
-    <div class="reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
-      <div class="reward-icon" style="background: ${rarityColors[reward.rarity]}">${icon}</div>
-      <h2 class="reward-title ${reward.rarity}">${title}</h2>
-      <p class="reward-value">${value}</p>
-      <p class="reward-rarity ${reward.rarity}">${reward.rarity === 'legendary' ? 'ЛЕГЕНДАРНО' : reward.rarity === 'epic' ? 'ЭПИЧЕСКИЙ' : 'РЕДКИЙ'}</p>
-      ${skin ? `<img class="reward-skin-image" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="reward-btn" onclick="this.closest('.box-reward-modal').remove()">Забрать</button>
-    </div>
-  `;
-  
-  document.body.appendChild(rewardModal);
-  
+  // Удаляем анимацию и показываем награду
   setTimeout(() => {
-    rewardModal.classList.add('show');
-  }, 100);
-  
-  playSound('levelSound');
+    if (activeBoxCutscene) {
+      activeBoxCutscene.remove();
+      activeBoxCutscene = null;
+    }
+    // Награда уже показана в handleOpenBoxResponse
+  }, 500);
 }
 
 function updateBoxUI() {
@@ -4591,103 +4760,8 @@ function updateBoxUI() {
   if (boxCountEl) {
     boxCountEl.textContent = pendingBoxes.length;
   }
-  const fishBoxCountEl = document.getElementById('fishBoxCount');
-  if (fishBoxCountEl) {
-    fishBoxCountEl.textContent = pendingFishBoxes.length;
-  }
-}
-
-function updateFishBoxUI() {
-  const fishBoxCountEl = document.getElementById('fishBoxCount');
-  if (fishBoxCountEl) {
-    fishBoxCountEl.textContent = pendingFishBoxes.length;
-  }
-}
-
-function activateTemporaryMultiplier(mult, duration) {
-  showNotification(`⭐ ВРЕМЕННЫЙ МНОЖИТЕЛЬ X${mult} на ${duration} сек!`);
-  playSound('bonusSound');
-  
-  game.multiplier = mult;
-  const clicker = document.getElementById('clicker');
-  const timerEl = document.getElementById('x2Timer');
-  
-  if (clicker) clicker.classList.add('x2-active');
-  if (timerEl) timerEl.classList.remove('hidden');
-  
-  updateUI();  // Обновляем UI сразу чтобы показать множитель
-  
-  // Таймер обратного отсчета
-  let timeLeft = duration;
-  const timerInterval = setInterval(() => {
-    timeLeft--;
-    const timerValueEl = document.getElementById('x2TimerValue');
-    if (timerValueEl) timerValueEl.textContent = timeLeft;
-    
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval);
-      deactivateTemporaryMultiplier();
-    }
-  }, 1000);
-}
-
-function deactivateTemporaryMultiplier() {
-  game.multiplier = 1;
-  const clicker = document.getElementById('clicker');
-  const timerEl = document.getElementById('x2Timer');
-  
-  if (clicker) clicker.classList.remove('x2-active');
-  if (timerEl) timerEl.classList.add('hidden');
-  
-  showNotification('⏱️ Временный множитель закончился');
-  updateUI();
-  saveGame();
 }
   
-function showFishBoxReward(reward) {
-  const rewardModal = document.createElement('div');
-  rewardModal.className = 'box-reward-modal';
-  
-  const rarityColors = {
-    legendary: '#ff6b6b',
-    epic: '#a855f7',
-    rare: '#4fc3f7'
-  };
-  
-  const rarityGlow = {
-    legendary: '0 0 60px #ff6b6b',
-    epic: '0 0 40px #a855f7',
-    rare: '0 0 30px #4fc3f7'
-  };
-  
-  let icon = '';
-  let title = '';
-  let value = '';
-  
-  if (reward.type === 'visualEffect') {
-    icon = '✨';
-    title = 'Визуальный эффект!';
-    value = `${getEffectName(reward.effectId)} (навсегда)`;
-  } else if (reward.type === 'tempBuff') {
-    icon = '⭐';
-    title = 'Временный бафф!';
-    value = `X${reward.mult} на ${reward.duration} сек`;
-  }
-  
-  rewardModal.innerHTML = `
-    <div class="reward-overlay"></div>
-    <div class="reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
-      <div class="reward-icon" style="background: ${rarityColors[reward.rarity]}">${icon}</div>
-      <h2 class="reward-title ${reward.rarity}">${title}</h2>
-      <p class="reward-value">${value}</p>
-      <p class="reward-rarity ${reward.rarity}">${reward.rarity === 'legendary' ? 'ЛЕГЕНДАРНО' : reward.rarity === 'epic' ? 'ЭПИЧЕСКИЙ' : 'РЕДКИЙ'}</p>
-      <button class="reward-btn" onclick="this.closest('.box-reward-modal').remove()">Забрать</button>
-    </div>
-  `;
-  
-  document.body.appendChild(rewardModal);
-  setTimeout(() => rewardModal.classList.add('show'), 10);
-}
 function showModal(id) {
   document.getElementById('modalOverlay').classList.add('active');
   document.getElementById(id).classList.add('active');
@@ -4711,7 +4785,11 @@ function showModal(id) {
   }
   if (id === 'clans' && ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'getClans' }));
-    ws.send(JSON.stringify({ type: 'getClanMembers' }));
+    // Запрашиваем участников только если мы в клане
+    const myClanId = game.clan ? (typeof game.clan === 'object' ? game.clan.id : String(game.clan)) : null;
+    if (myClanId) {
+      ws.send(JSON.stringify({ type: 'getClanMembers' }));
+    }
   }
   if (id === 'eventModal') {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'getEventInfo' }));

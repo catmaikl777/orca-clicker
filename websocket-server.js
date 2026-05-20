@@ -2654,15 +2654,18 @@ function handleOpenBox(ws, boxId) {
   });
   
   // Генерируем награду
-  const isLegendary = Math.random() < 0.05; // 5% шанс
-  const isEpic = Math.random() < 0.15 && !isLegendary; // 15% шанс (если не легендарка)
-  const rarity = isLegendary ? 'legendary' : isEpic ? 'epic' : 'rare';
+  const rand = Math.random() * 100;
+  let rarity;
+  if (rand < 3) rarity = 'legendary';      // 3%
+  else if (rand < 10) rarity = 'epic';     // 7%
+  else if (rand < 30) rarity = 'rare';     // 20%
+  else rarity = 'common';                   // 70%
   
   const skins = Object.keys(playerDB.skins || {});
   const unlockedSkins = skins.filter(s => playerDB.skins[s]);
   
   let reward;
-  if (isLegendary && unlockedSkins.length < boxRewards.skins.length) {
+  if (rarity === 'legendary' && unlockedSkins.length < boxRewards.skins.length) {
     // Легендарка - новый скин
     const availableSkins = boxRewards.skins.filter(s => !unlockedSkins.includes(s.id));
     if (availableSkins.length > 0) {
@@ -2682,29 +2685,61 @@ function handleOpenBox(ws, boxId) {
       console.log(`🎨 Легендарный скин: ${randomSkin.name}`);
     } else {
       // Все скины открыты - даём много монет
-      reward = { type: 'whale', rarity: 'legendary', amount: 1000000 };
+      reward = { type: 'coins', rarity: 'legendary', amount: 1000000 };
       playerDB.coins += 1000000;
       if (playerMem) playerMem.coins = playerDB.coins;
       console.log(`💰 Все скины открыты! +1000000 монет`);
     }
-  } else if (isEpic) {
-    // Эпика - много косаток
-    const amount = 50000;
-    reward = { type: 'whale', rarity: 'epic', amount };
-    playerDB.coins += amount;
-    if (playerMem) playerMem.coins = playerDB.coins;
-    console.log(`🐋 Эпическая награда: +${amount} косаток`);
+  } else if (rarity === 'epic') {
+    // Эпика - много косаток или эффект
+    if (Math.random() < 0.5) {
+      // 50% шанс на эффект
+      const effectId = 'e' + (Math.floor(Math.random() * 10) + 1); // e1-e10
+      reward = {
+        type: 'visualEffect',
+        rarity: 'epic',
+        effectId: effectId
+      };
+      if (!playerDB.effects) playerDB.effects = {};
+      playerDB.effects[effectId] = true;
+      if (playerMem && playerMem.effects) playerMem.effects[effectId] = true;
+      console.log(`✨ Эпический эффект: ${effectId}`);
+    } else {
+      const amount = 50000;
+      reward = { type: 'coins', rarity: 'epic', amount };
+      playerDB.coins += amount;
+      if (playerMem) playerMem.coins = playerDB.coins;
+      console.log(`🐋 Эпическая награда: +${amount} косаток`);
+    }
+  } else if (rarity === 'rare') {
+    // Редкая - косатки или временный бафф
+    if (Math.random() < 0.3) {
+      // 30% шанс на бафф
+      reward = {
+        type: 'tempBuff',
+        rarity: 'rare',
+        mult: 2,
+        duration: 60
+      };
+      console.log(`⭐ Редкий бафф: X2 на 60 сек`);
+    } else {
+      const amount = 10000 + Math.floor(Math.random() * 20000);
+      reward = { type: 'coins', rarity: 'rare', amount };
+      playerDB.coins += amount;
+      if (playerMem) playerMem.coins = playerDB.coins;
+      console.log(`🐋 Редкая награда: +${amount} косаток`);
+    }
   } else {
-    // Обычная - обычные косатки
-    const amount = 1000 + Math.floor(Math.random() * 5000);
-    reward = { type: 'whale', rarity: 'rare', amount };
+    // Common - обычные косатки
+    const amount = 500 + Math.floor(Math.random() * 2000);
+    reward = { type: 'coins', rarity: 'common', amount };
     playerDB.coins += amount;
     if (playerMem) playerMem.coins = playerDB.coins;
     console.log(`🐋 Обычная награда: +${amount} косаток`);
   }
   
   // Отправляем награду клиенту
-  ws.send(JSON.stringify({ 
+  ws.send(JSON.stringify({
     type: 'boxOpened', 
     reward,
     pendingBoxes: playerDB.pendingBoxes.length
