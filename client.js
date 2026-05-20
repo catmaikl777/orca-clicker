@@ -3116,29 +3116,6 @@ function closeCatdropReward() {
   }
 }
   
-  const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
-  
-  rewardModal.innerHTML = `
-    <div class="reward-overlay"></div>
-    <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity]}">
-      <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity]}; box-shadow: 0 0 30px ${rarityColors[reward.rarity]}">${icon}</div>
-      <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
-      <p class="catdrop-reward-value">${value}</p>
-      <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
-      <p class="catdrop-reward-desc">${description}</p>
-      ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="catdrop-reward-btn" onclick="this.closest('.catdrop-reward-modal').remove()">Забрать</button>
-    </div>
-  `;
-  
-  document.body.appendChild(rewardModal);
-  
-  setTimeout(() => {
-    rewardModal.classList.add('show');
-    playSound('levelSound');
-  }, 100);
-
-
 function tryOpenFishBox() {
   if (isOpeningFishBox || pendingFishBoxes.length === 0) return;
   // Открываем первый рыбный бокс из массива
