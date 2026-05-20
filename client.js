@@ -4549,7 +4549,6 @@ function openBox(boxId) {
   
 // ==================== CATDROP АНИМАЦИЯ ====================
 
-let catdropTargetScale = 1.5;
 let dataRewardFromServer = null;  // Храним награду от сервера
 
 function showCatdropWaitingScreen() {
