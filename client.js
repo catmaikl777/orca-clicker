@@ -1813,36 +1813,17 @@ case 'joinedClan':
           }
         }
         
-        // Ждём окончания анимации перед показом награды
+        // Показываем что Catdrop готов к открытию (убираем серый цвет)
+        startCatdropAnimation();
+        
+        // Тайм-аут отключаем - ждём когда пользователь зажмёт
         if (currentBoxOpenTimeout) {
           clearTimeout(currentBoxOpenTimeout);
           currentBoxOpenTimeout = null;
         }
         
-        setTimeout(() => {
-          stopCatdropAnimation();
-          showCatdropReward(data.reward);
-          renderBoxes();
-          updateBoxUI();
-          isOpeningBox = false;
-          
-          // Применяем награду
-          if (data.reward.type === 'skin') {
-            game.skins[data.reward.skinId] = true;
-            console.log(`🎨 Получен скин: ${data.reward.skinName}`);
-          } else if (data.reward.type === 'visualEffect') {
-            if (!game.effects) game.effects = {};
-            game.effects[data.reward.effectId] = true;
-            console.log(`✨ Получен эффект: ${data.reward.effectId}`);
-          } else if (data.reward.type === 'coins' && Number.isFinite(data.reward.amount)) {
-            game.coins += data.reward.amount;
-            game.totalCoins += data.reward.amount;
-            console.log(`💰 Получено: ${data.reward.amount} косаток`);
-          }
-          
-          updateUI();
-          saveGame();
-        }, 800);
+        // Анимируем когда пользователь зажимает
+        // Награда будет показана в catdropAnimationLoop когда достигнет максимума
       } else {
         // Старый способ обработки (без анимации)
         if (currentBoxOpenTimeout) {
@@ -4500,8 +4481,8 @@ function openBox(boxId) {
   // Отправляем запрос на сервер
   ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
 
-  // Запускаем анимацию Catdrop
-  startCatdropAnimation();
+  // Показываем экран с Catdrop и ждём ответа от сервера
+  showCatdropWaitingScreen();
 
   // Тайм-аут если сервер не ответит
   if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
@@ -4510,7 +4491,7 @@ function openBox(boxId) {
       console.error('⚠️ Тайм-аут открытия Catdrop!');
       isOpeningBox = false;
       currentBoxOpenTimeout = null;
-      stopCatdropAnimation();
+      stopCatdropWaitingScreen();
       
       if (pendingBoxes.indexOf(openingBoxId) === -1) {
         pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
@@ -4524,29 +4505,20 @@ function openBox(boxId) {
   
 // ==================== CATDROP АНИМАЦИЯ ====================
 
-function startCatdropAnimation() {
+function showCatdropWaitingScreen() {
   // Удаляем старую если есть
   if (activeBoxCutscene) activeBoxCutscene.remove();
   
-  // Создаем контейнер для анимации
+  // Создаем контейнер для ожидания
   const cutscene = document.createElement('div');
   cutscene.className = 'catdrop-cutscene';
   cutscene.innerHTML = `
     <div class="catdrop-cutscene-bg"></div>
     <div class="catdrop-container">
-      <div class="catdrop" id="catdropElement">
-        <svg viewBox="0 0 200 200" class="catdrop-svg">
-          <!-- Прогресс бар обводки -->
-          <circle class="catdrop-progress-ring" cx="100" cy="100" r="90" 
-            stroke="rgba(255,215,0,0.5)" stroke-width="6" fill="transparent"
-            stroke-dasharray="565.48" stroke-dashoffset="565.48"
-            style="transition: stroke-dashoffset 0.1s linear"/>
-          <circle class="catdrop-progress-ring-bg" cx="100" cy="100" r="90" 
-            stroke="rgba(255,255,255,0.1)" stroke-width="6" fill="transparent"/>
-        </svg>
-        <img src="catdrop.png" alt="Catdrop" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:160px;height:160px;object-fit:contain;">
+      <div class="catdrop" id="catdropElement" style="opacity: 0.5; filter: grayscale(100%);">
+        <img src="catdrop.png" alt="Catdrop">
       </div>
-      <div class="catdrop-hint">Зажми чтобы открыть!</div>
+      <div class="catdrop-hint">🎁 Catdrop готов! Зажми чтобы открыть!</div>
     </div>
   `;
   document.body.appendChild(cutscene);
@@ -4561,10 +4533,56 @@ function startCatdropAnimation() {
   
   document.addEventListener('mouseup', stopCatdropHold);
   document.addEventListener('touchend', stopCatdropHold);
+}
+
+function stopCatdropWaitingScreen() {
+  if (activeBoxCutscene) {
+    activeBoxCutscene.remove();
+    activeBoxCutscene = null;
+  }
   
-  // Показываем подсказку
-  const hint = cutscene.querySelector('.catdrop-hint');
-  if (hint) hint.style.display = 'block';
+  document.removeEventListener('mouseup', stopCatdropHold);
+  document.removeEventListener('touchend', stopCatdropHold);
+}
+
+function startCatdropAnimation() {
+  // Обновляем существующий экран - убираем серый цвет и добавляем SVG
+  const cutscene = activeBoxCutscene;
+  if (!cutscene) return;
+  
+  // Проверяем есть ли уже SVG
+  let catdropEl = document.getElementById('catdropElement');
+  if (!catdropEl) return;
+  
+  // Проверяем есть ли уже SVG
+  const existingSvg = catdropEl.querySelector('.catdrop-svg');
+  if (!existingSvg) {
+    // Добавляем SVG обводку
+    const svgHTML = `
+      <svg viewBox="0 0 200 200" class="catdrop-svg">
+        <!-- Прогресс бар обводки -->
+        <circle class="catdrop-progress-ring" cx="100" cy="100" r="90" 
+          stroke="rgba(255,215,0,0.5)" stroke-width="6" fill="transparent"
+          stroke-dasharray="565.48" stroke-dashoffset="565.48"
+          style="transition: stroke-dashoffset 0.1s linear"/>
+        <circle class="catdrop-progress-ring-bg" cx="100" cy="100" r="90" 
+          stroke="rgba(255,255,255,0.1)" stroke-width="6" fill="transparent"/>
+      </svg>
+    `;
+    
+    // Вставляем SVG перед img
+    const img = catdropEl.querySelector('img');
+    if (img) {
+      img.insertAdjacentHTML('beforebegin', svgHTML);
+    }
+  }
+  
+  // Убираем серый цвет
+  catdropEl.style.opacity = '1';
+  catdropEl.style.filter = 'none';
+  
+  const hint = document.querySelector('.catdrop-hint');
+  if (hint) hint.textContent = 'Зажми чтобы открыть!';
 }
 
 function startCatdropHold(e) {
