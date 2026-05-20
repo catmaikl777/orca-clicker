@@ -1802,6 +1802,9 @@ case 'joinedClan':
       
       // Если запущена Catdrop анимация - используем новый обработчик
       if (isOpeningBox && activeBoxCutscene) {
+        // Сохраняем награду от сервера
+        dataRewardFromServer = data.reward;
+        
         // Устанавливаем редкость для анимации
         catdropRarity = data.reward?.rarity || 'common';
         
@@ -1816,29 +1819,32 @@ case 'joinedClan':
         // Показываем что Catdrop готов к открытию (убираем серый цвет)
         startCatdropAnimation();
         
-        // Тайм-аут отключаем - ждём когда пользователь зажмёт
+        // Тайм-аут отключаем - ждём когда пользователь зажимает
         if (currentBoxOpenTimeout) {
           clearTimeout(currentBoxOpenTimeout);
           currentBoxOpenTimeout = null;
         }
         
-        // Анимируем когда пользователь зажимает
-        // Награда будет показана в catdropAnimationLoop когда достигнет максимума
+        // Награда будет показана когда пользователь додержит до конца в catdropAnimationLoop
       } else {
-        // Старый способ обработки (без анимации)
+        // Старый способ обработки (без анимации) или ошибка
         if (currentBoxOpenTimeout) {
           clearTimeout(currentBoxOpenTimeout);
           currentBoxOpenTimeout = null;
         }
         removeActiveCutscene('box');
         isOpeningBox = false;
-        showBoxReward(data.reward);
-        if (data.reward.type === 'skin') {
-          game.skins[data.reward.skinId] = true;
-        } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
-          game.coins += data.reward.amount;
-          game.totalCoins += data.reward.amount;
+        
+        if (data.reward) {
+          showBoxReward(data.reward);
+          if (data.reward.type === 'skin') {
+            game.skins[data.reward.skinId] = true;
+          } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
+            game.coins += data.reward.amount;
+            game.totalCoins += data.reward.amount;
+          }
         }
+        
         if (data.pendingBoxes !== undefined) {
           const newBoxCount = data.pendingBoxes;
           if (newBoxCount < pendingBoxes.length) {
@@ -3016,61 +3022,99 @@ function buyBox() {
   
 // Catdrop награда
 function showCatdropReward(reward) {
-  const rewardModal = document.createElement('div');
-  rewardModal.className = 'catdrop-reward-modal';
+  if (!reward) {
+    console.error('❌ showCatdropReward вызван без награды!');
+    showNotification('❌ Ошибка получения награды');
+    return;
+  }
+
+  const rewardModal = document.getElementById('catdropRewardModal');
+  if (!rewardModal) return;
+  
+  // Очищаем предыдущее содержимое
+  rewardModal.innerHTML = '';
   
   const rarityColors = {
-    legendary: '#ff6b6b',
-    epic: '#a855f7',
-    rare: '#3b82f6',
-    common: '#22c55e'
+    common: 'linear-gradient(145deg, rgba(34,197,94,0.3), rgba(22,163,74,0.2))',
+    rare: 'linear-gradient(145deg, rgba(59,130,246,0.3), rgba(37,99,235,0.2))',
+    epic: 'linear-gradient(145deg, rgba(168,85,247,0.3), rgba(124,58,237,0.2))',
+    legendary: 'linear-gradient(145deg, rgba(255,107,107,0.3), rgba(205,44,44,0.2))'
   };
   
   const rarityGlow = {
-    legendary: '0 0 80px rgba(255,107,107,0.9)',
-    epic: '0 0 60px rgba(168,85,247,0.8)',
-    rare: '0 0 40px rgba(59,130,246,0.7)',
-    common: '0 0 20px rgba(34,197,94,0.6)'
+    common: '0 0 40px rgba(34,197,94,0.6)',
+    rare: '0 0 40px rgba(59,130,246,0.6)',
+    epic: '0 0 50px rgba(168,85,247,0.7)',
+    legendary: '0 0 60px rgba(255,107,107,0.8)'
   };
   
   const rarityTitles = {
-    legendary: 'ЛЕГЕНДАРНО!',
-    epic: 'ЭПИЧЕСКИЙ!',
-    rare: 'РЕДКИЙ!',
-    common: 'ОБЫЧНЫЙ'
+    common: 'Обычное',
+    rare: 'Редкое',
+    epic: 'Эпическое',
+    legendary: 'Легендарное'
   };
   
-  let icon = '';
-  let title = '';
+  let icon = '🎁';
+  let title = 'Награда';
   let value = '';
-  let description = '';
+  let description = 'Поздравляем!';
+  let skin = null;
   
   if (reward.type === 'skin') {
     icon = '🎨';
-    title = 'Новый Скин!';
-    value = reward.skinName || 'Unknown Skin';
-    description = 'Скин добавлен в коллекцию!';
+    title = 'Новый скин!';
+    value = reward.skinName;
+    description = 'Скин добавлен в вашу коллекцию!';
+    const skinData = skinsData.find(s => s.id === reward.skinId);
+    if (skinData) skin = skinData;
   } else if (reward.type === 'coins') {
     icon = '🐋';
-    title = 'Косатки!';
+    title = 'Косатки получены!';
     value = `+${formatNumber(reward.amount)}`;
-    description = 'Отличная награда!';
+    description = 'Отличный улов!';
   } else if (reward.type === 'visualEffect') {
     icon = '✨';
-    title = 'Визуальный Эффект!';
+    title = 'Визуальный эффект!';
     value = getEffectName(reward.effectId);
-    description = 'Эффект получен навсегда!';
+    description = 'Эффект добавлен навсегда!';
   } else if (reward.type === 'tempBuff') {
-    icon = '⭐';
-    title = 'Временный Бафф!';
+    icon = '⚡';
+    title = 'Временный бафф!';
     value = `X${reward.mult} на ${reward.duration} сек`;
-    description = 'Множитель кликов!';
-  } else {
-    icon = '🎁';
-    title = 'Награда!';
-    value = 'Спасибо!';
-    description = 'Открыт Catdrop!';
+    description = 'Множитель активирован!';
   }
+  
+  rewardModal.innerHTML = `
+    <div class="catdrop-reward-overlay"></div>
+    <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
+      <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity] || rarityColors.common}; box-shadow: 0 0 30px ${rarityColors[reward.rarity] || rarityColors.common}">${icon}</div>
+      <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
+      <p class="catdrop-reward-value">${value}</p>
+      <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
+      <p class="catdrop-reward-desc">${description}</p>
+      ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
+      <button class="catdrop-reward-btn" onclick="closeCatdropReward()">Отлично!</button>
+    </div>
+  `;
+  
+  rewardModal.style.display = 'flex';
+  setTimeout(() => {
+    rewardModal.classList.add('show');
+  }, 10);
+}
+
+function closeCatdropReward() {
+  const rewardModal = document.getElementById('catdropRewardModal');
+  if (rewardModal) {
+    rewardModal.classList.remove('show');
+    setTimeout(() => {
+      rewardModal.style.display = 'none';
+      // Очищаем награду
+      dataRewardFromServer = null;
+    }, 300);
+  }
+}
   
   const skin = reward.type === 'skin' ? skinsData.find(s => s.id === reward.skinId) : null;
   
@@ -3093,7 +3137,7 @@ function showCatdropReward(reward) {
     rewardModal.classList.add('show');
     playSound('levelSound');
   }, 100);
-}
+
 
 function tryOpenFishBox() {
   if (isOpeningFishBox || pendingFishBoxes.length === 0) return;
@@ -4505,6 +4549,13 @@ function openBox(boxId) {
   
 // ==================== CATDROP АНИМАЦИЯ ====================
 
+let catdropAnimation = null;
+let catdropMouseDownTime = null;
+let catdropRarity = null;
+let catdropScale = 1;
+let catdropTargetScale = 1.5;
+let dataRewardFromServer = null;  // Храним награду от сервера
+
 function showCatdropWaitingScreen() {
   // Удаляем старую если есть
   if (activeBoxCutscene) activeBoxCutscene.remove();
@@ -4688,6 +4739,35 @@ function catdropAnimationLoop() {
     setTimeout(() => {
       if (catdropRarity && activeBoxCutscene) {
         showCatdropExplosion(catdropRarity);
+        
+        // Показываем награду после взрыва
+        setTimeout(() => {
+          // Применяем награду
+          const reward = dataRewardFromServer;
+          if (reward) {
+            if (reward.type === 'skin') {
+              game.skins[reward.skinId] = true;
+              console.log(`🎨 Получен скин: ${reward.skinName}`);
+            } else if (reward.type === 'visualEffect') {
+              if (!game.effects) game.effects = {};
+              game.effects[reward.effectId] = true;
+              console.log(`✨ Получен эффект: ${reward.effectId}`);
+            } else if (reward.type === 'coins' && Number.isFinite(reward.amount)) {
+              game.coins += reward.amount;
+              game.totalCoins += reward.amount;
+              console.log(`💰 Получено: ${reward.amount} косаток`);
+            } else if (reward.type === 'tempBuff') {
+              activateTemporaryMultiplier(reward.mult, reward.duration);
+            }
+          }
+          
+          showCatdropReward(reward);
+          renderBoxes();
+          updateBoxUI();
+          isOpeningBox = false;
+          updateUI();
+          saveGame();
+        }, 500);
       }
     }, 300);
   }
@@ -4733,6 +4813,8 @@ function stopCatdropAnimation() {
   catdropMouseDownTime = null;
   catdropRarity = null;
   catdropScale = 1;
+  dataRewardFromServer = null;
+  isOpeningBox = false;
 }
 
 function showCatdropExplosion(rarity) {
