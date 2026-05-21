@@ -612,7 +612,7 @@ skins: safeParseJSON(row.skins, { normal: true }),
               updatedAt: row.updated_at || row.last_login || Date.now(),
               antiCheat: null
             };
-            console.log(`💾 Загружен игрок: ${row.id}, coins=${row.coins}, clan=${row.clan || 'null'}`);
+            console.log(`💾 Загружен игрок: ${row.id}, coins=${row.coins}, fish=${row.fish}, clan=${row.clan || 'null'}`);
             db.players[row.id]._justLoadedFromDB = Date.now();  // Помечаем что только что загружен из БД
             
             // Преобразуем coins в число
@@ -1083,7 +1083,7 @@ async function handleSaveGame(ws, data) {
   p.playTime = data.playTime ?? p.playTime;
   
   // ЛОГ для отладки синхронизации
-  console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}`);
+  console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}, fish: ${p.fish} ← ${data.fish}`);
   
   // shopItems: НЕ принимаем от клиента - цены управляются только сервером!
   // p.shopItems = data.shopItems || p.shopItems;  // ЗАКОММЕНТИРОВАНО
@@ -1373,10 +1373,13 @@ async function handleRestoreSession(ws, data) {
       if (dbPlayer) {
         const dbCoins = Number(dbPlayer.coins) || 0;
         const memCoins = Number(playerData.coins) || 0;
-        if (dbCoins !== memCoins) {
-          console.log(`⚠️ ДАННЫЕ РАСХОДЯТСЯ! БД: ${dbCoins} coins, Память: ${memCoins} coins - ОБНОВЛЯЕМ ИЗ БД`);
+        const dbFish = Number(dbPlayer.fish) || 0;
+        const memFish = Number(playerData.fish) || 0;
+        if (dbCoins !== memCoins || dbFish !== memFish) {
+          console.log(`⚠️ ДАННЫЕ РАСХОДЯТСЯ! БД: ${dbCoins} coins, ${dbFish} fish | Память: ${memCoins} coins, ${memFish} fish - ОБНОВЛЯЕМ ИЗ БД`);
           // Перезагружаем данные из БД
           playerData.coins = dbCoins;
+          playerData.fish = dbFish;
           playerData.totalCoins = Number(dbPlayer.total_coins) || 0;
           playerData.perClick = Number(dbPlayer.per_click) || 1;
           playerData.perSecond = Number(dbPlayer.per_second) || 0;
@@ -1387,7 +1390,7 @@ async function handleRestoreSession(ws, data) {
           playerData._pendingEventClicks = Number(dbPlayer.pending_event_clicks) || 0;
           playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
           playerData.playTime = Number(dbPlayer.total_play_time) || 0;  // Общее время в игре
-          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, playTime=${playerData.playTime}`);
+          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, fish=${dbFish}, playTime=${playerData.playTime}`);
         }
       }
     } catch (error) {
