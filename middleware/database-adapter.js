@@ -496,8 +496,8 @@ class DatabaseAdapter {
         daily_quest_date, daily_quest_ids, pending_event_clicks, last_processed_clicks,
         created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time,
         total_rank_clicks, current_rank, rankrewardsclaimed, daily_login_date, login_streak,
-        event_end_time, ad_last_view, ad_view_count
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
+        event_end_time, ad_last_view, ad_view_count, fish
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -532,7 +532,8 @@ class DatabaseAdapter {
         login_streak = EXCLUDED.login_streak,
         event_end_time = EXCLUDED.event_end_time,
         ad_last_view = EXCLUDED.ad_last_view,
-        ad_view_count = EXCLUDED.ad_view_count
+        ad_view_count = EXCLUDED.ad_view_count,
+        fish = EXCLUDED.fish
     `;
     
     const values = [
@@ -550,10 +551,12 @@ class DatabaseAdapter {
       // Ежедневная серия
       player.dailyLoginDate || null,
       player.loginStreak || 0,
-      // Таймеры (ивент, реклама)
-      player.eventEndTime || null,
-      player.adLastView || null,
-      player.adViewCount || 0
+      // Таймеры (ивент, реклама) - преобразуем в число или null
+      (player.eventEndTime && player.eventEndTime !== 'null') ? Number(player.eventEndTime) : null,
+      (player.adLastView && player.adLastView !== 'null') ? Number(player.adLastView) : null,
+      player.adViewCount ? Number(player.adViewCount) : 0,
+      // Мини-игра "Рыбалка"
+      player.fish || 0
     ];
     
     console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);

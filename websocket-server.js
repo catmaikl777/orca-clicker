@@ -1069,6 +1069,11 @@ p.coins = data.coins ?? p.coins;
   }
   p.playTime = data.playTime ?? p.playTime;
   
+  // Мини-игра "Рыбалка"
+  if (data.fish !== undefined) {
+    p.fish = Number(data.fish) || 0;
+  }
+  
   // ЛОГ для отладки синхронизации
   console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}`);
   
@@ -1130,11 +1135,14 @@ async function handleSaveTimers(ws, data) {
   // Сохраняем таймеры в БД
   if (dbAdapter.usePostgreSQL && db.players[id]) {
     const player = db.players[id];
-    player.eventEndTime = db.playerTimers[id].eventEndTime;
-    player.adLastView = db.playerTimers[id].adLastView;
-    player.adViewCount = db.playerTimers[id].adViewCount;
-    player.dailyLoginDate = db.playerTimers[id].lastLoginDate;
-    player.loginStreak = db.playerTimers[id].loginStreak;
+    // Преобразуем в числа или null для PostgreSQL
+    player.eventEndTime = (db.playerTimers[id].eventEndTime && db.playerTimers[id].eventEndTime !== 'null') 
+      ? Number(db.playerTimers[id].eventEndTime) : null;
+    player.adLastView = (db.playerTimers[id].adLastView && db.playerTimers[id].adLastView !== 'null') 
+      ? Number(db.playerTimers[id].adLastView) : null;
+    player.adViewCount = db.playerTimers[id].adViewCount ? Number(db.playerTimers[id].adViewCount) : 0;
+    player.dailyLoginDate = db.playerTimers[id].lastLoginDate || null;
+    player.loginStreak = db.playerTimers[id].loginStreak || 0;
     
     // Сохраняем в БД
     dbAdapter.savePlayer(player).catch(err => {
@@ -1326,7 +1334,9 @@ async function handleRestoreSession(ws, data) {
         // Таймеры (ивент, реклама)
         eventEndTime: dbPlayer.event_end_time || null,
         adLastView: dbPlayer.ad_last_view || null,
-        adViewCount: dbPlayer.ad_view_count || 0
+        adViewCount: dbPlayer.ad_view_count || 0,
+        // Мини-игра "Рыбалка"
+        fish: Number(dbPlayer.fish) || 0
       };
       
       // Сохраняем таймеры в db.playerTimers
@@ -1413,7 +1423,7 @@ async function handleRestoreSession(ws, data) {
     clan: playerData.clan
   });
   
-  ws.send(JSON.stringify({ 
+  ws.send(JSON.stringify({
     type: 'authSuccess',
     accountId,
     username: account.username,
@@ -1424,7 +1434,9 @@ async function handleRestoreSession(ws, data) {
       clan: finalClanId,
       // Ежедневная серия
       lastLoginDate: playerData.dailyLoginDate,
-      loginStreak: playerData.loginStreak
+      loginStreak: playerData.loginStreak,
+      // Мини-игра "Рыбалка"
+      fish: playerData.fish || 0
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));

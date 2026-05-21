@@ -203,7 +203,8 @@ function createDefaultPlayer(accountId, username) {
     dailyQuestIds: [],
     dailyProgress: { clicks: 0, coins: 0, playTime: 0 },
     createdAt: Date.now(),
-    lastLogin: Date.now()
+    lastLogin: Date.now(),
+    fish: 0
   };
 }
 
