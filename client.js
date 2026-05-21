@@ -781,8 +781,8 @@ const WS_SERVER_URL = (() => {
   
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
-  return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
-  // return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
+  //return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
+  return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
 })();
 
 // REST API базовый URL для Яндекс Игр
@@ -4885,58 +4885,57 @@ function openBox(boxId) {
     cancelAnimationFrame(catdropAnimation);
     catdropAnimation = null;
   }
+  if (activeBoxCutscene) {
+    activeBoxCutscene.remove();
+    activeBoxCutscene = null;
+  }
   
-  // Явно сбрасываем isOpeningBox перед открытием
-  isOpeningBox = false;
+  // Сбрасываем переменные анимации
+  catdropRarity = null;
+  dataRewardFromServer = null;
+  catdropMouseDownTime = null;
+  catdropScale = 1;
   
-  // Небольшая задержка чтобы убедиться что всё сброшено
-  setTimeout(() => {
-    isOpeningBox = true;
-    const openingBoxId = boxId;
-    const openingBoxIndex = boxIndex;
+  // Устанавливаем флаг СРАЗУ
+  isOpeningBox = true;
+  const openingBoxId = boxId;
+  const openingBoxIndex = boxIndex;
 
-    // Сбрасываем переменные анимации
-    catdropRarity = null;
-    dataRewardFromServer = null;
-    catdropMouseDownTime = null;
-    catdropScale = 1;
+  console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex, isOpeningBox });
+  
+  // Отправляем запрос на сервер
+  ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
 
-    console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex, isOpeningBox });
-    
-    // Отправляем запрос на сервер
-    ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
+  // Показываем экран с Catdrop и ждём ответа от сервера
+  showCatdropWaitingScreen();
 
-    // Показываем экран с Catdrop и ждём ответа от сервера
-    showCatdropWaitingScreen();
-
-    // Тайм-аут если сервер не ответит (30 секунд)
-    if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
-    currentBoxOpenTimeout = setTimeout(() => {
-      if (isOpeningBox) {
-        console.error('⚠️ Тайм-аут открытия Catdrop!');
-        stopCatdropWaitingScreen();
-        
-        // Возвращаем Catdrop в инвентарь
-        if (pendingBoxes.indexOf(openingBoxId) === -1) {
-          pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
-        }
-        
-        // Сбрасываем все переменные
-        isOpeningBox = false;
-        currentBoxOpenTimeout = null;
-        catdropRarity = null;
-        dataRewardFromServer = null;
-        catdropMouseDownTime = null;
-        catdropAnimation = null;
-        
-        renderBoxes();
-        updateBoxUI();
-        showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
+  // Тайм-аут если сервер не ответит (30 секунд)
+  if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
+  currentBoxOpenTimeout = setTimeout(() => {
+    if (isOpeningBox) {
+      console.error('⚠️ Тайм-аут открытия Catdrop!');
+      stopCatdropWaitingScreen();
+      
+      // Возвращаем Catdrop в инвентарь
+      if (pendingBoxes.indexOf(openingBoxId) === -1) {
+        pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
       }
-    }, 30000);
-  }, 100);
+      
+      // Сбрасываем все переменные
+      isOpeningBox = false;
+      currentBoxOpenTimeout = null;
+      catdropRarity = null;
+      dataRewardFromServer = null;
+      catdropMouseDownTime = null;
+      catdropAnimation = null;
+      
+      renderBoxes();
+      updateBoxUI();
+      showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
+    }
+  }, 30000);
 }
-  
+
 // ==================== CATDROP АНИМАЦИЯ ====================
 
 let dataRewardFromServer = null;  // Храним награду от сервера
@@ -5267,10 +5266,10 @@ function stopCatdropAnimation() {
   catdropScale = 1;
   catdropTargetScale = 1;
   dataRewardFromServer = null;
-  isOpeningBox = false;
+  isOpeningBox = false;  // КРИТИЧНО: сбрасываем флаг
   currentBoxOpenTimeout = null;
   
-  console.log('✅ Catdrop анимация остановлена, всё сброшено');
+  console.log('✅ Catdrop анимация остановлена, isOpeningBox=false');
 }
 
 function showCatdropExplosion(rarity) {
