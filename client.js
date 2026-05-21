@@ -993,7 +993,9 @@ function handleServerMessage(data) {
       game.level = Number.isFinite(d.level) && d.level > 0 ? d.level : 1;
       game.basePerClick = Number.isFinite(d.basePerClick ?? d.perClick) ? (d.basePerClick ?? d.perClick) : 0;
       game.basePerSecond = Number.isFinite(d.basePerSecond ?? d.perSecond) ? (d.basePerSecond ?? d.perSecond) : 0;
-game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
+      game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
+      game.fish = Number.isFinite(d.fish) && d.fish >= 0 ? d.fish : 0;
+      console.log(`📥 fish загружен: ${game.fish}`);
       game.effects = d.effects || {};
       game.achievements = d.achievements || [];
       game.skins = d.skins || { normal: true };
