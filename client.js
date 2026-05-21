@@ -781,8 +781,8 @@ const WS_SERVER_URL = (() => {
   
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
-  //return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
-  return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
+  return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
+  //return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
 })();
 
 // REST API базовый URL для Яндекс Игр
