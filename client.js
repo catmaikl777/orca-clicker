@@ -498,6 +498,28 @@ function claimDailyStreak() {
   }
 }
 
+function updateConnectionStatus(status) {
+  const statusEl = document.getElementById('connectionStatus');
+  const dotEl = document.getElementById('connectionDot');
+  const textEl = document.getElementById('connectionText');
+  
+  if (!statusEl || !textEl) return;
+  
+  if (status === 'connected') {
+    statusEl.className = '';
+    textEl.textContent = 'Подключено';
+    if (dotEl) dotEl.style.animation = 'pulse 2s ease-in-out infinite';
+  } else if (status === 'reconnecting') {
+    statusEl.className = 'reconnecting';
+    textEl.textContent = 'Переподключение...';
+    if (dotEl) dotEl.style.animation = 'pulse 0.5s ease-in-out infinite';
+  } else if (status === 'disconnected') {
+    statusEl.className = 'disconnected';
+    textEl.textContent = 'Нет подключения';
+    if (dotEl) dotEl.style.animation = 'none';
+  }
+}
+
 function updateDailyStreakUI() {
   const streakBtn = document.getElementById('dailyStreakBtn');
   const streakCount = document.getElementById('streakCount');
@@ -841,6 +863,9 @@ function connectWebSocket() {
     console.log('🔍 guestId на момент onopen:', guestId);
     wsConnected = true;
     
+    // Обновляем статус подключения
+    updateConnectionStatus('connected');
+    
     // Запускаем таймер ивента
     initEventTimer();
     
@@ -891,6 +916,9 @@ function connectWebSocket() {
     console.log('⚠️ Close code:', event.code, 'reason:', event.reason);
     wsConnected = false;
     
+    // Обновляем статус подключения
+    updateConnectionStatus('reconnecting');
+    
     // Очищаем интервалы перед переподключением
     cleanupIntervals();
     
@@ -907,6 +935,7 @@ function connectWebSocket() {
     if (window.wsRetryCount >= 3) {
       console.warn('⚠️ Превышено количество попыток подключения (3). Переход в постоянный оффлайн режим.');
       console.warn('⚠️ Яндекс Игры блокируют внешние WebSocket подключения.');
+      updateConnectionStatus('disconnected');
       ws = null;
       window.ws = null;
       wsRetryCount = 0;
@@ -922,6 +951,9 @@ function connectWebSocket() {
     console.error('❌ WebSocket onerror сработал:', error);
     console.error('❌ WebSocket error details:', error);
     wsConnected = false;
+    
+    // Обновляем статус подключения
+    updateConnectionStatus('disconnected');
     
     // Если ошибка происходит при CONNECTING - пробуем HTTP fallback
     if (ws && ws.readyState === WebSocket.CONNECTING) {
@@ -1842,6 +1874,7 @@ case 'joinedClan':
           if (catdropEl) {
             catdropEl.style.opacity = '1';
             catdropEl.style.filter = 'none';
+            catdropEl.style.pointerEvents = 'auto';  // Разрешаем клики
             console.log(`✅ Catdrop разблокирован, редкость: ${catdropRarity}`);
           }
           
@@ -1876,6 +1909,7 @@ case 'joinedClan':
         // Награда будет показана когда пользователь додержит до конца в catdropAnimationLoop
       } else {
         // Старый способ обработки (без анимации) или ошибка
+        console.warn('⚠️ boxOpened получен, но isOpeningBox=false!');
         if (currentBoxOpenTimeout) {
           clearTimeout(currentBoxOpenTimeout);
           currentBoxOpenTimeout = null;
@@ -4817,8 +4851,11 @@ function buyBox() {
 }
   
 function openBox(boxId) {
-  if (isOpeningBox) return;
-  
+  if (isOpeningBox) {
+    console.log('⚠️ Открытие отменено: Catdrop уже открывается');
+    return;
+  }
+
   const boxIndex = pendingBoxes.indexOf(boxId);
   if (boxIndex === -1) {
     console.error('❌ Catdrop не найден!', { boxId, pendingBoxes });
@@ -4827,15 +4864,32 @@ function openBox(boxId) {
   }
 
   if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.error('❌ Нет подключения к серверу!');
     showNotification('⚠️ Нет подключения к серверу');
     return;
   }
-
+  
+  // Сбрасываем старые состояния если есть
+  if (currentBoxOpenTimeout) {
+    clearTimeout(currentBoxOpenTimeout);
+    currentBoxOpenTimeout = null;
+  }
+  if (catdropAnimation) {
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+  }
+  
   isOpeningBox = true;
   const openingBoxId = boxId;
   const openingBoxIndex = boxIndex;
 
-  console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex });
+  // Сбрасываем переменные анимации
+  catdropRarity = null;
+  dataRewardFromServer = null;
+  catdropMouseDownTime = null;
+  catdropScale = 1;
+
+  console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex, isOpeningBox });
   
   // Отправляем запрос на сервер
   ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
@@ -4843,7 +4897,7 @@ function openBox(boxId) {
   // Показываем экран с Catdrop и ждём ответа от сервера
   showCatdropWaitingScreen();
 
-  // Тайм-аут если сервер не ответит (30 секунд)
+  // Тайм-аут если сервер не ответит (15 секунд)
   if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
@@ -4860,12 +4914,14 @@ function openBox(boxId) {
       currentBoxOpenTimeout = null;
       catdropRarity = null;
       dataRewardFromServer = null;
+      catdropMouseDownTime = null;
+      catdropAnimation = null;
       
       renderBoxes();
       updateBoxUI();
       showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
     }
-  }, 30000);
+  }, 15000);
 }
   
 // ==================== CATDROP АНИМАЦИЯ ====================
@@ -4874,18 +4930,26 @@ let dataRewardFromServer = null;  // Храним награду от серве
 
 function showCatdropWaitingScreen() {
   // Удаляем старую если есть
-  if (activeBoxCutscene) activeBoxCutscene.remove();
+  if (activeBoxCutscene) {
+    activeBoxCutscene.remove();
+    activeBoxCutscene = null;
+  }
+  
+  // Удаляем все старые обработчики чтобы избежать дублирования
+  document.removeEventListener('mouseup', stopCatdropHold);
+  document.removeEventListener('touchend', stopCatdropHold);
   
   // Создаем контейнер для ожидания
   const cutscene = document.createElement('div');
   cutscene.className = 'catdrop-cutscene';
+  cutscene.style.cssText = 'position: fixed; inset: 0; z-index: 20000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.9);';
   cutscene.innerHTML = `
-    <div class="catdrop-cutscene-bg"></div>
-    <div class="catdrop-container">
-      <div class="catdrop" id="catdropElement" style="opacity: 0.5; filter: grayscale(100%);">
-        <img src="catdrop.png" alt="Catdrop">
+    <div class="catdrop-cutscene-bg" style="position: absolute; inset: 0; background: radial-gradient(circle, #2c3e50 0%, #000000 100%);"></div>
+    <div class="catdrop-container" style="position: relative; display: flex; flex-direction: column; align-items: center;">
+      <div class="catdrop" id="catdropElement" style="opacity: 0.5; filter: grayscale(100%); transform: scale(1); cursor: pointer; transition: none;">
+        <img src="catdrop.png" alt="Catdrop" style="width: 200px; height: 200px; display: block;">
       </div>
-      <div class="catdrop-hint">🎁 Catdrop готов! Зажми чтобы открыть!</div>
+      <div class="catdrop-hint" style="margin-top: 30px; color: #fff; font-size: 18px; text-align: center;">🎁 Catdrop готов! Зажми чтобы открыть!</div>
     </div>
   `;
   document.body.appendChild(cutscene);
@@ -4893,13 +4957,28 @@ function showCatdropWaitingScreen() {
 
   // Получаем элемент Catdrop
   const catdropEl = document.getElementById('catdropElement');
+  if (!catdropEl) {
+    console.error('❌ Не удалось найти catdropElement!');
+    return;
+  }
+
+  // Удаляем старые обработчики с элемента
+  const newCatdropEl = catdropEl.cloneNode(true);
+  catdropEl.parentNode.replaceChild(newCatdropEl, catdropEl);
   
-  // Добавляем обработчики для зажатия
-  catdropEl.addEventListener('mousedown', startCatdropHold);
-  catdropEl.addEventListener('touchstart', (e) => { e.preventDefault(); startCatdropHold(e); }, { passive: false });
+  // Добавляем новые обработчики для зажатия
+  newCatdropEl.addEventListener('mousedown', startCatdropHold, { passive: false });
+  newCatdropEl.addEventListener('touchstart', (e) => { 
+    e.preventDefault();
+    e.stopPropagation();
+    startCatdropHold(e); 
+  }, { passive: false });
   
-  document.addEventListener('mouseup', stopCatdropHold);
-  document.addEventListener('touchend', stopCatdropHold);
+  // Добавляем глобальные обработчики отпускания
+  document.addEventListener('mouseup', stopCatdropHold, { passive: false });
+  document.addEventListener('touchend', stopCatdropHold, { passive: false });
+  
+  console.log('✅ Catdrop waiting screen показан, обработчики установлены');
 }
 
 function stopCatdropWaitingScreen() {
@@ -4911,7 +4990,7 @@ function stopCatdropWaitingScreen() {
   document.removeEventListener('mouseup', stopCatdropHold);
   document.removeEventListener('touchend', stopCatdropHold);
 }
-
+  
 function startCatdropAnimation() {
   // Обновляем существующий экран - убираем серый цвет и добавляем SVG
   const cutscene = activeBoxCutscene;
@@ -4956,12 +5035,25 @@ function startCatdropHold(e) {
   e.preventDefault();
   e.stopPropagation();
   
+  // Сбрасываем предыдущее состояние если было
+  if (catdropAnimation) {
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+  }
+    
   catdropMouseDownTime = Date.now();
   catdropScale = 1;
   catdropTargetScale = 1.5;  // Максимальный масштаб
   
   const catdropEl = document.getElementById('catdropElement');
-  if (!catdropEl) return;
+  if (!catdropEl) {
+    console.error('❌ Catdrop элемент не найден!');
+    return;
+  }
+  
+  // Убеждаемся что элемент виден
+  catdropEl.style.opacity = '1';
+  catdropEl.style.pointerEvents = 'auto';
   
   // Запускаем анимацию увеличения
   catdropAnimation = requestAnimationFrame(catdropAnimationLoop);
@@ -4969,6 +5061,8 @@ function startCatdropHold(e) {
   // Скрываем подсказку
   const hint = document.querySelector('.catdrop-hint');
   if (hint) hint.style.display = 'none';
+  
+  console.log('🖱️ Catdrop зажат, начало анимации');
 }
 
 function catdropAnimationLoop() {
@@ -5009,7 +5103,7 @@ function catdropAnimationLoop() {
     }
     return;
   }
-  
+
   // Если награда получена - анимируем раскрытие в зависимости от редкости
   const timeHeld = Date.now() - catdropMouseDownTime;
   
@@ -5132,10 +5226,13 @@ function stopCatdropHold(e) {
       setTimeout(() => {
         if (hint) hint.textContent = 'Зажми чтобы открыть!';
       }, 1500);
+    } else {
+      // Награда уже получена - ждём когда анимация завершится
+      console.log('✅ Отпускание после получения награды');
     }
   }
 }
-  
+
 function stopCatdropAnimation() {
   if (catdropAnimation) {
     cancelAnimationFrame(catdropAnimation);
@@ -5151,11 +5248,16 @@ function stopCatdropAnimation() {
   document.removeEventListener('mouseup', stopCatdropHold);
   document.removeEventListener('touchend', stopCatdropHold);
   
+  // Сбрасываем все переменные
   catdropMouseDownTime = null;
   catdropRarity = null;
   catdropScale = 1;
+  catdropTargetScale = 1;
   dataRewardFromServer = null;
   isOpeningBox = false;
+  currentBoxOpenTimeout = null;
+  
+  console.log('✅ Catdrop анимация остановлена, всё сброшено');
 }
 
 function showCatdropExplosion(rarity) {

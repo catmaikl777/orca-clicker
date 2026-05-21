@@ -35,6 +35,12 @@
     <div class="bg-layer bg-sunny" style="background-color:#0a1628"></div>
 
     <div class="game-container">
+      <!-- Индикатор статуса подключения -->
+      <div id="connectionStatus" style="position:fixed;top:10px;right:10px;z-index:9999;font-size:12px;padding:6px 12px;border-radius:20px;background:rgba(76,175,80,0.9);color:#fff;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,0,0,0.3);">
+        <span id="connectionDot" style="width:8px;height:8px;background:#4caf50;border-radius:50%;display:inline-block;"></span>
+        <span id="connectionText">Подключено</span>
+      </div>
+      
       <!-- Виджет ивента (внутри контейнера)
       <div id="eventWidget" class="event-widget hidden">
         <div class="event-widget-content">
