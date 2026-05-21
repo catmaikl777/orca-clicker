@@ -1846,6 +1846,7 @@ case 'joinedClan':
       break;
     case 'boxOpened':
       console.log(`🎁 Catdrop открыт на сервере:`, data);
+      console.log(`🎁 isOpeningBox = ${isOpeningBox}, catdropRarity = ${catdropRarity}`);
       
       // Если запущена Catdrop анимация - используем новый обработчик
       if (isOpeningBox) {
@@ -1865,6 +1866,7 @@ case 'joinedClan':
         
         // Если Cutscene нет - создаём
         if (!activeBoxCutscene) {
+          console.log('🎁 Создаю waiting screen...');
           showCatdropWaitingScreen();
         }
         
@@ -1903,6 +1905,7 @@ case 'joinedClan':
         if (currentBoxOpenTimeout) {
           clearTimeout(currentBoxOpenTimeout);
           currentBoxOpenTimeout = null;
+          console.log('✅ Тайм-аут отключён, ждём зажатия');
         }
         
         console.log(`✅ Catdrop готов к открытию, редкость: ${catdropRarity}`);
@@ -4883,49 +4886,55 @@ function openBox(boxId) {
     catdropAnimation = null;
   }
   
-  isOpeningBox = true;
-  const openingBoxId = boxId;
-  const openingBoxIndex = boxIndex;
-
-  // Сбрасываем переменные анимации
-  catdropRarity = null;
-  dataRewardFromServer = null;
-  catdropMouseDownTime = null;
-  catdropScale = 1;
-
-  console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex, isOpeningBox });
+  // Явно сбрасываем isOpeningBox перед открытием
+  isOpeningBox = false;
   
-  // Отправляем запрос на сервер
-  ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
+  // Небольшая задержка чтобы убедиться что всё сброшено
+  setTimeout(() => {
+    isOpeningBox = true;
+    const openingBoxId = boxId;
+    const openingBoxIndex = boxIndex;
 
-  // Показываем экран с Catdrop и ждём ответа от сервера
-  showCatdropWaitingScreen();
+    // Сбрасываем переменные анимации
+    catdropRarity = null;
+    dataRewardFromServer = null;
+    catdropMouseDownTime = null;
+    catdropScale = 1;
 
-  // Тайм-аут если сервер не ответит (15 секунд)
-  if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
-  currentBoxOpenTimeout = setTimeout(() => {
-    if (isOpeningBox) {
-      console.error('⚠️ Тайм-аут открытия Catdrop!');
-      stopCatdropWaitingScreen();
-      
-      // Возвращаем Catdrop в инвентарь
-      if (pendingBoxes.indexOf(openingBoxId) === -1) {
-        pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+    console.log('🎁 ОТКРЫТИЕ CATDROP:', { boxId, boxIndex, isOpeningBox });
+    
+    // Отправляем запрос на сервер
+    ws.send(JSON.stringify({ type: 'openBox', boxId: openingBoxId }));
+
+    // Показываем экран с Catdrop и ждём ответа от сервера
+    showCatdropWaitingScreen();
+
+    // Тайм-аут если сервер не ответит (30 секунд)
+    if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
+    currentBoxOpenTimeout = setTimeout(() => {
+      if (isOpeningBox) {
+        console.error('⚠️ Тайм-аут открытия Catdrop!');
+        stopCatdropWaitingScreen();
+        
+        // Возвращаем Catdrop в инвентарь
+        if (pendingBoxes.indexOf(openingBoxId) === -1) {
+          pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
+        }
+        
+        // Сбрасываем все переменные
+        isOpeningBox = false;
+        currentBoxOpenTimeout = null;
+        catdropRarity = null;
+        dataRewardFromServer = null;
+        catdropMouseDownTime = null;
+        catdropAnimation = null;
+        
+        renderBoxes();
+        updateBoxUI();
+        showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
       }
-      
-      // Сбрасываем все переменные
-      isOpeningBox = false;
-      currentBoxOpenTimeout = null;
-      catdropRarity = null;
-      dataRewardFromServer = null;
-      catdropMouseDownTime = null;
-      catdropAnimation = null;
-      
-      renderBoxes();
-      updateBoxUI();
-      showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
-    }
-  }, 15000);
+    }, 30000);
+  }, 100);
 }
   
 // ==================== CATDROP АНИМАЦИЯ ====================
@@ -5054,7 +5063,7 @@ function startCatdropHold(e) {
     console.error('❌ Catdrop элемент не найден!');
     return;
   }
-  
+
   // Убеждаемся что элемент виден
   catdropEl.style.opacity = '1';
   catdropEl.style.pointerEvents = 'auto';
