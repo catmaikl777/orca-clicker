@@ -1,4 +1,4 @@
-// Скрипт для применения миграции таймеров и рыбок
+// Скрипт для применения миграции таймеров
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -8,21 +8,19 @@ const pool = new Pool({
 
 async function migrate() {
   try {
-    console.log('🔄 Применение миграции таймеров и рыбок...');
+    console.log('🔄 Применение миграции таймеров...');
     
     // Добавляем колонки если их нет
     await pool.query(`
       ALTER TABLE players 
       ADD COLUMN IF NOT EXISTS event_end_time BIGINT NULL,
       ADD COLUMN IF NOT EXISTS ad_last_view BIGINT NULL,
-      ADD COLUMN IF NOT EXISTS ad_view_count INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS fish BIGINT DEFAULT 0
+      ADD COLUMN IF NOT EXISTS ad_view_count INTEGER DEFAULT 0
     `);
     console.log('✅ Колонки добавлены');
     
     // Установка дефолтных значений
     await pool.query(`UPDATE players SET ad_view_count = 0 WHERE ad_view_count IS NULL`);
-    await pool.query(`UPDATE players SET fish = 0 WHERE fish IS NULL`);
     console.log('✅ Дефолтные значения установлены');
     
     // Проверка
@@ -30,7 +28,7 @@ async function migrate() {
       SELECT column_name, data_type 
       FROM information_schema.columns 
       WHERE table_name = 'players' 
-      AND column_name IN ('event_end_time', 'ad_last_view', 'ad_view_count', 'fish')
+      AND column_name IN ('event_end_time', 'ad_last_view', 'ad_view_count')
       ORDER BY column_name
     `);
     

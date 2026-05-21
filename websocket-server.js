@@ -1069,11 +1069,6 @@ p.coins = data.coins ?? p.coins;
   }
   p.playTime = data.playTime ?? p.playTime;
   
-  // Мини-игра "Рыбалка"
-  if (data.fish !== undefined) {
-    p.fish = Number(data.fish) || 0;
-  }
-  
   // ЛОГ для отладки синхронизации
   console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}`);
   
@@ -1334,9 +1329,7 @@ async function handleRestoreSession(ws, data) {
         // Таймеры (ивент, реклама)
         eventEndTime: dbPlayer.event_end_time || null,
         adLastView: dbPlayer.ad_last_view || null,
-        adViewCount: dbPlayer.ad_view_count || 0,
-        // Мини-игра "Рыбалка"
-        fish: Number(dbPlayer.fish) || 0
+        adViewCount: dbPlayer.ad_view_count || 0
       };
       
       // Сохраняем таймеры в db.playerTimers
@@ -1423,7 +1416,7 @@ async function handleRestoreSession(ws, data) {
     clan: playerData.clan
   });
   
-  ws.send(JSON.stringify({
+  ws.send(JSON.stringify({ 
     type: 'authSuccess',
     accountId,
     username: account.username,
@@ -1434,9 +1427,7 @@ async function handleRestoreSession(ws, data) {
       clan: finalClanId,
       // Ежедневная серия
       lastLoginDate: playerData.dailyLoginDate,
-      loginStreak: playerData.loginStreak,
-      // Мини-игра "Рыбалка"
-      fish: playerData.fish || 0
+      loginStreak: playerData.loginStreak
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
