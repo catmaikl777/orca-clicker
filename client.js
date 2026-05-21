@@ -29,7 +29,9 @@ const game = {
   // Ежедневная серия
   lastLoginDate: null,
   loginStreak: 0,
-  lastStreakRewardDate: null
+  lastStreakRewardDate: null,
+  // Рыбалка
+  fish: 0
 };
 
 // Глобальные переменные для кланов
@@ -834,7 +836,8 @@ function connectWebSocket() {
   
   ws.onopen = () => {
     clearTimeout(connectionTimeout);
-    console.log('✅ WebSocket onopen сработал');
+    console.l
+    og('✅ WebSocket onopen сработал');
     console.log('✅ Подключено к серверу');
     console.log('🔍 guestId на момент onopen:', guestId);
     wsConnected = true;
@@ -1180,6 +1183,14 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
     
     console.log('🔄 UI обновлён после authSuccess: updateUI, renderShop, renderBoxes, updateEventUI вызваны');
     
+    // Запускаем таймер рыбалки
+    setTimeout(() => {
+      if (typeof startFishingTimer === 'function') {
+        startFishingTimer();
+        console.log('🎣 Таймер рыбалки запущен');
+      }
+    }, 1000);
+    
     if (typeof updateAccountDisplay === 'function') updateAccountDisplay();
     if (typeof showGameScreen === 'function') showGameScreen();
     cleanupIntervals();
@@ -1270,6 +1281,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         game.basePerSecond = Number.isFinite(data.data.basePerSecond ?? data.data.perSecond) ? (data.data.basePerSecond ?? data.data.perSecond) : 0;
         game.clicks = Number.isFinite(data.data.clicks) && data.data.clicks >= 0 ? data.data.clicks : 0;
         game.level = Number.isFinite(data.data.level) && data.data.level > 0 ? data.data.level : 1;
+        game.fish = Number.isFinite(data.data.fish) && data.data.fish >= 0 ? data.data.fish : 0;
         game.effects = data.data.effects || {};
         game.achievements = data.data.achievements || [];
         game.skins = data.data.skins || { normal: true };
@@ -1440,6 +1452,7 @@ game.clicks = Number.isFinite(d.clicks) && d.clicks >= 0 ? d.clicks : 0;
         }
         game.clicks = Number.isFinite(data.data.clicks) && data.data.clicks >= 0 ? data.data.clicks : 0;
         game.level = Number.isFinite(data.data.level) && data.data.level > 0 ? data.data.level : 1;
+        game.fish = Number.isFinite(data.data.fish) && data.data.fish >= 0 ? data.data.fish : 0;
         game.effects = data.data.effects || {};
         game.achievements = data.data.achievements || [];
         game.skins = data.data.skins || { normal: true };
@@ -2895,6 +2908,248 @@ function spawnBonus() {
 
 // Обработчики бонусов вынесены в initDOM()
   
+// ==================== МИНИ-ИГРА "РЫБАЛКА" ====================
+let fishingGameActive = false;
+let fishingTimer = null;
+let fishingSpawnInterval = null;
+let fishingCountdown = null;
+let nextFishingTime = null;
+
+// Запускаем таймер ожидания мини-игры
+function startFishingTimer() {
+  if (nextFishingTime) return;
+  
+  const delay = (2 + Math.random() * 2) * 60 * 1000; // 2-4 минуты
+  nextFishingTime = Date.now() + delay;
+  
+  console.log(`🎣 Следующая рыбалка через ${Math.round(delay / 1000)} сек`);
+  
+  setTimeout(() => {
+    startFishingGame();
+    nextFishingTime = null;
+  }, delay);
+}
+
+// Начало мини-игры
+function startFishingGame() {
+  if (fishingGameActive) return;
+  
+  fishingGameActive = true;
+  const gameEl = document.getElementById('fishingGame');
+  const area = document.getElementById('fishingArea');
+  const timerEl = document.getElementById('fishingTimer');
+  
+  if (!gameEl || !area) {
+    fishingGameActive = false;
+    startFishingTimer();
+    return;
+  }
+
+  gameEl.classList.remove('hidden');
+  area.innerHTML = '';
+  
+  let timeLeft = 15;
+  timerEl.textContent = timeLeft;
+  
+  // Спавним рыбок каждые 400-800мс
+  fishingSpawnInterval = setInterval(() => {
+    if (!fishingGameActive) return;
+    spawnFishingFish(area);
+  }, 400 + Math.random() * 400);
+  
+  // Обратный отсчёт
+  fishingCountdown = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    
+    if (timeLeft <= 0) {
+      closeFishingGame();
+    }
+  }, 1000);
+  
+  showNotification('🎣 Рыбалка началась! Лови рыбок!');
+  playSound('bonusSound');
+}
+  
+// Спавн рыбки в мини-игре
+function spawnFishingFish(area) {
+  if (!area || !fishingGameActive) return;
+  
+  const fish = document.createElement('div');
+  fish.className = 'fishing-fish';
+  
+  const maxX = area.clientWidth - 60;
+  const maxY = area.clientHeight - 60;
+  
+  fish.style.left = `${20 + Math.random() * maxX}px`;
+  fish.style.top = `${20 + Math.random() * maxY}px`;
+  
+  // Разная редкость рыбок
+  const rarity = Math.random();
+  let fishAmount = 1;
+  let fishImg = 'fish.png';
+  
+  if (rarity > 0.9) {
+    fishAmount = 3;
+    fishImg = 'fish.png'; // Легендарная
+    fish.classList.add('legendary');
+  } else if (rarity > 0.7) {
+    fishAmount = 2;
+    fishImg = 'fish.png'; // Редкая
+    fish.classList.add('rare');
+  } else {
+    fish.classList.add('common');
+  }
+  
+  fish.innerHTML = `<img src="${fishImg}" alt="🐟" onerror="this.parentElement.textContent='🐟';this.style.fontSize='36px'">`;
+  
+  fish.addEventListener('click', (e) => {
+    e.stopPropagation();
+    catchFishingFish(fish, fishAmount, e.clientX, e.clientY);
+  });
+  
+  area.appendChild(fish);
+  
+  // Удаляем рыбку через 4 секунды если не поймана
+  setTimeout(() => {
+    if (fish.parentElement && !fish.classList.contains('caught')) {
+      fish.style.opacity = '0';
+      fish.style.transform = 'scale(0)';
+      setTimeout(() => fish.remove(), 300);
+    }
+  }, 4000);
+}
+
+// Ловля рыбки
+function catchFishingFish(fishEl, amount, x, y) {
+  if (!fishingGameActive) return;
+  
+  fishEl.classList.add('caught');
+  
+  game.fish = (game.fish || 0) + amount;
+  
+  // Плавающий текст
+  const text = document.createElement('div');
+  text.className = 'fish-catch-text';
+  text.textContent = `+${amount} 🐟`;
+  text.style.left = `${x - 20}px`;
+  text.style.top = `${y - 40}px`;
+  document.body.appendChild(text);
+  
+  setTimeout(() => text.remove(), 1000);
+  
+  playSound('clickSound');
+  updateUI();
+  saveGame();
+  
+  setTimeout(() => fishEl.remove(), 400);
+}
+
+// Закрытие мини-игры
+function closeFishingGame() {
+  fishingGameActive = false;
+  
+  if (fishingSpawnInterval) {
+    clearInterval(fishingSpawnInterval);
+    fishingSpawnInterval = null;
+  }
+  if (fishingCountdown) {
+    clearInterval(fishingCountdown);
+    fishingCountdown = null;
+  }
+  
+  const gameEl = document.getElementById('fishingGame');
+  if (gameEl) gameEl.classList.add('hidden');
+  
+  showNotification(`🎣 Рыбалка окончена! У тебя ${game.fish || 0} 🐟`);
+  
+  // Запускаем таймер следующей игры
+  setTimeout(startFishingTimer, 5000);
+}
+
+// Обмен рыбок на косатки
+function exchangeFishForCoins() {
+  const fishCount = game.fish || 0;
+  
+  if (fishCount < 100) {
+    showNotification(`❌ Нужно минимум 100 🐟 для обмена! У тебя: ${fishCount}`);
+    return;
+  }
+  
+  // Рассчитываем награду (растёт с уровнемом)
+  const minReward = 50 + (game.level * 10);
+  const maxReward = 150 + (game.level * 25);
+  const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+  
+  // Создаём модалку обмена
+  const overlay = document.createElement('div');
+  overlay.className = 'exchange-modal-overlay';
+  overlay.id = 'exchangeModalOverlay';
+  overlay.innerHTML = `
+    <div class="exchange-modal">
+      <h3>🔄 Обмен рыбок</h3>
+      <div class="fish-amount">🐟 × ${fishCount}</div>
+      <p>Обменять 100 рыбок на случайное количество косаток?</p>
+      <div class="reward-info">
+        <p>Возможная награда:</p>
+        <strong>${formatNumber(minReward)} - ${formatNumber(maxReward)} 🐋</strong>
+        <p style="font-size:12px;margin-top:8px;opacity:0.7">Чем выше уровень, тем больше награда!</p>
+      </div>
+      <div class="exchange-modal-buttons">
+        <button class="exchange-confirm-btn" onclick="confirmFishExchange()">✅ Обменять</button>
+        <button class="exchange-cancel-btn" onclick="closeExchangeModal()">❌ Отмена</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  overlay.classList.add('active');
+}
+
+// Подтверждение обмена
+function confirmFishExchange() {
+  const fishCount = game.fish || 0;
+  if (fishCount < 100) {
+    closeExchangeModal();
+    showNotification('❌ Недостаточно рыбок! Нужно минимум 100 🐟');
+    return;
+  }
+
+  const minReward = 50 + (game.level * 10);
+  const maxReward = 150 + (game.level * 25);
+  const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+  
+  // Списываем рыбок
+  game.fish = fishCount - 100;
+  
+  // Добавляем косатки
+  game.coins += reward;
+  game.totalCoins += reward;
+  
+  closeExchangeModal();
+  
+  showNotification(`🎉 Обмен совершён! +${formatNumber(reward)} 🐋`);
+  showFloatingText(
+    window.innerWidth / 2,
+    window.innerHeight / 2,
+    `+${formatNumber(reward)} 🐋`,
+    '#00d4ff'
+  );
+  
+  playSound('levelSound');
+  updateUI();
+  saveGame();
+}
+  
+// Закрытие модалки обмена
+function closeExchangeModal() {
+  const modal = document.getElementById('exchangeModalOverlay');
+  if (modal) {
+    modal.classList.remove('active');
+    setTimeout(() => modal.remove(), 300);
+  }
+}
+  
 // ==================== UI ОБНОВЛЕНИЯ ====================
 function updateUI() {
   // Используем функции расчета с учётом навыков (без x2 бонуса)
@@ -2916,6 +3171,20 @@ function updateUI() {
   // Показываем базовые значения (множитель x2 применяется только к монетам, не к статам)
   perClickEl.textContent = formatNumber(perClick);
   perSecondEl.textContent = formatNumber(perSecond);
+  
+  // Обновляем счётчик рыбок
+  const fishCountEl = document.getElementById('fishCount');
+  const exchangeBtn = document.getElementById('exchangeFishBtn');
+  if (fishCountEl) {
+    fishCountEl.textContent = formatNumber(game.fish || 0);
+  }
+  if (exchangeBtn) {
+    if ((game.fish || 0) >= 100) {
+      exchangeBtn.classList.remove('hidden');
+    } else {
+      exchangeBtn.classList.add('hidden');
+    }
+  }
   
   // Расчет уровня с защитой
   const newLevel = Math.floor(Math.log10(Math.max(1, game.totalCoins) + 1)) + 1;
@@ -3025,7 +3294,7 @@ function renderShop() {
     div.setAttribute('tabindex', '0');
     container.appendChild(div);
   });
-  
+    
   renderSkins();
 }
 
@@ -3064,13 +3333,13 @@ function buyBox() {
     console.log('⚠️ Покупка Catdrop отменена: уже открыт Catdrop');
     return;
   }
-
+  
   const boxPrice = 8500;
   if (game.coins < boxPrice) {
     showNotification('❌ Недостаточно косаток');
     return;
   }
-
+  
   console.log(`🎁 Покупка Catdrop: баланс=${game.coins}, цена=${boxPrice}`);
   
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -3193,7 +3462,7 @@ function tryOpenFishBox() {
 function buyItem(item) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     // Отправляем на сервер для сохранения
-    ws.send(JSON.stringify({ 
+    ws.send(JSON.stringify({
       type: 'buyItem', 
       itemId: item.id 
     }));
@@ -3268,7 +3537,7 @@ function renderSkins() {
     container.appendChild(div);
   });
 }
-  
+
 function buyOrEquipSkin(skin) {
   const unlocked = skin.id === 'normal' || !!game.skins[skin.id];
   
@@ -5225,6 +5494,7 @@ function saveGameToServer() {
       perClick: game.basePerClick || 0,
       perSecond: game.basePerSecond || 0,
       clicks: game.clicks,
+      fish: game.fish || 0,
       effects: game.effects || {},
       skins: game.skins || {},
       currentSkin: game.currentSkin || 'normal',

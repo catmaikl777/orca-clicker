@@ -594,6 +594,7 @@ httpServer.listen(PORT, () => {
               perSecond: row.per_second || 0,
               clicks: row.clicks || 0,
               level: row.level || 1,
+              fish: row.fish || 0,
               skills: safeParseJSON(row.skills, {}),
               achievements: safeParseJSON(row.achievements, []),
 skins: safeParseJSON(row.skins, { normal: true }),
@@ -618,6 +619,7 @@ skins: safeParseJSON(row.skins, { normal: true }),
             db.players[row.id].coins = Number(row.coins) || 0;
             db.players[row.id].totalCoins = Number(row.total_coins) || 0;
             db.players[row.id].eventRewards = Number(row.event_rewards) || 0;
+            db.players[row.id].fish = Number(row.fish) || 0;
             
             // Загружаем pendingEventClicks
             db.players[row.id]._pendingEventClicks = Number(row.pending_event_clicks) || 0;
@@ -1052,12 +1054,13 @@ async function handleSaveGame(ws, data) {
     saveSnapshots.set(id, { t: Date.now(), clicks: data.clicks });
   }
 
-p.coins = data.coins ?? p.coins;
+  p.coins = data.coins ?? p.coins;
   p.totalCoins = data.totalCoins ?? p.totalCoins;
   p.perClick = data.perClick ?? p.perClick;
   p.perSecond = data.perSecond ?? p.perSecond;
   p.clicks = data.clicks ?? p.clicks;
   p.level = data.level ?? p.level;
+  p.fish = data.fish ?? p.fish ?? 0;
   p.skills = data.skills || p.skills;
   p.skins = data.skins || p.skins;
   p.currentSkin = data.currentSkin || p.currentSkin;
@@ -1304,6 +1307,7 @@ async function handleRestoreSession(ws, data) {
         perSecond: Number(dbPlayer.per_second) || 0,
         clicks: Number(dbPlayer.clicks) || 0,
         level: Number(dbPlayer.level) || 1,
+        fish: Number(dbPlayer.fish) || 0,
         skills: typeof dbPlayer.skills === 'string' ? JSON.parse(dbPlayer.skills) : dbPlayer.skills || {},
         achievements: typeof dbPlayer.achievements === 'string' ? JSON.parse(dbPlayer.achievements) : dbPlayer.achievements || [],
         skins: typeof dbPlayer.skins === 'string' ? JSON.parse(dbPlayer.skins) : dbPlayer.skins || { normal: true },
@@ -1413,6 +1417,7 @@ async function handleRestoreSession(ws, data) {
     coins: playerData.coins,
     totalCoins: playerData.totalCoins,
     level: playerData.level,
+    fish: playerData.fish,
     clan: playerData.clan
   });
   
@@ -1475,7 +1480,7 @@ function handleRegisterGuest(ws, name) {
       id: playerId,
       name: name || `Player_${playerId.substr(0, 4)}`,
       coins: 0, totalCoins: 0, perClick: 1, perSecond: 0,
-      clicks: 0, level: 1, skills: {}, achievements: [],
+      clicks: 0, level: 1, fish: 0, skills: {}, achievements: [],
       skins: { normal: true }, currentSkin: 'normal', clan: null,
       createdAt: Date.now(), lastLogin: Date.now(),
       eventRewards: 0, pendingBoxes: []
@@ -1485,6 +1490,8 @@ function handleRegisterGuest(ws, name) {
   } else {
     playerData.name = name || playerData.name;
     playerData.lastLogin = Date.now();
+    // Инициализируем fish если нет
+    if (playerData.fish === undefined) playerData.fish = 0;
   }
   
   // Проверка: если ник начинается с "Player" - удаляем игрока
