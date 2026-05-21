@@ -1801,7 +1801,7 @@ case 'joinedClan':
       console.log(`🎁 Catdrop открыт на сервере:`, data);
       
       // Если запущена Catdrop анимация - используем новый обработчик
-      if (isOpeningBox && activeBoxCutscene) {
+      if (isOpeningBox) {
         // Сохраняем награду от сервера
         dataRewardFromServer = data.reward;
         
@@ -1816,6 +1816,11 @@ case 'joinedClan':
           }
         }
         
+        // Если Cutscene нет - создаём
+        if (!activeBoxCutscene) {
+          showCatdropWaitingScreen();
+        }
+        
         // Показываем что Catdrop готов к открытию (убираем серый цвет)
         startCatdropAnimation();
         
@@ -1825,6 +1830,7 @@ case 'joinedClan':
           currentBoxOpenTimeout = null;
         }
         
+        console.log(`✅ Catdrop готов к открытию, редкость: ${catdropRarity}`);
         // Награда будет показана когда пользователь додержит до конца в catdropAnimationLoop
       } else {
         // Старый способ обработки (без анимации) или ошибка
@@ -2029,6 +2035,22 @@ case 'joinedClan':
     case 'forceSaveCompleted':
       if (window.handleForceSaveResponse) {
         window.handleForceSaveResponse(data);
+      }
+      break;
+    case 'timersLoaded':
+      // Сервер прислал сохранённые таймеры
+      console.log('⏱️ Таймеры загружены с сервера:', data);
+      if (data.eventEndTime !== undefined) {
+        window.eventEndTime = data.eventEndTime;
+        localStorage.setItem('orca_event_endTime', data.eventEndTime);
+      }
+      if (data.adLastView !== undefined) {
+        window.adLastView = data.adLastView;
+        localStorage.setItem('orca_ad_lastView', data.adLastView);
+      }
+      if (data.adViewCount !== undefined) {
+        window.adViewCount = data.adViewCount;
+        localStorage.setItem('orca_ad_viewCount', data.adViewCount);
       }
       break;
   }
@@ -3029,8 +3051,12 @@ function showCatdropReward(reward) {
   }
 
   const rewardModal = document.getElementById('catdropRewardModal');
-  if (!rewardModal) return;
-  
+  if (!rewardModal) {
+    console.error('❌ Модальное окно награды не найдено!');
+    showNotification('❌ Ошибка отображения награды');
+    return;
+  }
+
   // Очищаем предыдущее содержимое
   rewardModal.innerHTML = '';
   
@@ -3102,6 +3128,8 @@ function showCatdropReward(reward) {
   setTimeout(() => {
     rewardModal.classList.add('show');
   }, 10);
+  
+  console.log('✅ Награда показана:', reward);
 }
 
 function closeCatdropReward() {
@@ -4510,16 +4538,22 @@ function openBox(boxId) {
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
       console.error('⚠️ Тайм-аут открытия Catdrop!');
-      isOpeningBox = false;
-      currentBoxOpenTimeout = null;
       stopCatdropWaitingScreen();
       
+      // Возвращаем Catdrop в инвентарь
       if (pendingBoxes.indexOf(openingBoxId) === -1) {
         pendingBoxes.splice(openingBoxIndex, 0, openingBoxId);
       }
+      
+      // Сбрасываем все переменные
+      isOpeningBox = false;
+      currentBoxOpenTimeout = null;
+      catdropRarity = null;
+      dataRewardFromServer = null;
+      
       renderBoxes();
       updateBoxUI();
-      showNotification('⚠️ Ошибка открытия. Попробуйте снова.');
+      showNotification('⚠️ Ошибка открытия. Catdrop возвращён. Попробуйте снова.');
     }
   }, 30000);
 }
@@ -4733,13 +4767,25 @@ function catdropAnimationLoop() {
             }
           }
           
-          showCatdropReward(reward);
-          renderBoxes();
-          updateBoxUI();
+          if (reward) {
+            showCatdropReward(reward);
+            renderBoxes();
+            updateBoxUI();
+          } else {
+            console.error('❌ Награда не получена от сервера!');
+            showNotification('❌ Ошибка получения награды');
+          }
+          
           isOpeningBox = false;
           updateUI();
           saveGame();
         }, 500);
+      } else {
+        // Ошибка - нет редкости или анимации
+        console.error('❌ Catdrop анимация прервана!');
+        showNotification('⚠️ Ошибка открытия. Попробуйте снова.');
+        isOpeningBox = false;
+        stopCatdropAnimation();
       }
     }, 300);
   }
@@ -4751,22 +4797,35 @@ function stopCatdropHold(e) {
     e.stopPropagation();
   }
   
+  // Если анимация ещё не закончена - сбрасываем
   if (catdropAnimation) {
     cancelAnimationFrame(catdropAnimation);
     catdropAnimation = null;
+    
+    // Возвращаем Catdrop в исходное состояние
+    const catdropEl = document.getElementById('catdropElement');
+    if (catdropEl) {
+      catdropEl.style.transition = 'transform 0.2s ease-out';
+      catdropEl.style.transform = 'scale(1) rotate(0deg)';
+    }
+    
+    // Сбрасываем переменные
+    catdropMouseDownTime = null;
+    catdropScale = 1;
+    catdropTargetScale = 1.5;
+    
+    // Если награда ещё не получена - оставляем isOpeningBox = true
+    // чтобы пользователь мог попробовать снова
+    if (!dataRewardFromServer) {
+      const hint = document.querySelector('.catdrop-hint');
+      if (hint) hint.textContent = 'Отпусти и зажми снова!';
+      setTimeout(() => {
+        if (hint) hint.textContent = 'Зажми чтобы открыть!';
+      }, 1500);
+    }
   }
-  
-  const catdropEl = document.getElementById('catdropElement');
-  if (catdropEl) {
-    catdropEl.style.transition = 'transform 0.2s ease-out';
-    catdropEl.style.transform = 'scale(1) rotate(0deg)';
-  }
-  
-  catdropMouseDownTime = null;
-  catdropScale = 1;
-  catdropTargetScale = 1.5;
 }
-
+  
 function stopCatdropAnimation() {
   if (catdropAnimation) {
     cancelAnimationFrame(catdropAnimation);
@@ -5166,7 +5225,7 @@ function saveGame() {
     console.warn('⚠️ Ошибка сохранения daily streak:', e);
   }
   
-  // Сохраняем таймеры
+  // Сохраняем таймеры СРАЗУ в localStorage (не ждём сервера)
   try {
     if (window.adLastView !== undefined) localStorage.setItem('orca_ad_lastView', window.adLastView);
     if (window.adViewCount !== undefined) localStorage.setItem('orca_ad_viewCount', window.adViewCount);
@@ -5175,7 +5234,17 @@ function saveGame() {
     console.warn('⚠️ Ошибка сохранения таймеров:', e);
   }
   
-  // Серверное сохранение
+  // Отправляем таймеры на сервер для долговременного хранения
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'saveTimers',
+      adLastView: window.adLastView,
+      adViewCount: window.adViewCount,
+      eventEndTime: window.eventEndTime
+    }));
+  }
+  
+  // Серверное сохранение (остальные данные)
   scheduleServerSave();
 }
 
@@ -5198,14 +5267,14 @@ function loadGame() {
   game.dailyProgress = { clicks: 0, coins: 0, playTime: 0 };
   initQuests();
   
-  // Загружаем таймеры из localStorage
+  // Инициализация таймеров (будут перезаписаны с сервера при подключении)
   try {
     window.adLastView = localStorage.getItem('orca_ad_lastView') || null;
     window.adViewCount = Number(localStorage.getItem('orca_ad_viewCount')) || 0;
     window.eventEndTime = localStorage.getItem('orca_event_endTime') || null;
-    console.log('⏱️ Таймеры загружены:', { adLastView: window.adLastView, adViewCount: window.adViewCount, eventEndTime: window.eventEndTime });
+    console.log('⏱️ Таймеры инициализированы из localStorage:', { adLastView: window.adLastView, adViewCount: window.adViewCount, eventEndTime: window.eventEndTime });
   } catch (e) {
-    console.warn('⚠️ Ошибка загрузки таймеров:', e);
+    console.warn('⚠️ Ошибка инициализации таймеров:', e);
   }
 }
 

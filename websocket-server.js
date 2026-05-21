@@ -410,6 +410,23 @@ function broadcastEventInfo() {
   });
 }
 
+// Отправка таймеров игроку
+function sendTimers(ws) {
+  const id = ws.accountId || ws.playerId;
+  if (!id || !db.players[id]) return;
+  
+  const timers = db.playerTimers?.[id] || {};
+  
+  ws.send(JSON.stringify({ 
+    type: 'timersLoaded',
+    adLastView: timers.adLastView,
+    adViewCount: timers.adViewCount,
+    eventEndTime: timers.eventEndTime
+  }));
+  
+  console.log(`⏱️ sendTimers: ${id}, eventEndTime=${timers.eventEndTime}, adLastView=${timers.adLastView}`);
+}
+
 // Генерация ID
 function generateId() {
   return Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 4);
@@ -829,6 +846,7 @@ case 'createBattleLobby': handleCreateBattleLobby(ws, data.isOpen); break;
     case 'raidClick': handleRaidClick(ws, data); break;
     case 'getRaidLobbies': handleGetRaidLobbies(ws); break;
     case 'saveGame': handleSaveGame(ws, data.data); break;
+    case 'saveTimers': handleSaveTimers(ws, data); break;
     case 'forceSaveAll': handleForceSaveAll(ws); break;
     // Ежедневная серия
     case 'claimDailyReward': handleClaimDailyReward(ws, data.streak, data.coins); break;
@@ -1070,6 +1088,43 @@ p.coins = data.coins ?? p.coins;
   } else {
     console.error(`❌ Автосохранение FAILED: ${id}`);
   }
+}
+  
+// Сохранение таймеров (ивент, реклама)
+function handleSaveTimers(ws, data) {
+  const id = ws.accountId || ws.playerId;
+  
+  if (!id) {
+    console.error(`❌ handleSaveTimers: нет id!`);
+    return;
+  }
+  
+  if (!db.players[id]) {
+    console.error(`❌ handleSaveTimers: игрок ${id} не найден!`);
+    return;
+  }
+  
+  // Инициализируем playerTimers если нет
+  if (!db.playerTimers) {
+    db.playerTimers = {};
+  }
+  
+  if (!db.playerTimers[id]) {
+    db.playerTimers[id] = {};
+  }
+  
+  // Сохраняем таймеры
+  if (data.adLastView !== undefined) {
+    db.playerTimers[id].adLastView = data.adLastView;
+  }
+  if (data.adViewCount !== undefined) {
+    db.playerTimers[id].adViewCount = data.adViewCount;
+  }
+  if (data.eventEndTime !== undefined) {
+    db.playerTimers[id].eventEndTime = data.eventEndTime;
+  }
+  
+  console.log(`⏱️ handleSaveTimers: ${id}, eventEndTime=${data.eventEndTime}, adLastView=${data.adLastView}, adViewCount=${data.adViewCount}`);
 }
   
 // Принудительное сохранение ВСЕх данных игрока и клана
@@ -1430,6 +1485,10 @@ function handleRegisterGuest(ws, name) {
     data: playerData,
     eventCoins: db.event?.eventCoins?.[playerId] || 0
   }));
+  
+  // Отправляем таймеры игроку
+  sendTimers(ws);
+  
   broadcastLeaderboard();
   broadcastEventInfo();
 }
