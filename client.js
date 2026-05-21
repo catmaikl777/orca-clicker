@@ -836,8 +836,7 @@ function connectWebSocket() {
   
   ws.onopen = () => {
     clearTimeout(connectionTimeout);
-    console.l
-    og('✅ WebSocket onopen сработал');
+    console.log('✅ WebSocket onopen сработал');
     console.log('✅ Подключено к серверу');
     console.log('🔍 guestId на момент onopen:', guestId);
     wsConnected = true;
