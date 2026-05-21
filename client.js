@@ -842,22 +842,23 @@ function connectWebSocket() {
     // Запускаем таймер ивента
     initEventTimer();
     
-    // Отправляем данные для восстановления сессии или регистрации
-    if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
-      console.log('📤 Отправляем restoreSession:', window.currentUser);
-      ws.send(JSON.stringify({
-        type: 'restoreSession',
-        accountId: window.currentUser.id,
-        username: window.currentUser.username
-      }));
-    } else {
-      // Гость - используем сохранённый guestId
-      const guestUsername = typeof guestId !== 'undefined' && guestId ? guestId : 'Player_' + Math.random().toString(36).substr(2, 5);
-      console.log('📤 Отправляем register для гостя:', guestUsername);
-      console.log('🔐 Тип guestUsername:', typeof guestUsername, 'Длина:', guestUsername.length);
-      ws.send(JSON.stringify({ type: 'register', name: guestUsername }));
-    }
-    
+  // Отправляем данные для восстановления сессии или регистрации
+  if (typeof window.currentUser !== 'undefined' && window.currentUser && !window.isGuest) {
+    console.log('📤 Отправляем restoreSession:', window.currentUser);
+    ws.send(JSON.stringify({ 
+      type: 'restoreSession',
+      accountId: window.currentUser.id,
+      username: window.currentUser.username
+    }));
+  } else {
+    // Гостевой режим - отправляем register с именем
+    console.log('📤 Гостевой режим, отправляем register');
+    ws.send(JSON.stringify({
+      type: 'register',
+      name: (typeof guestId !== 'undefined' && guestId) ? `Guest_${guestId}` : 'Guest'
+    }));
+  }
+  
     ws.send(JSON.stringify({ type: 'getLeaderboard' }));
     ws.send(JSON.stringify({ type: 'getClans' }));
     ws.send(JSON.stringify({ type: 'getEventInfo' })); // Запрашиваем ивент сразу
@@ -928,7 +929,7 @@ function connectWebSocket() {
     }
   };
 }
-  
+
 // Fallback на HTTP API если WebSocket не работает
 async function httpApiCall(endpoint, data) {
   try {

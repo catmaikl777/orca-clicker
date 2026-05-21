@@ -25,18 +25,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Запуск игры в гостевом режиме
 function startGameAsGuest() {
-  window.isGuest = true;
-  window.currentUser = null;
-  console.log('👤 Игра началась в гостевом режиме');
-  
-  // Скрываем экран авторизации если есть
-  closeAuthScreen();
-  
-  // Обновляем отображение
-  updateAccountDisplay();
-  
-  // Показываем уведомление о преимуществах авторизации (необязательно)
-  showGuestModeNotification();
+  // НЕ сбрасываем аккаунт если он уже загружен из localStorage!
+  if (!window.currentUser && window.isGuest === true) {
+    // Только если аккаунта нет - запускаем как гость
+    console.log('👤 Игра началась в гостевом режиме');
+    
+    // Скрываем экран авторизации если есть
+    closeAuthScreen();
+    
+    // Обновляем отображение
+    updateAccountDisplay();
+    
+    // Показываем уведомление о преимуществах авторизации (необязательно)
+    showGuestModeNotification();
+  } else if (window.currentUser) {
+    // Аккаунт загружен - показываем что вошли
+    console.log('👤 Восстановлена сессия:', window.currentUser.username);
+    closeAuthScreen();
+    updateAccountDisplay();
+    showNotification(`✅ Добро пожаловать, ${window.currentUser.username}!`);
+  }
 }
 
 // Уведомление о преимуществах авторизации
