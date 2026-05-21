@@ -3464,7 +3464,6 @@ function showCatdropReward(reward) {
       <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
       <p class="catdrop-reward-desc">${description}</p>
       ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="catdrop-reward-btn" onclick="closeCatdropReward()">Отлично!</button>
     </div>
   `;
   
@@ -3474,6 +3473,11 @@ function showCatdropReward(reward) {
   }, 10);
   
   console.log('✅ Награда показана:', reward);
+  
+  // Автоматически закрываем через 3 секунды
+  setTimeout(() => {
+    closeCatdropReward();
+  }, 3000);
 }
 
 function closeCatdropReward() {
@@ -4961,7 +4965,7 @@ function showCatdropWaitingScreen() {
     console.error('❌ Не удалось найти catdropElement!');
     return;
   }
-
+  
   // Удаляем старые обработчики с элемента
   const newCatdropEl = catdropEl.cloneNode(true);
   catdropEl.parentNode.replaceChild(newCatdropEl, catdropEl);
