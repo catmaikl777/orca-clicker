@@ -12,6 +12,7 @@
     "clear-db": "node scripts/clear-json-db.js --force",
     "clear-postgres": "node scripts/clear-postgres-db.js --force",
     "clear-clans": "node scripts/clear-clans.js",
+    "migrate-timers": "node scripts/apply-timers-migration.js",
     "build": "echo 'No build step needed for the API server'"
   },
   "dependencies": {

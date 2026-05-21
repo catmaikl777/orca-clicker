@@ -550,18 +550,10 @@ class DatabaseAdapter {
       // Ежедневная серия
       player.dailyLoginDate || null,
       player.loginStreak || 0,
-      // Таймеры (из playerTimers)
+      // Таймеры (ивент, реклама)
       player.eventEndTime || null,
       player.adLastView || null,
-      player.adViewCount || 0,
-      player.playTime || 0,
-      // Путь к славе
-      player.totalRankClicks || 0,
-      player.currentRank || 'novice',
-      JSON.stringify(player.rankRewardsClaimed || []),
-      // Ежедневная серия
-      player.dailyLoginDate || null,
-      player.loginStreak || 0
+      player.adViewCount || 0
     ];
     
     console.log(`💾 savePlayer SQL: ${values.length} значений для вставки`);
