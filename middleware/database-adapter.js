@@ -553,8 +553,7 @@ class DatabaseAdapter {
       // Таймеры (из playerTimers)
       player.eventEndTime || null,
       player.adLastView || null,
-      player.adViewCount || 0
-    ];
+      player.adViewCount || 0,
       player.playTime || 0,
       // Путь к славе
       player.totalRankClicks || 0,
