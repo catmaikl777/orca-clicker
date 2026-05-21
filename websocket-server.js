@@ -626,6 +626,16 @@ skins: safeParseJSON(row.skins, { normal: true }),
             db.players[row.id]._lastProcessedClicks = Number(row.last_processed_clicks) || 0;
             db.players[row.id].playTime = Number(row.total_play_time) || 0;  // Общее время в игре
             
+            // Инициализируем playerTimers из БД
+            if (!db.playerTimers) db.playerTimers = {};
+            db.playerTimers[row.id] = {
+              eventEndTime: row.event_end_time || null,
+              adLastView: row.ad_last_view || null,
+              adViewCount: Number(row.ad_view_count) || 0,
+              lastLoginDate: row.daily_login_date || null,
+              loginStreak: Number(row.login_streak) || 0
+            };
+            
             if (row.banned_at) {
               db.players[row.id].antiCheat = {
                 bannedUntil: Infinity,
