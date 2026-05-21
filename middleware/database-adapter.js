@@ -495,8 +495,9 @@ class DatabaseAdapter {
         event_rewards, pending_boxes, quest_progress, daily_quest_progress,
         daily_quest_date, daily_quest_ids, pending_event_clicks, last_processed_clicks,
         created_at, last_login, updated_at, banned_at, ban_reason, effects, total_play_time,
-        total_rank_clicks, current_rank, rankrewardsclaimed, daily_login_date, login_streak
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
+        total_rank_clicks, current_rank, rankrewardsclaimed, daily_login_date, login_streak,
+        event_end_time, ad_last_view, ad_view_count
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
       ON CONFLICT (id) DO UPDATE SET
         coins = EXCLUDED.coins,
         total_coins = EXCLUDED.total_coins,
@@ -528,7 +529,10 @@ class DatabaseAdapter {
         current_rank = EXCLUDED.current_rank,
         rankrewardsclaimed = EXCLUDED.rankrewardsclaimed,
         daily_login_date = EXCLUDED.daily_login_date,
-        login_streak = EXCLUDED.login_streak
+        login_streak = EXCLUDED.login_streak,
+        event_end_time = EXCLUDED.event_end_time,
+        ad_last_view = EXCLUDED.ad_last_view,
+        ad_view_count = EXCLUDED.ad_view_count
     `;
     
     const values = [
@@ -538,6 +542,19 @@ class DatabaseAdapter {
       player.eventRewards || 0, pendingBoxes, questProgress, dailyQuestProgress,
       dailyQuestDate, dailyQuestIds, pendingEventClicks, lastProcessedClicks,
       createdAt, lastLogin, updatedAt, bannedAt, banReason, effects,
+      player.playTime || 0,
+      // Путь к славе
+      player.totalRankClicks || 0,
+      player.currentRank || 'novice',
+      JSON.stringify(player.rankRewardsClaimed || []),
+      // Ежедневная серия
+      player.dailyLoginDate || null,
+      player.loginStreak || 0,
+      // Таймеры (из playerTimers)
+      player.eventEndTime || null,
+      player.adLastView || null,
+      player.adViewCount || 0
+    ];
       player.playTime || 0,
       // Путь к славе
       player.totalRankClicks || 0,

@@ -2080,6 +2080,18 @@ case 'joinedClan':
         window.adViewCount = data.adViewCount;
         localStorage.setItem('orca_ad_viewCount', data.adViewCount);
       }
+      if (data.lastLoginDate !== undefined) {
+        game.lastLoginDate = data.lastLoginDate;
+        localStorage.setItem('orca_dailyLoginDate', data.lastLoginDate);
+      }
+      if (data.loginStreak !== undefined) {
+        game.loginStreak = data.loginStreak;
+        localStorage.setItem('orca_loginStreak', data.loginStreak);
+      }
+      // Обновляем UI ежедневной награды после загрузки таймеров
+      if (typeof updateDailyStreakUI === 'function') {
+        updateDailyStreakUI();
+      }
       break;
   }
 }
@@ -5268,7 +5280,9 @@ function saveGame() {
       type: 'saveTimers',
       adLastView: window.adLastView,
       adViewCount: window.adViewCount,
-      eventEndTime: window.eventEndTime
+      eventEndTime: window.eventEndTime,
+      lastLoginDate: game.lastLoginDate,
+      loginStreak: game.loginStreak || 0
     }));
   }
   

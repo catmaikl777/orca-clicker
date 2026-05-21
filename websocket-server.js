@@ -421,10 +421,12 @@ function sendTimers(ws) {
     type: 'timersLoaded',
     adLastView: timers.adLastView,
     adViewCount: timers.adViewCount,
-    eventEndTime: timers.eventEndTime
+    eventEndTime: timers.eventEndTime,
+    lastLoginDate: timers.lastLoginDate,
+    loginStreak: timers.loginStreak
   }));
   
-  console.log(`⏱️ sendTimers: ${id}, eventEndTime=${timers.eventEndTime}, adLastView=${timers.adLastView}`);
+  console.log(`⏱️ sendTimers: ${id}, eventEndTime=${timers.eventEndTime}, adLastView=${timers.adLastView}, lastLoginDate=${timers.lastLoginDate}`);
 }
 
 // Генерация ID
@@ -1090,17 +1092,12 @@ p.coins = data.coins ?? p.coins;
   }
 }
   
-// Сохранение таймеров (ивент, реклама)
-function handleSaveTimers(ws, data) {
+// Сохранение таймеров (ивент, реклама, ежедневная награда)
+async function handleSaveTimers(ws, data) {
   const id = ws.accountId || ws.playerId;
   
   if (!id) {
-    console.error(`❌ handleSaveTimers: нет id!`);
-    return;
-  }
-  
-  if (!db.players[id]) {
-    console.error(`❌ handleSaveTimers: игрок ${id} не найден!`);
+    console.error('❌ handleSaveTimers: нет id!');
     return;
   }
   
@@ -1113,7 +1110,7 @@ function handleSaveTimers(ws, data) {
     db.playerTimers[id] = {};
   }
   
-  // Сохраняем таймеры
+  // Сохраняем таймеры в памяти
   if (data.adLastView !== undefined) {
     db.playerTimers[id].adLastView = data.adLastView;
   }
@@ -1123,10 +1120,31 @@ function handleSaveTimers(ws, data) {
   if (data.eventEndTime !== undefined) {
     db.playerTimers[id].eventEndTime = data.eventEndTime;
   }
+  if (data.lastLoginDate !== undefined) {
+    db.playerTimers[id].lastLoginDate = data.lastLoginDate;
+  }
+  if (data.loginStreak !== undefined) {
+    db.playerTimers[id].loginStreak = data.loginStreak;
+  }
   
-  console.log(`⏱️ handleSaveTimers: ${id}, eventEndTime=${data.eventEndTime}, adLastView=${data.adLastView}, adViewCount=${data.adViewCount}`);
+  // Сохраняем таймеры в БД
+  if (dbAdapter.usePostgreSQL && db.players[id]) {
+    const player = db.players[id];
+    player.eventEndTime = db.playerTimers[id].eventEndTime;
+    player.adLastView = db.playerTimers[id].adLastView;
+    player.adViewCount = db.playerTimers[id].adViewCount;
+    player.dailyLoginDate = db.playerTimers[id].lastLoginDate;
+    player.loginStreak = db.playerTimers[id].loginStreak;
+    
+    // Сохраняем в БД
+    dbAdapter.savePlayer(player).catch(err => {
+      console.error(`❌ Ошибка сохранения таймеров в БД:`, err.message);
+    });
+  }
+  
+  console.log(`⏱️ handleSaveTimers: ${id}, eventEndTime=${data.eventEndTime}, adLastView=${data.adLastView}, lastLoginDate=${data.lastLoginDate}, loginStreak=${data.loginStreak}`);
 }
-  
+
 // Принудительное сохранение ВСЕх данных игрока и клана
 function handleForceSaveAll(ws) {
   const id = ws.accountId || ws.playerId;
@@ -1289,7 +1307,7 @@ async function handleRestoreSession(ws, data) {
         currentSkin: dbPlayer.current_skin || 'normal',
         pendingBoxes: typeof dbPlayer.pending_boxes === 'string' ? JSON.parse(dbPlayer.pending_boxes) : dbPlayer.pending_boxes || [],
         questProgress: typeof dbPlayer.quest_progress === 'string' ? JSON.parse(dbPlayer.quest_progress) : dbPlayer.quest_progress || [],
-dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
+        dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(dbPlayer.daily_quest_progress) : dbPlayer.daily_quest_progress || { clicks: 0, coins: 0, playTime: 0 },
         dailyQuestDate: dbPlayer.daily_quest_date,
         dailyQuestIds: typeof dbPlayer.daily_quest_ids === 'string' ? JSON.parse(dbPlayer.daily_quest_ids) : dbPlayer.daily_quest_ids || [],
         clan: dbPlayer.clan || null,
@@ -1304,6 +1322,20 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
         playTime: Number(dbPlayer.total_play_time) || 0,  // Общее время в игре
         // Ежедневная серия
         dailyLoginDate: dbPlayer.daily_login_date || null,
+        loginStreak: Number(dbPlayer.login_streak) || 0,
+        // Таймеры (ивент, реклама)
+        eventEndTime: dbPlayer.event_end_time || null,
+        adLastView: dbPlayer.ad_last_view || null,
+        adViewCount: dbPlayer.ad_view_count || 0
+      };
+      
+      // Сохраняем таймеры в db.playerTimers
+      if (!db.playerTimers) db.playerTimers = {};
+      db.playerTimers[accountId] = {
+        eventEndTime: dbPlayer.event_end_time || null,
+        adLastView: dbPlayer.ad_last_view || null,
+        adViewCount: dbPlayer.ad_view_count || 0,
+        lastLoginDate: dbPlayer.daily_login_date || null,
         loginStreak: Number(dbPlayer.login_streak) || 0
       };
       } else {
@@ -1396,6 +1428,9 @@ dailyProgress: typeof dbPlayer.daily_quest_progress === 'string' ? JSON.parse(db
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
+  
+  // Отправляем таймеры игроку (ивент, реклама, daily streak)
+  setTimeout(() => sendTimers(ws), 50);
   
   // Отправляем список кланов
   setTimeout(() => sendClans(ws), 100);
