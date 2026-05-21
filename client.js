@@ -4505,7 +4505,7 @@ function openBox(boxId) {
   // Показываем экран с Catdrop и ждём ответа от сервера
   showCatdropWaitingScreen();
 
-  // Тайм-аут если сервер не ответит
+  // Тайм-аут если сервер не ответит (30 секунд)
   if (currentBoxOpenTimeout) clearTimeout(currentBoxOpenTimeout);
   currentBoxOpenTimeout = setTimeout(() => {
     if (isOpeningBox) {
@@ -4521,7 +4521,7 @@ function openBox(boxId) {
       updateBoxUI();
       showNotification('⚠️ Ошибка открытия. Попробуйте снова.');
     }
-  }, 15000);
+  }, 30000);
 }
   
 // ==================== CATDROP АНИМАЦИЯ ====================
@@ -4814,8 +4814,14 @@ function showCatdropExplosion(rarity) {
     }
   }
   
+  // Создаем частицы взрыва
+  createExplosionParticles(rarity);
+  
   // Звук взрыва
   playSound('bonusSound');
+  
+  // Добавляем мерцающие искры
+  createSparkles(rarity);
   
   // Удаляем анимацию и показываем награду
   setTimeout(() => {
@@ -4825,6 +4831,118 @@ function showCatdropExplosion(rarity) {
     }
     // Награда уже показана в handleOpenBoxResponse
   }, 500);
+}
+
+// Создание частиц взрыва
+function createExplosionParticles(rarity) {
+  const rect = document.getElementById('catdropElement')?.getBoundingClientRect();
+  const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+  const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+  
+  const particleCount = rarity === 'legendary' ? 100 : rarity === 'epic' ? 70 : rarity === 'rare' ? 50 : 30;
+  
+  const colors = {
+    legendary: ['#ff6b6b', '#ffd700', '#ff8c00', '#ffffff', '#ff4500'],
+    epic: ['#a855f7', '#ec4899', '#8b5cf6', '#ffffff', '#06b6d4'],
+    rare: ['#3b82f6', '#06b6d4', '#0ea5e9', '#ffffff', '#22c55e'],
+    common: ['#22c55e', '#84cc16', '#16a34a', '#ffffff', '#fbbf24']
+  };
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      z-index: 10000;
+      background: ${colors[rarity][Math.floor(Math.random() * colors[rarity].length)]};
+      border-radius: 50%;
+      width: ${5 + Math.random() * 10}px;
+      height: ${5 + Math.random() * 10}px;
+      left: ${centerX}px;
+      top: ${centerY}px;
+      box-shadow: 0 0 ${10 + Math.random() * 20}px currentColor;
+      animation: explosionParticle ${0.5 + Math.random() * 1}s ease-out forwards;
+    `;
+    
+    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5);
+    const velocity = 100 + Math.random() * 300;
+    const tx = Math.cos(angle) * velocity;
+    const ty = Math.sin(angle) * velocity;
+    
+    particle.style.setProperty('--tx', `${tx}px`);
+    particle.style.setProperty('--ty', `${ty}px`);
+    
+    document.body.appendChild(particle);
+    
+    setTimeout(() => particle.remove(), 2000);
+  }
+  
+  // Добавляем стили анимации если их нет
+  if (!document.getElementById('explosion-styles')) {
+    const style = document.createElement('style');
+    style.id = 'explosion-styles';
+    style.textContent = `
+      @keyframes explosionParticle {
+        0% {
+          transform: translate(0, 0) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--tx), var(--ty)) scale(0);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+  
+// Создание мерцающих искр
+function createSparkles(rarity) {
+  const rect = document.getElementById('catdropElement')?.getBoundingClientRect();
+  const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+  const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+  
+  const sparkleCount = rarity === 'legendary' ? 50 : rarity === 'epic' ? 35 : rarity === 'rare' ? 25 : 15;
+  
+  for (let i = 0; i < sparkleCount; i++) {
+    setTimeout(() => {
+      const sparkle = document.createElement('div');
+      sparkle.textContent = '✨';
+      sparkle.style.cssText = `
+        position: fixed;
+        pointer-events: none;
+        z-index: 10000;
+        font-size: ${15 + Math.random() * 20}px;
+        left: ${centerX + (Math.random() - 0.5) * 400}px;
+        top: ${centerY + (Math.random() - 0.5) * 400}px;
+        animation: sparkleFloat ${1 + Math.random()}s ease-out forwards;
+        text-shadow: 0 0 20px currentColor;
+      `;
+      
+      document.body.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 2000);
+    }, Math.random() * 300);
+  }
+  
+  // Добавляем стили анимации искр если их нет
+  if (!document.getElementById('sparkle-styles')) {
+    const style = document.createElement('style');
+    style.id = 'sparkle-styles';
+    style.textContent = `
+      @keyframes sparkleFloat {
+        0% {
+          transform: translateY(0) rotate(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-100px) rotate(360deg);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 }
 
 function updateBoxUI() {
