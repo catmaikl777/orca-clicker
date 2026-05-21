@@ -1821,8 +1821,35 @@ case 'joinedClan':
           showCatdropWaitingScreen();
         }
         
-        // Показываем что Catdrop готов к открытию (убираем серый цвет)
-        startCatdropAnimation();
+        // ПОСЛЕ установки редкости - обновляем Catdrop (убираем серый цвет)
+        setTimeout(() => {
+          const catdropEl = document.getElementById('catdropElement');
+          if (catdropEl) {
+            catdropEl.style.opacity = '1';
+            catdropEl.style.filter = 'none';
+            console.log(`✅ Catdrop разблокирован, редкость: ${catdropRarity}`);
+          }
+          
+          // Добавляем SVG если нет
+          const existingSvg = catdropEl?.querySelector('.catdrop-svg');
+          if (!existingSvg && catdropEl) {
+            const svgHTML = `
+              <svg viewBox="0 0 200 200" class="catdrop-svg">
+                <circle class="catdrop-progress-ring" cx="100" cy="100" r="90" 
+                  stroke="rgba(255,215,0,0.5)" stroke-width="6" fill="transparent"
+                  stroke-dasharray="565.48" stroke-dashoffset="565.48"
+                  style="transition: stroke-dashoffset 0.1s linear"/>
+                <circle class="catdrop-progress-ring-bg" cx="100" cy="100" r="90" 
+                  stroke="rgba(255,255,255,0.1)" stroke-width="6" fill="transparent"/>
+              </svg>
+            `;
+            const img = catdropEl.querySelector('img');
+            if (img) img.insertAdjacentHTML('beforebegin', svgHTML);
+          }
+          
+          const hint = document.querySelector('.catdrop-hint');
+          if (hint) hint.textContent = 'Зажми чтобы открыть!';
+        }, 50);
         
         // Тайм-аут отключаем - ждём когда пользователь зажимает
         if (currentBoxOpenTimeout) {
@@ -2084,7 +2111,7 @@ function playSound(soundId) {
     sound.play().catch(() => {});
   }
 }
-
+  
 // Показ плавающего текста
 function showFloatingText(x, y, text, color = '#4fc3f7') {
   const effect = document.createElement('div');
