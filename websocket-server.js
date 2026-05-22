@@ -531,6 +531,11 @@ const wss = new WebSocket.Server({
       origin.includes('app-') && origin.includes('.games.') ||
       origin.includes('s3.yandex');
     
+    if (origin.includes('косат.рф') || origin.includes('xn--80atmmg.xn--p1ai')) {
+        console.log(`✅ Домен разрешён: ${origin}`);
+        return true;
+    }
+
     if (isYandexDomain) {
       console.log(`✅ Yandex domain разрешён: ${origin}`);
       return true;
