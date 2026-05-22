@@ -417,6 +417,8 @@ function sendTimers(ws) {
   
   const timers = db.playerTimers?.[id] || {};
   
+  console.log(`⏱️ sendTimers: ${id}, playerTimers=${JSON.stringify(timers)}`);
+  
   ws.send(JSON.stringify({ 
     type: 'timersLoaded',
     adLastView: timers.adLastView,
@@ -426,7 +428,7 @@ function sendTimers(ws) {
     loginStreak: timers.loginStreak
   }));
   
-  console.log(`⏱️ sendTimers: ${id}, eventEndTime=${timers.eventEndTime}, adLastView=${timers.adLastView}, lastLoginDate=${timers.lastLoginDate}`);
+  console.log(`⏱️ sendTimers отправлено: eventEndTime=${timers.eventEndTime}, lastLoginDate=${timers.lastLoginDate}, loginStreak=${timers.loginStreak}`);
 }
 
 // Генерация ID
@@ -1152,8 +1154,12 @@ async function handleSaveTimers(ws, data) {
     player.dailyLoginDate = db.playerTimers[id].lastLoginDate || null;
     player.loginStreak = db.playerTimers[id].loginStreak || 0;
     
+    console.log(`⏱️ handleSaveTimers BEFORE savePlayer: eventEndTime=${player.eventEndTime}, dailyLoginDate=${player.dailyLoginDate}, loginStreak=${player.loginStreak}`);
+    
     // Сохраняем в БД
-    dbAdapter.savePlayer(player).catch(err => {
+    dbAdapter.savePlayer(player).then(() => {
+      console.log(`⏱️ handleSaveTimers AFTER savePlayer: eventEndTime сохранён в БД`);
+    }).catch(err => {
       console.error(`❌ Ошибка сохранения таймеров в БД:`, err.message);
     });
   }
@@ -1390,8 +1396,23 @@ async function handleRestoreSession(ws, data) {
           playerData._pendingEventClicks = Number(dbPlayer.pending_event_clicks) || 0;
           playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
           playerData.playTime = Number(dbPlayer.total_play_time) || 0;  // Общее время в игре
+          // ОБНОВЛЯЕМ ТАЙМЕРЫ из БД
+          playerData.dailyLoginDate = dbPlayer.daily_login_date || null;
+          playerData.loginStreak = Number(dbPlayer.login_streak) || 0;
+          playerData.eventEndTime = dbPlayer.event_end_time || null;
+          playerData.adLastView = dbPlayer.ad_last_view || null;
+          playerData.adViewCount = Number(dbPlayer.ad_view_count) || 0;
           console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, fish=${dbFish}, playTime=${playerData.playTime}`);
         }
+        // ВСЁ РАВНО обновляем таймеры даже если coins/fish совпадают (на случай если они изменились в БД)
+        if (!db.playerTimers) db.playerTimers = {};
+        db.playerTimers[accountId] = {
+          eventEndTime: dbPlayer.event_end_time || null,
+          adLastView: dbPlayer.ad_last_view || null,
+          adViewCount: Number(dbPlayer.ad_view_count) || 0,
+          lastLoginDate: dbPlayer.daily_login_date || null,
+          loginStreak: Number(dbPlayer.login_streak) || 0
+        };
       }
     } catch (error) {
       console.error(`❌ Ошибка проверки данных из БД для ${accountId}:`, error);

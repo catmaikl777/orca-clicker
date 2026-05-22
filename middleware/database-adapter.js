@@ -584,22 +584,30 @@ class DatabaseAdapter {
       console.log(`🔧 Пробуем упрощённое сохранение...`);
       
       const simpleQuery = `
-        INSERT INTO players (id, account_id, name, coins, total_coins, per_click, per_second, clicks, level, fish, clan, created_at, last_login, daily_login_date, login_streak)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        INSERT INTO players (id, account_id, name, coins, total_coins, per_click, per_second, clicks, level, fish, clan, created_at, last_login, daily_login_date, login_streak, event_end_time, ad_last_view, ad_view_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (id) DO UPDATE SET
           coins = EXCLUDED.coins,
           total_coins = EXCLUDED.total_coins,
           fish = EXCLUDED.fish,
           last_login = EXCLUDED.last_login,
           daily_login_date = EXCLUDED.daily_login_date,
-          login_streak = EXCLUDED.login_streak
+          login_streak = EXCLUDED.login_streak,
+          event_end_time = EXCLUDED.event_end_time,
+          ad_last_view = EXCLUDED.ad_last_view,
+          ad_view_count = EXCLUDED.ad_view_count
       `;
       
       const simpleValues = [
         player.id, accountId, player.name, player.coins, player.totalCoins,
         player.perClick, player.perSecond, player.clicks, player.level,
         player.fish || 0,
-        clan, createdAt, lastLogin, player.dailyLoginDate || null, player.loginStreak || 0
+        clan, createdAt, lastLogin, 
+        player.dailyLoginDate || null, 
+        player.loginStreak || 0,
+        (player.eventEndTime && player.eventEndTime !== 'null') ? Number(player.eventEndTime) : null,
+        (player.adLastView && player.adLastView !== 'null') ? Number(player.adLastView) : null,
+        player.adViewCount ? Number(player.adViewCount) : 0
       ];
       
       try {
