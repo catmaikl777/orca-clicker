@@ -1401,31 +1401,25 @@ async function handleRestoreSession(ws, data) {
           playerData._pendingEventClicks = Number(dbPlayer.pending_event_clicks) || 0;
           playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
           playerData.playTime = Number(dbPlayer.total_play_time) || 0;  // Общее время в игре
-          // ОБНОВЛЯЕМ ТАЙМЕРЫ из БД
+          // ОБНОВЛЯЕМ ТАЙМЕРЫ И shopItems из БД
           playerData.dailyLoginDate = dbPlayer.daily_login_date || null;
           playerData.loginStreak = Number(dbPlayer.login_streak) || 0;
           playerData.eventEndTime = dbPlayer.event_end_time || null;
           playerData.adLastView = dbPlayer.ad_last_view || null;
           playerData.adViewCount = Number(dbPlayer.ad_view_count) || 0;
-          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, fish=${dbFish}, playTime=${playerData.playTime}`);
-        }
-        // ВСЁ РАВНО обновляем таймеры даже если coins/fish совпадают (на случай если они изменились в БД)
-        if (!db.playerTimers) db.playerTimers = {};
-        db.playerTimers[accountId] = {
-          eventEndTime: dbPlayer.event_end_time || null,
-          adLastView: dbPlayer.ad_last_view || null,
-          adViewCount: Number(dbPlayer.ad_view_count) || 0,
-          lastLoginDate: dbPlayer.daily_login_date || null,
-          loginStreak: Number(dbPlayer.login_streak) || 0
-        };
+          playerData.shopItems = typeof dbPlayer.shop_items === 'string' ? JSON.parse(dbPlayer.shop_items) : (dbPlayer.shop_items || []);
+          console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, fish=${dbFish}, shopItems=${playerData.shopItems.length} шт.`);
       }
     } catch (error) {
       console.error(`❌ Ошибка проверки данных из БД для ${accountId}:`, error);
     }
   }
   
-  if (!playerData.shopItems) playerData.shopItems = [];  // shopItems больше не используются - цены управляются только через getPlayerItemCost
-  playerData.shopItems = [];  // СБРОС shopItems - цены управляются только через getPlayerItemCost/SHOP_CATALOG
+  // shopItems загружены из БД выше, если нет - инициализируем пустым массивом
+  if (!playerData.shopItems || !Array.isArray(playerData.shopItems)) {
+    playerData.shopItems = [];
+    console.log(`⚠️ shopItems не загружен, создан пустой массив для ${accountId}`);
+  }
   
   playerData.lastLogin = Date.now();
   account.lastLogin = Date.now();
@@ -1471,7 +1465,9 @@ async function handleRestoreSession(ws, data) {
       clan: finalClanId,
       // Ежедневная серия
       lastLoginDate: playerData.dailyLoginDate,
-      loginStreak: playerData.loginStreak
+      loginStreak: playerData.loginStreak,
+      // Магазин - цены предметов
+      shopItems: playerData.shopItems || []
     },
     eventCoins: db.event.eventCoins[accountId] || 0
   }));
@@ -1499,7 +1495,7 @@ async function handleRestoreSession(ws, data) {
       
   broadcastLeaderboard();
   broadcastEventInfo();
-}
+}}
 
 // ==================== Регистрация гостя ====================
 
@@ -1566,7 +1562,10 @@ function handleRegisterGuest(ws, name) {
     type: 'registered', 
     playerId, 
     name: playerData.name, 
-    data: playerData,
+    data: {
+      ...playerData,
+      shopItems: playerData.shopItems || []
+    },
     eventCoins: db.event?.eventCoins?.[playerId] || 0
   }));
   

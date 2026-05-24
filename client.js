@@ -599,6 +599,9 @@ function showDailyRewardModal(reward, streak) {
   
   document.body.appendChild(modal);
   
+  // Лог для отладки
+  console.log(`📅 showDailyRewardModal: streak=${displayStreak}, reward=${reward.coins}, lastLoginDate=${game.lastLoginDate}`);
+  
   // Небольшая задержка для анимации
   requestAnimationFrame(() => {
     modal.classList.add('show');
@@ -611,6 +614,8 @@ function claimAndCloseDailyReward(coins, streak) {
   // Начисляем награду
   const today = getCurrentDateString();
   
+  console.log(`📅 claimAndCloseDailyReward: coins=${coins}, streak=${streak}, today=${today}, lastLoginDate=${game.lastLoginDate}`);
+  
   // Двойная проверка чтобы не получить дважды
   if (game.lastLoginDate === today) {
     console.warn('⚠️ Награда уже получена!');
@@ -618,10 +623,12 @@ function claimAndCloseDailyReward(coins, streak) {
     if (modal) modal.remove();
     return;
   }
-  
+
   game.coins += coins;
   game.lastLoginDate = today;
   game.loginStreak = streak;
+  
+  console.log(`✅ После обновления: loginStreak=${game.loginStreak}, lastLoginDate=${game.lastLoginDate}`);
   
   // Сохраняем
   saveGame();
@@ -633,6 +640,7 @@ function claimAndCloseDailyReward(coins, streak) {
       streak: streak,
       coins: coins
     }));
+    console.log('📤 Отправлено на сервер: claimDailyReward');
   }
   
   // Обновляем UI
@@ -781,8 +789,8 @@ const WS_SERVER_URL = (() => {
   
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
-  //return `wss://косат.рф/?token=${encodeURIComponent(guestId)}`;
-  return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
+  return `wss://косат.рф/?token=${encodeURIComponent(guestId)}`;
+  //return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
   //return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
 })();
 
@@ -3115,34 +3123,42 @@ function exchangeFishForCoins() {
     return;
   }
   
-  // Рассчитываем награду (растёт с уровнемом)
-  const minReward = 50 + (game.level * 10);
-  const maxReward = 150 + (game.level * 25);
-  const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
-  
-  // Создаём модалку обмена
-  const overlay = document.createElement('div');
-  overlay.className = 'exchange-modal-overlay';
-  overlay.id = 'exchangeModalOverlay';
-  overlay.innerHTML = `
-    <div class="exchange-modal">
-      <h3>🔄 Обмен рыбок</h3>
-      <div class="fish-amount">🐟 × ${fishCount}</div>
-      <p>Обменять 100 рыбок на случайное количество косаток?</p>
-      <div class="reward-info">
-        <p>Возможная награда:</p>
-        <strong>${formatNumber(minReward)} - ${formatNumber(maxReward)} 🐋</strong>
-        <p style="font-size:12px;margin-top:8px;opacity:0.7">Чем выше уровень, тем больше награда!</p>
+  // Сначала закрываем старую модалку если есть
+  closeExchangeModal();
+  setTimeout(() => {
+    // Рассчитываем награду (растёт с уровнемом)
+    const minReward = 50 + (game.level * 10);
+    const maxReward = 150 + (game.level * 25);
+    const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+    
+    // Создаём модалку обмена
+    const overlay = document.createElement('div');
+    overlay.className = 'exchange-modal-overlay';
+    overlay.id = 'exchangeModalOverlay';
+    overlay.innerHTML = `
+      <div class="exchange-modal">
+        <h3>🔄 Обмен рыбок</h3>
+        <div class="fish-amount">🐟 × ${fishCount}</div>
+        <p>Обменять 100 рыбок на случайное количество косаток?</p>
+        <div class="reward-info">
+          <p>Возможная награда:</p>
+          <strong>${formatNumber(minReward)} - ${formatNumber(maxReward)} 🐋</strong>
+          <p style="font-size:12px;margin-top:8px;opacity:0.7">Чем выше уровень, тем больше награда!</p>
+        </div>
+        <div class="exchange-modal-buttons">
+          <button class="exchange-confirm-btn" onclick="confirmFishExchange()">✅ Обменять</button>
+          <button class="exchange-cancel-btn" onclick="closeExchangeModal()">❌ Отмена</button>
+        </div>
       </div>
-      <div class="exchange-modal-buttons">
-        <button class="exchange-confirm-btn" onclick="confirmFishExchange()">✅ Обменять</button>
-        <button class="exchange-cancel-btn" onclick="closeExchangeModal()">❌ Отмена</button>
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(overlay);
-  overlay.classList.add('active');
+    `;
+    
+    document.body.appendChild(overlay);
+    // Принудительно показываем
+    overlay.style.display = 'block';
+    setTimeout(() => {
+      overlay.classList.add('active');
+    }, 10);
+  }, 100);
 }
 
 // Подтверждение обмена
@@ -3158,6 +3174,8 @@ function confirmFishExchange() {
   const maxReward = 150 + (game.level * 25);
   const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
   
+  console.log(`🔄 Обмен рыбок: -100 🐟 → +${reward} 🐋`);
+  
   // Списываем рыбок
   game.fish = fishCount - 100;
   
@@ -3165,27 +3183,43 @@ function confirmFishExchange() {
   game.coins += reward;
   game.totalCoins += reward;
   
+  // Закрываем модалку ПЕРЕД уведомлениями
   closeExchangeModal();
   
-  showNotification(`🎉 Обмен совершён! +${formatNumber(reward)} 🐋`);
-  showFloatingText(
-    window.innerWidth / 2,
-    window.innerHeight / 2,
-    `+${formatNumber(reward)} 🐋`,
-    '#00d4ff'
-  );
-  
-  playSound('levelSound');
-  updateUI();
-  saveGame();
+  // Даем небольшую задержку чтобы модалка закрылась
+  setTimeout(() => {
+    showNotification(`🎉 Обмен совершён! +${formatNumber(reward)} 🐋`);
+    showFloatingText(
+      window.innerWidth / 2,
+      window.innerHeight / 2,
+      `+${formatNumber(reward)} 🐋`,
+      '#00d4ff'
+    );
+    
+    playSound('levelSound');
+    updateUI();
+    saveGame();
+  }, 350);
 }
-  
+
 // Закрытие модалки обмена
 function closeExchangeModal() {
   const modal = document.getElementById('exchangeModalOverlay');
   if (modal) {
     modal.classList.remove('active');
-    setTimeout(() => modal.remove(), 300);
+    // Принудительно скрываем модалку
+    const innerModal = modal.querySelector('.exchange-modal');
+    if (innerModal) {
+      innerModal.style.display = 'none';
+      innerModal.classList.remove('active');
+    }
+    modal.style.display = 'none';
+    // Удаляем сразу без анимации
+    setTimeout(() => {
+      if (modal && modal.parentNode) {
+        modal.remove();
+      }
+    }, 50);
   }
 }
   
@@ -3260,7 +3294,7 @@ function updateSkin() {
     
   }
 }
-
+  
 function formatNumber(num) {
   // Преобразуем строки в числа
   if (typeof num === 'string') {
@@ -3378,7 +3412,7 @@ function buyBox() {
     showNotification('❌ Недостаточно косаток');
     return;
   }
-  
+
   console.log(`🎁 Покупка Catdrop: баланс=${game.coins}, цена=${boxPrice}`);
   
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -5093,20 +5127,19 @@ function catdropAnimationLoop() {
       const progress = timeHeld / baseTime;
       
       // Замедление ближе к концу (ease-out эффект)
-      // Используем формулу: scale = 1 + (1 - (1-progress)^2) * 0.5
-      // Это даёт быстрое начало и плавное замедление к концу
       const easedProgress = 1 - Math.pow(1 - progress, 2);
-      catdropScale = 1 + (easedProgress * 0.5);  // От 1 до 1.5
+      catdropScale = 1 + (easedProgress * 0.5);
       
+      // Оптимизация: обновляем transform через CSS transition вместо каждого кадра
       const catdropEl = document.getElementById('catdropElement');
       if (catdropEl) {
+        // Используем CSS transition для плавности
         catdropEl.style.transform = `scale(${catdropScale})`;
-        catdropEl.style.transition = 'none';
         
-        // Обновляем прогресс бар обводки
+        // Обновляем прогресс бар обводки (только если элемент существует)
         const progressRing = catdropEl.querySelector('.catdrop-progress-ring');
-        if (progressRing) {
-          const circumference = 2 * Math.PI * 90; // радиус 90
+        if (progressRing && timeHeld % 50 < 16) {  // Ограничиваем обновления до ~60 FPS
+          const circumference = 2 * Math.PI * 90;
           const offset = circumference - (progress * circumference);
           progressRing.style.strokeDashoffset = offset;
         }
@@ -5135,11 +5168,10 @@ function catdropAnimationLoop() {
     const catdropEl = document.getElementById('catdropElement');
     if (catdropEl) {
       catdropEl.style.transform = `scale(${catdropScale}) rotate(${Math.sin(progress * Math.PI) * 10}deg)`;
-      catdropEl.style.transition = 'none';
       
-      // Обновляем прогресс бар
+      // Обновляем прогресс бар (ограничен до 60 FPS)
       const progressRing = catdropEl.querySelector('.catdrop-progress-ring');
-      if (progressRing) {
+      if (progressRing && timeHeld % 50 < 16) {
         const circumference = 2 * Math.PI * 90;
         const offset = circumference - (progress * circumference);
         progressRing.style.strokeDashoffset = offset;
@@ -5186,7 +5218,7 @@ function catdropAnimationLoop() {
           
           if (reward) {
             showCatdropReward(reward);
-            renderBoxes();
+            // Оптимизация: НЕ вызываем renderBoxes(), просто обновляем счётчик
             updateBoxUI();
           } else {
             console.error('❌ Награда не получена от сервера!');
@@ -5195,7 +5227,8 @@ function catdropAnimationLoop() {
           
           isOpeningBox = false;
           updateUI();
-          saveGame();
+          // Оптимизация: отложенное сохранение чтобы не блокировать UI
+          setTimeout(saveGame, 500);
         }, 500);
       } else {
         // Ошибка - нет редкости или анимации
@@ -5323,7 +5356,8 @@ function createExplosionParticles(rarity) {
   const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
   const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
   
-  const particleCount = rarity === 'legendary' ? 100 : rarity === 'epic' ? 70 : rarity === 'rare' ? 50 : 30;
+  // Оптимизация: уменьшаем количество частиц для производительности
+  const particleCount = rarity === 'legendary' ? 50 : rarity === 'epic' ? 35 : rarity === 'rare' ? 25 : 15;
   
   const colors = {
     legendary: ['#ff6b6b', '#ffd700', '#ff8c00', '#ffffff', '#ff4500'],
@@ -5331,35 +5365,6 @@ function createExplosionParticles(rarity) {
     rare: ['#3b82f6', '#06b6d4', '#0ea5e9', '#ffffff', '#22c55e'],
     common: ['#22c55e', '#84cc16', '#16a34a', '#ffffff', '#fbbf24']
   };
-  
-  for (let i = 0; i < particleCount; i++) {
-    const particle = document.createElement('div');
-    particle.style.cssText = `
-      position: fixed;
-      pointer-events: none;
-      z-index: 10000;
-      background: ${colors[rarity][Math.floor(Math.random() * colors[rarity].length)]};
-      border-radius: 50%;
-      width: ${5 + Math.random() * 10}px;
-      height: ${5 + Math.random() * 10}px;
-      left: ${centerX}px;
-      top: ${centerY}px;
-      box-shadow: 0 0 ${10 + Math.random() * 20}px currentColor;
-      animation: explosionParticle ${0.5 + Math.random() * 1}s ease-out forwards;
-    `;
-    
-    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5);
-    const velocity = 100 + Math.random() * 300;
-    const tx = Math.cos(angle) * velocity;
-    const ty = Math.sin(angle) * velocity;
-    
-    particle.style.setProperty('--tx', `${tx}px`);
-    particle.style.setProperty('--ty', `${ty}px`);
-    
-    document.body.appendChild(particle);
-    
-    setTimeout(() => particle.remove(), 2000);
-  }
   
   // Добавляем стили анимации если их нет
   if (!document.getElementById('explosion-styles')) {
@@ -5372,12 +5377,44 @@ function createExplosionParticles(rarity) {
           opacity: 1;
         }
         100% {
-          transform: translate(var(--tx), var(--ty)) scale(0);
+          transform: translate(var(--tx), --ty) scale(0);
           opacity: 0;
         }
       }
     `;
     document.head.appendChild(style);
+  }
+  
+  // Создаём частицы с задержкой чтобы не блокировать UI
+  for (let i = 0; i < particleCount; i++) {
+    setTimeout(() => {
+      const particle = document.createElement('div');
+      particle.style.cssText = `
+        position: fixed;
+        pointer-events: none;
+        z-index: 10000;
+        background: ${colors[rarity][Math.floor(Math.random() * colors[rarity].length)]};
+        border-radius: 50%;
+        width: ${3 + Math.random() * 6}px;
+        height: ${3 + Math.random() * 6}px;
+        left: ${centerX}px;
+        top: ${centerY}px;
+        box-shadow: 0 0 ${5 + Math.random() * 10}px currentColor;
+        animation: explosionParticle ${0.5 + Math.random() * 0.5}s ease-out forwards;
+      `;
+      
+      const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5);
+      const velocity = 80 + Math.random() * 200;
+      const tx = Math.cos(angle) * velocity;
+      const ty = Math.sin(angle) * velocity;
+      
+      particle.style.setProperty('--tx', `${tx}px`);
+      particle.style.setProperty('--ty', `${ty}px`);
+      
+      document.body.appendChild(particle);
+      
+      setTimeout(() => particle.remove(), 1500);
+    }, i * 10);  // Задержка 10мс между частицами
   }
 }
   
@@ -5387,27 +5424,8 @@ function createSparkles(rarity) {
   const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
   const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
   
-  const sparkleCount = rarity === 'legendary' ? 50 : rarity === 'epic' ? 35 : rarity === 'rare' ? 25 : 15;
-  
-  for (let i = 0; i < sparkleCount; i++) {
-    setTimeout(() => {
-      const sparkle = document.createElement('div');
-      sparkle.textContent = '✨';
-      sparkle.style.cssText = `
-        position: fixed;
-        pointer-events: none;
-        z-index: 10000;
-        font-size: ${15 + Math.random() * 20}px;
-        left: ${centerX + (Math.random() - 0.5) * 400}px;
-        top: ${centerY + (Math.random() - 0.5) * 400}px;
-        animation: sparkleFloat ${1 + Math.random()}s ease-out forwards;
-        text-shadow: 0 0 20px currentColor;
-      `;
-      
-      document.body.appendChild(sparkle);
-      setTimeout(() => sparkle.remove(), 2000);
-    }, Math.random() * 300);
-  }
+  // Оптимизация: уменьшаем количество искр
+  const sparkleCount = rarity === 'legendary' ? 25 : rarity === 'epic' ? 18 : rarity === 'rare' ? 12 : 8;
   
   // Добавляем стили анимации искр если их нет
   if (!document.getElementById('sparkle-styles')) {
@@ -5426,6 +5444,27 @@ function createSparkles(rarity) {
       }
     `;
     document.head.appendChild(style);
+  }
+  
+  // Создаём искры с большей задержкой чтобы не блокировать UI
+  for (let i = 0; i < sparkleCount; i++) {
+    setTimeout(() => {
+      const sparkle = document.createElement('div');
+      sparkle.textContent = '✨';
+      sparkle.style.cssText = `
+        position: fixed;
+        pointer-events: none;
+        z-index: 10000;
+        font-size: ${12 + Math.random() * 15}px;
+        left: ${centerX + (Math.random() - 0.5) * 300}px;
+        top: ${centerY + (Math.random() - 0.5) * 300}px;
+        animation: sparkleFloat ${0.8 + Math.random() * 0.5}s ease-out forwards;
+        text-shadow: 0 0 15px currentColor;
+      `;
+      
+      document.body.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 1500);
+    }, i * 20);  // Задержка 20мс между искрами
   }
 }
 
