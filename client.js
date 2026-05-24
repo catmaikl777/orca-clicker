@@ -2657,6 +2657,68 @@ function deactivateX2Multiplier() {
   saveGame();
 }
   
+// Временный множитель из Catdrop/Рыбного бокса
+let tempMultiplierActive = false;
+let tempMultiplierTimeLeft = 0;
+let tempMultiplierValue = 1;
+let tempMultiplierInterval = null;
+
+function activateTemporaryMultiplier(mult, duration) {
+  if (tempMultiplierActive) {
+    // Если уже активен другой множитель - завершаем его
+    deactivateTemporaryMultiplier();
+  }
+  
+  tempMultiplierActive = true;
+  tempMultiplierValue = mult;
+  tempMultiplierTimeLeft = duration;
+  game.multiplier = mult;
+  
+  const clicker = document.getElementById('clicker');
+  const timerEl = document.getElementById('x2Timer');
+  
+  clicker.classList.add('x2-active');
+  if (timerEl) timerEl.classList.remove('hidden');
+  
+  showNotification(`⚡ МНОЖИТЕЛЬ X${mult} НА ${duration} СЕКУНД! ⚡`);
+  playSound('bonusSound');
+  
+  // Таймер обратного отсчета
+  tempMultiplierInterval = setInterval(() => {
+    tempMultiplierTimeLeft--;
+    if (timerEl) {
+      document.getElementById('x2TimerValue').textContent = `x${mult} (${tempMultiplierTimeLeft})`;
+    }
+    
+    if (tempMultiplierTimeLeft <= 0) {
+      clearInterval(tempMultiplierInterval);
+      deactivateTemporaryMultiplier();
+    }
+  }, 1000);
+  
+  // Автоматическое деактивирование
+  setTimeout(deactivateTemporaryMultiplier, duration * 1000);
+}
+
+function deactivateTemporaryMultiplier() {
+  if (!tempMultiplierActive) return;
+  
+  tempMultiplierActive = false;
+  tempMultiplierTimeLeft = 0;
+  tempMultiplierValue = 1;
+  game.multiplier = 1;
+  
+  const clicker = document.getElementById('clicker');
+  const timerEl = document.getElementById('x2Timer');
+  
+  clicker.classList.remove('x2-active');
+  if (timerEl) timerEl.classList.add('hidden');
+  
+  showNotification('⏱️ Временный множитель закончился');
+  updateUI();
+  saveGame();
+}
+  
 // Функция для установки автокликера (может быть вызвана несколько раз)
 function setupAutoClickInterval() {
   // Сначала очищаем старый интервал если есть
