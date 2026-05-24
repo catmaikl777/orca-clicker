@@ -29,7 +29,7 @@ const game = {
   // Ежедневная серия
   lastLoginDate: null,
   loginStreak: 0,
-  lastStreakRewardDate: null,
+  lastStreakRewardDate: null,  // Когда последний раз получал награду
   // Рыбалка
   fish: 0
 };
@@ -422,9 +422,13 @@ function checkDailyLogin() {
   const today = getCurrentDateString();
   const lastLogin = game.lastLoginDate;
   
-  // Если уже заходил сегодня - ничего не делаем
+  // Если уже заходил сегодня - проверяем получил ли награду
   if (lastLogin === today) {
-    return { isNewDay: false, reward: null, alreadyClaimed: true };
+    // Проверяем есть ли поле lastStreakRewardDate
+    const lastRewardDate = game.lastStreakRewardDate || game.lastLoginDate;
+    if (lastRewardDate === today) {
+      return { isNewDay: false, reward: null, alreadyClaimed: true };
+    }
   }
 
   // Проверяем серию
@@ -460,7 +464,8 @@ function claimDailyReward(streak, reward) {
   const today = getCurrentDateString();
   
   // ПРОВЕРКА: уже получал награду сегодня?
-  if (game.lastLoginDate === today) {
+  const lastRewardDate = game.lastStreakRewardDate || game.lastLoginDate;
+  if (lastRewardDate === today) {
     console.warn('⚠️ Награда уже получена сегодня!');
     showNotification('⚠️ Награда уже получена сегодня. Заходите завтра!');
     return;
@@ -469,7 +474,10 @@ function claimDailyReward(streak, reward) {
   // Добавляем награду
   game.coins += reward.coins;
   game.lastLoginDate = today;
+  game.lastStreakRewardDate = today;  // Запоминаем когда получил награду
   game.loginStreak = streak;
+  
+  console.log(`📅 Награда получена: streak=${streak}, coins=${reward.coins}`);
   
   // Показываем награду
   showDailyRewardModal(reward, streak);
@@ -614,10 +622,11 @@ function claimAndCloseDailyReward(coins, streak) {
   // Начисляем награду
   const today = getCurrentDateString();
   
-  console.log(`📅 claimAndCloseDailyReward: coins=${coins}, streak=${streak}, today=${today}, lastLoginDate=${game.lastLoginDate}`);
+  console.log(`📅 claimAndCloseDailyReward: coins=${coins}, streak=${streak}, today=${today}, lastLoginDate=${game.lastLoginDate}, lastStreakRewardDate=${game.lastStreakRewardDate}`);
   
   // Двойная проверка чтобы не получить дважды
-  if (game.lastLoginDate === today) {
+  const lastRewardDate = game.lastStreakRewardDate || game.lastLoginDate;
+  if (lastRewardDate === today) {
     console.warn('⚠️ Награда уже получена!');
     const modal = document.querySelector('.daily-reward-modal');
     if (modal) modal.remove();
@@ -626,9 +635,10 @@ function claimAndCloseDailyReward(coins, streak) {
 
   game.coins += coins;
   game.lastLoginDate = today;
+  game.lastStreakRewardDate = today;  // Запоминаем когда получил награду
   game.loginStreak = streak;
   
-  console.log(`✅ После обновления: loginStreak=${game.loginStreak}, lastLoginDate=${game.lastLoginDate}`);
+  console.log(`✅ После обновления: loginStreak=${game.loginStreak}, lastLoginDate=${game.lastLoginDate}, lastStreakRewardDate=${game.lastStreakRewardDate}`);
   
   // Сохраняем
   saveGame();
@@ -5748,6 +5758,7 @@ function saveGame() {
   try {
     localStorage.setItem('orca_dailyLoginDate', game.lastLoginDate || null);
     localStorage.setItem('orca_loginStreak', game.loginStreak || 0);
+    localStorage.setItem('orca_lastStreakRewardDate', game.lastStreakRewardDate || null);
   } catch (e) {
     console.warn('⚠️ Ошибка сохранения daily streak:', e);
   }
@@ -5769,7 +5780,8 @@ function saveGame() {
       adViewCount: window.adViewCount,
       eventEndTime: window.eventEndTime,
       lastLoginDate: game.lastLoginDate,
-      loginStreak: game.loginStreak || 0
+      loginStreak: game.loginStreak || 0,
+      lastStreakRewardDate: game.lastStreakRewardDate || null
     }));
   }
   
@@ -5782,11 +5794,13 @@ function loadGame() {
   try {
     const savedDate = localStorage.getItem('orca_dailyLoginDate');
     const savedStreak = localStorage.getItem('orca_loginStreak');
+    const savedRewardDate = localStorage.getItem('orca_lastStreakRewardDate');
     
     if (savedDate) game.lastLoginDate = savedDate;
     if (savedStreak) game.loginStreak = Number(savedStreak) || 0;
+    if (savedRewardDate) game.lastStreakRewardDate = savedRewardDate;
     
-    console.log('📅 Локальный daily streak загружен:', { lastLoginDate: game.lastLoginDate, loginStreak: game.loginStreak });
+    console.log('📅 Локальный daily streak загружен:', { lastLoginDate: game.lastLoginDate, loginStreak: game.loginStreak, lastStreakRewardDate: game.lastStreakRewardDate });
   } catch (e) {
     console.warn('⚠️ Ошибка загрузки daily streak:', e);
   }
