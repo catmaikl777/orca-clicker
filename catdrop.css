@@ -227,12 +227,18 @@
   justify-content: center;
   opacity: 0;
   transition: opacity 0.4s ease-out;
-  pointer-events: none;  /* По умолчанию не блокирует клики */
+  pointer-events: none;
 }
 
 .catdrop-reward-modal.show {
+  display: flex;
   opacity: 1;
-  pointer-events: auto;  /* Включаем клики только когда показано */
+  pointer-events: auto;
+}
+
+.catdrop-reward-modal:not(.show) {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .catdrop-reward-overlay {
@@ -241,6 +247,7 @@
   background: radial-gradient(circle, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.95) 100%);
   backdrop-filter: blur(10px);
   animation: overlayFadeIn 0.4s ease-out;
+  pointer-events: none;
 }
 
 @keyframes overlayFadeIn {
@@ -678,5 +685,22 @@
   .catdrop-reward-btn {
     font-size: 18px;
     padding: 16px 30px;
+  }
+  
+  /* Убедимся что modal не блокирует клики когда скрыт */
+  .catdrop-reward-modal:not(.show) {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+  
+  .catdrop-reward-overlay {
+    pointer-events: none !important;
+    touch-action: none !important;
+  }
+  
+  .catdrop-reward-content {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
   }
 }

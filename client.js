@@ -422,11 +422,15 @@ function checkDailyLogin() {
   const today = getCurrentDateString();
   const lastLogin = game.lastLoginDate;
   
+  console.log(`📅 checkDailyLogin: today=${today}, lastLogin=${lastLogin}, lastStreakRewardDate=${game.lastStreakRewardDate}`);
+  
   // Если уже заходил сегодня - проверяем получил ли награду
   if (lastLogin === today) {
     // Проверяем есть ли поле lastStreakRewardDate
     const lastRewardDate = game.lastStreakRewardDate || game.lastLoginDate;
+    console.log(`📅 checkDailyLogin: lastLogin === today, lastRewardDate=${lastRewardDate}`);
     if (lastRewardDate === today) {
+      console.log(`📅 checkDailyLogin: награда уже получена сегодня`);
       return { isNewDay: false, reward: null, alreadyClaimed: true };
     }
   }
@@ -562,8 +566,11 @@ function updateDailyStreakUI() {
 }
 
 function showDailyRewardModal(reward, streak) {
-  // Уже получена сегодня - не показываем
   const today = getCurrentDateString();
+  
+  console.log(`📅 showDailyRewardModal НАЧАЛО: today=${today}, lastLoginDate=${game.lastLoginDate}, lastStreakRewardDate=${game.lastStreakRewardDate}`);
+  
+  // Уже получена сегодня - не показываем
   if (game.lastLoginDate === today) {
     console.warn('⚠️ Награда уже получена сегодня!');
     return;
@@ -1056,6 +1063,10 @@ function handleServerMessage(data) {
       // Загружаем данные ежедневной серии
       game.lastLoginDate = d.lastLoginDate || null;
       game.loginStreak = Number(d.loginStreak) || 0;
+      game.lastStreakRewardDate = d.lastStreakRewardDate || null;  // Дата получения последней награды
+      
+      console.log(`📅 Данные daily streak с сервера: lastLoginDate=${d.lastLoginDate}, loginStreak=${d.loginStreak}, lastStreakRewardDate=${d.lastStreakRewardDate}`);
+      console.log(`📅 ПОСЛЕ загрузки: game.lastLoginDate=${game.lastLoginDate}, game.lastStreakRewardDate=${game.lastStreakRewardDate}`);
       
       // // Загружаем данные пути к славе (ранги)
       // game.totalRankClicks = Number(d.totalRankClicks) || Number(d.clicks) || 0;
@@ -1391,6 +1402,11 @@ function handleServerMessage(data) {
         }
       }
       break;
+    case 'registered':
+      console.log('✅ case registered сработал!');
+      console.log('📊 Данные registered:', data);
+      // Гость зарегистрирован
+      // КРИТИЧНО: всегда загружаем данные с сервера (сервер - источник истины)
     case 'eventInfo':
       eventInfo = data.event;
       eventCoins = data.event.eventCoins || 0;
@@ -1540,7 +1556,7 @@ function handleServerMessage(data) {
           }
         }
         eventCoins = data.eventCoins || 0;
-        
+          
         // Загружаем данные ежедневной серии
         game.lastLoginDate = data.data.lastLoginDate || null;
         game.loginStreak = Number(data.data.loginStreak) || 0;
@@ -3594,11 +3610,16 @@ function closeCatdropReward() {
   const rewardModal = document.getElementById('catdropRewardModal');
   if (rewardModal) {
     rewardModal.classList.remove('show');
+    // Полностью удаляем modal из DOM через 100мс
     setTimeout(() => {
+      rewardModal.innerHTML = '';
       rewardModal.style.display = 'none';
+      rewardModal.style.pointerEvents = 'none';
+      rewardModal.remove();
       // Очищаем награду
       dataRewardFromServer = null;
-    }, 300);
+      console.log('✅ Catdrop modal полностью удалён из DOM');
+    }, 100);
   }
 }
   
