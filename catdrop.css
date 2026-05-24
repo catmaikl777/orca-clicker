@@ -222,23 +222,18 @@
   width: 100%;
   height: 100%;
   z-index: 100000;
-  display: none;
+  display: none !important;  /* Всегда скрыт по умолчанию */
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.4s ease-out;
-  pointer-events: none;
+  pointer-events: none !important;  /* Никогда не блокирует клики */
+  background: transparent !important;
 }
 
 .catdrop-reward-modal.show {
-  display: flex;
+  display: flex !important;
   opacity: 1;
-  pointer-events: none;  /* Modal не блокирует клики - только контент */
-}
-
-.catdrop-reward-modal:not(.show) {
-  display: none !important;
-  pointer-events: none !important;
 }
 
 .catdrop-reward-content {
@@ -253,12 +248,81 @@
   transform: scale(0.5);
   opacity: 0;
   transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  pointer-events: auto;  /* Контент принимает клики */
+  pointer-events: auto;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.9);
 }
 
 .catdrop-reward-modal.show .catdrop-reward-content {
   transform: scale(1);
   opacity: 1;
+}
+
+.catdrop-reward-icon {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 25px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  animation: rewardIconBounce 1s ease-in-out infinite;
+}
+
+@keyframes rewardIconBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.05); }
+}
+
+.catdrop-reward-title {
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.catdrop-reward-title.legendary { color: #ff6b6b; }
+.catdrop-reward-title.epic { color: #a855f7; }
+.catdrop-reward-title.rare { color: #3b82f6; }
+.catdrop-reward-title.common { color: #22c55e; }
+
+.catdrop-reward-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.catdrop-reward-rarity {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 15px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+.catdrop-reward-rarity.legendary { background: linear-gradient(145deg, #ff6b6b, #c92a2a); color: #fff; }
+.catdrop-reward-rarity.epic { background: linear-gradient(145deg, #a855f7, #7c3aed); color: #fff; }
+.catdrop-reward-rarity.rare { background: linear-gradient(145deg, #3b82f6, #2563eb); color: #fff; }
+.catdrop-reward-rarity.common { background: linear-gradient(145deg, #22c55e, #16a34a); color: #fff; }
+
+.catdrop-reward-desc {
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 25px;
+}
+
+.catdrop-reward-skin {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin: 0 auto 25px;
+  display: block;
+  border-radius: 16px;
 }
 
 .catdrop-reward-btn {
@@ -275,8 +339,12 @@
   text-transform: uppercase;
   letter-spacing: 1.5px;
   box-shadow: 0 10px 30px rgba(255,215,0,0.5);
-  pointer-events: auto;  /* Кнопка принимает клики */
+  pointer-events: auto;
   margin-top: 20px;
+}
+
+.catdrop-reward-btn:active {
+  transform: scale(0.95);
 }
 
 @keyframes overlayFadeIn {
@@ -716,19 +784,25 @@
     padding: 16px 30px;
   }
   
-  /* Убедимся что modal не блокирует клики когда скрыт */
-  .catdrop-reward-modal:not(.show) {
+  /* КРИТИЧНО: modal не должен блокировать клики когда закрыт */
+  .catdrop-reward-modal {
     display: none !important;
     pointer-events: none !important;
     visibility: hidden !important;
   }
   
-  .catdrop-reward-overlay {
+  .catdrop-reward-modal.show {
+    display: flex !important;
     pointer-events: none !important;
-    touch-action: none !important;
+    visibility: visible !important;
   }
   
   .catdrop-reward-content {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+  
+  .catdrop-reward-btn {
     pointer-events: auto !important;
     touch-action: manipulation !important;
   }

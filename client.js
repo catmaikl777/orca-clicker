@@ -3582,18 +3582,29 @@ function showCatdropReward(reward) {
   }
   
   rewardModal.innerHTML = `
-    <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
+    <div class="catdrop-reward-content" onclick="event.stopPropagation();" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
       <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity] || rarityColors.common}; box-shadow: 0 0 30px ${rarityColors[reward.rarity] || rarityColors.common}">${icon}</div>
       <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
       <p class="catdrop-reward-value">${value}</p>
       <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
       <p class="catdrop-reward-desc">${description}</p>
       ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="catdrop-reward-btn" onclick="closeCatdropReward()">Закрыть</button>
+      <button class="catdrop-reward-btn" onclick="closeCatdropReward()" style="pointer-events:auto; touch-action:manipulation;">Закрыть</button>
     </div>
   `;
   
   rewardModal.style.display = 'flex';
+  rewardModal.style.pointerEvents = 'none';
+  rewardModal.onclick = function(e) {
+    if (e.target === rewardModal) {
+      closeCatdropReward();
+    }
+  };
+  rewardModal.ontouchstart = function(e) {
+    if (e.target === rewardModal) {
+      closeCatdropReward();
+    }
+  };
   setTimeout(() => {
     rewardModal.classList.add('show');
   }, 10);
@@ -3609,41 +3620,52 @@ function closeCatdropReward() {
     // Сначала убираем класс show
     rewardModal.classList.remove('show');
     
-    // Затем полностью удаляем всё содержимое и сам элемент
+    // Затем полностью удаляем всё содержимое
     rewardModal.innerHTML = '';
+    
+    // Сбрасываем стили
     rewardModal.style.display = 'none';
     rewardModal.style.pointerEvents = 'none';
     rewardModal.style.visibility = 'hidden';
-    
-    // Удаляем из DOM
-    if (rewardModal.parentNode) {
-      rewardModal.parentNode.removeChild(rewardModal);
-    }
+    rewardModal.style.opacity = '0';
     
     // Очищаем награду
     dataRewardFromServer = null;
     
-    console.log('✅ Catdrop modal полностью удалён из DOM');
-    
-    // Дополнительная проверка через 100мс
-    setTimeout(() => {
-      const stillThere = document.getElementById('catdropRewardModal');
-      if (stillThere) {
-        console.error('❌ ERROR: Catdrop modal всё ещё в DOM! Принудительно удаляем...');
-        stillThere.remove();
-      }
-      
-      // Проверяем нет ли других overlay
-      const overlays = document.querySelectorAll('.catdrop-reward-overlay, .daily-reward-overlay, .exchange-modal-overlay');
-      if (overlays.length > 0) {
-        console.warn('⚠️ Найдены overlay элементы, удаляем...', overlays);
-        overlays.forEach(o => o.remove());
-      }
-    }, 100);
-  } else {
-    console.log('ℹ️ Catdrop modal уже не существует');
+    console.log('✅ Catdrop modal очищён');
   }
 }
+
+// Глобальная функция для принудительного закрытия всех modal-ов (для отладки)
+window.forceCloseAllModals = function() {
+  console.log('🔨 forceCloseAllModals: удаляем ВСЕ modal-ы...');
+  
+  // Удаляем все overlay
+  document.querySelectorAll('.catdrop-reward-overlay, .daily-reward-overlay, .exchange-modal-overlay, .modal-overlay').forEach(el => el.remove());
+  
+  // Скрываем все modal
+  document.querySelectorAll('.catdrop-reward-modal, .daily-reward-modal, .exchange-modal, .modal').forEach(el => {
+    el.style.display = 'none';
+    el.style.pointerEvents = 'none';
+    el.classList.remove('show', 'active');
+  });
+  
+  // Очищаем catdrop modal
+  const catdropModal = document.getElementById('catdropRewardModal');
+  if (catdropModal) {
+    catdropModal.innerHTML = '';
+    catdropModal.style.display = 'none';
+  }
+  
+  console.log('✅ Все modal-ы закрыты');
+};
+
+// Добавляем обработчик для отладки на телефоне
+document.addEventListener('dblclick', function(e) {
+  if (e.shiftKey) {
+    window.forceCloseAllModals();
+  }
+});
   
 function tryOpenFishBox() {
   if (isOpeningFishBox || pendingFishBoxes.length === 0) return;
