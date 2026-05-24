@@ -3582,7 +3582,6 @@ function showCatdropReward(reward) {
   }
   
   rewardModal.innerHTML = `
-    <div class="catdrop-reward-overlay"></div>
     <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
       <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity] || rarityColors.common}; box-shadow: 0 0 30px ${rarityColors[reward.rarity] || rarityColors.common}">${icon}</div>
       <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
@@ -3590,6 +3589,7 @@ function showCatdropReward(reward) {
       <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
       <p class="catdrop-reward-desc">${description}</p>
       ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
+      <button class="catdrop-reward-btn" onclick="closeCatdropReward()">Закрыть</button>
     </div>
   `;
   
@@ -3599,27 +3599,49 @@ function showCatdropReward(reward) {
   }, 10);
   
   console.log('✅ Награда показана:', reward);
-  
-  // Автоматически закрываем через 3 секунды
-  setTimeout(() => {
-    closeCatdropReward();
-  }, 3000);
 }
-
+  
 function closeCatdropReward() {
   const rewardModal = document.getElementById('catdropRewardModal');
   if (rewardModal) {
+    console.log('🔄 closeCatdropReward: удаляем modal...', rewardModal);
+    
+    // Сначала убираем класс show
     rewardModal.classList.remove('show');
-    // Полностью удаляем modal из DOM через 100мс
+    
+    // Затем полностью удаляем всё содержимое и сам элемент
+    rewardModal.innerHTML = '';
+    rewardModal.style.display = 'none';
+    rewardModal.style.pointerEvents = 'none';
+    rewardModal.style.visibility = 'hidden';
+    
+    // Удаляем из DOM
+    if (rewardModal.parentNode) {
+      rewardModal.parentNode.removeChild(rewardModal);
+    }
+    
+    // Очищаем награду
+    dataRewardFromServer = null;
+    
+    console.log('✅ Catdrop modal полностью удалён из DOM');
+    
+    // Дополнительная проверка через 100мс
     setTimeout(() => {
-      rewardModal.innerHTML = '';
-      rewardModal.style.display = 'none';
-      rewardModal.style.pointerEvents = 'none';
-      rewardModal.remove();
-      // Очищаем награду
-      dataRewardFromServer = null;
-      console.log('✅ Catdrop modal полностью удалён из DOM');
+      const stillThere = document.getElementById('catdropRewardModal');
+      if (stillThere) {
+        console.error('❌ ERROR: Catdrop modal всё ещё в DOM! Принудительно удаляем...');
+        stillThere.remove();
+      }
+      
+      // Проверяем нет ли других overlay
+      const overlays = document.querySelectorAll('.catdrop-reward-overlay, .daily-reward-overlay, .exchange-modal-overlay');
+      if (overlays.length > 0) {
+        console.warn('⚠️ Найдены overlay элементы, удаляем...', overlays);
+        overlays.forEach(o => o.remove());
+      }
     }, 100);
+  } else {
+    console.log('ℹ️ Catdrop modal уже не существует');
   }
 }
   
