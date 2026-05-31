@@ -3520,17 +3520,21 @@ function showCatdropReward(reward) {
     return;
   }
 
-  const rewardModal = document.getElementById('catdropRewardModal');
-  if (!rewardModal) {
-    console.error('❌ Модальное окно награды не найдено!');
-    showNotification('❌ Ошибка отображения награды');
-    return;
+  // Сначала удаляем старый modal если есть
+  const oldModal = document.getElementById('catdropRewardModal');
+  if (oldModal) {
+    oldModal.remove();
   }
-
-  console.log('🎁 showCatdropReward НАЧАЛО: modal=', rewardModal, 'reward=', reward);
   
-  // Очищаем предыдущее содержимое
-  rewardModal.innerHTML = '';
+  // Создаём новый modal
+  const rewardModal = document.createElement('div');
+  rewardModal.id = 'catdropRewardModal';
+  rewardModal.className = 'catdrop-reward-modal';
+  rewardModal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:100000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;';
+  
+  document.body.appendChild(rewardModal);
+  
+  console.log('🎁 showCatdropReward НАЧАЛО: modal создан, reward=', reward);
   
   const rarityColors = {
     common: 'linear-gradient(145deg, rgba(34,197,94,0.3), rgba(22,163,74,0.2))',
@@ -3584,43 +3588,36 @@ function showCatdropReward(reward) {
   }
   
   rewardModal.innerHTML = `
-    <div class="catdrop-reward-content" onclick="event.stopPropagation();" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
+    <div class="catdrop-reward-content" style="box-shadow: ${rarityGlow[reward.rarity] || rarityGlow.common}">
       <div class="catdrop-reward-icon" style="background: ${rarityColors[reward.rarity] || rarityColors.common}; box-shadow: 0 0 30px ${rarityColors[reward.rarity] || rarityColors.common}">${icon}</div>
       <h2 class="catdrop-reward-title ${reward.rarity}">${title}</h2>
       <p class="catdrop-reward-value">${value}</p>
       <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
       <p class="catdrop-reward-desc">${description}</p>
       ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="catdrop-reward-btn" onclick="closeCatdropReward()" style="pointer-events:auto; touch-action:manipulation;">Закрыть</button>
+      <button class="catdrop-reward-btn" style="pointer-events:auto;">Закрыть</button>
     </div>
   `;
   
-  console.log('🎁 rewardModal.innerHTML установлен:', rewardModal.innerHTML.substring(0, 100));
-  
-  // СБРОС всех стилей перед показом
-  rewardModal.style.display = 'flex';
-  rewardModal.style.pointerEvents = 'none';
-  rewardModal.style.visibility = 'visible';
-  rewardModal.style.opacity = '0';
-  rewardModal.classList.remove('show');
-  
-  rewardModal.onclick = function(e) {
-    console.log('🎁 modal onclick: target=', e.target, 'rewardModal=', rewardModal);
+  // Клик по фону закрывает modal
+  rewardModal.addEventListener('click', function(e) {
     if (e.target === rewardModal) {
       closeCatdropReward();
     }
-  };
-  rewardModal.ontouchstart = function(e) {
-    console.log('🎁 modal ontouchstart: target=', e.target);
-    if (e.target === rewardModal) {
+  });
+  
+  // Клик по кнопке "Закрыть"
+  const btn = rewardModal.querySelector('.catdrop-reward-btn');
+  if (btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
       closeCatdropReward();
-    }
-  };
+    });
+  }
   
   setTimeout(() => {
-    rewardModal.classList.add('show');
     rewardModal.style.opacity = '1';
-    console.log('🎁 Modal ПОКАЗАН! classList=', rewardModal.classList, 'style.display=', rewardModal.style.display);
+    console.log('🎁 Modal ПОКАЗАН!');
   }, 10);
   
   console.log('✅ Награда показана:', reward);
@@ -3631,39 +3628,21 @@ function closeCatdropReward() {
   
   const rewardModal = document.getElementById('catdropRewardModal');
   if (rewardModal) {
-    console.log('🔄 closeCatdropReward: modal найден, display=', rewardModal.style.display, 'classList=', rewardModal.classList);
+    console.log('🔄 closeCatdropReward: удаляем modal из DOM полностью...');
     
-    // Сначала убираем класс show
-    rewardModal.classList.remove('show');
-    
-    // Затем полностью удаляем всё содержимое
-    rewardModal.innerHTML = '';
-    
-    // СБРОС ВСЕХ СТИЛЕЙ - КРИТИЧНО!
-    rewardModal.style.cssText = '';
-    rewardModal.style.display = 'none';
-    rewardModal.style.pointerEvents = 'none';
-    rewardModal.style.visibility = 'hidden';
+    // Сначала убираем opacity
     rewardModal.style.opacity = '0';
-    rewardModal.style.zIndex = '';
     
-    // Сбрасываем обработчики
-    rewardModal.onclick = null;
-    rewardModal.ontouchstart = null;
-    rewardModal.ontouchend = null;
+    // Затем удаляем из DOM
+    setTimeout(() => {
+      if (rewardModal.parentNode) {
+        rewardModal.parentNode.removeChild(rewardModal);
+      }
+      console.log('✅ Catdrop modal УДАЛЁН ИЗ DOM');
+    }, 200);
     
     // Очищаем награду
     dataRewardFromServer = null;
-    
-    console.log('✅ Catdrop modal закрыт и очищен');
-    
-    // Принудительно перерисовываем страницу
-    setTimeout(() => {
-      document.body.style.opacity = '0.999';
-      setTimeout(() => {
-        document.body.style.opacity = '';
-      }, 10);
-    }, 50);
   } else {
     console.log('ℹ️ Catdrop modal не найден');
   }
