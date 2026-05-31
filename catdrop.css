@@ -12,6 +12,11 @@
   justify-content: center;
   background: radial-gradient(circle, rgba(102, 255, 0, 0.949) 0%, rgb(0, 255, 195) 100%);
   animation: fadeIn 0.3s ease-out;
+  pointer-events: none;  /* По умолчанию не блокирует клики */
+}
+
+.catdrop-cutscene.active {
+  pointer-events: auto;  /* Включаем клики только когда активен */
 }
 
 .catdrop-cutscene-bg {
