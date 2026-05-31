@@ -222,18 +222,22 @@
   width: 100%;
   height: 100%;
   z-index: 100000;
-  display: none !important;  /* Всегда скрыт по умолчанию */
+  display: none !important;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.4s ease-out;
-  pointer-events: none !important;  /* Никогда не блокирует клики */
+  pointer-events: none !important;
   background: transparent !important;
+  visibility: hidden !important;
+  touch-action: none !important;
 }
 
 .catdrop-reward-modal.show {
   display: flex !important;
   opacity: 1;
+  visibility: visible !important;
+  pointer-events: none !important;
 }
 
 .catdrop-reward-content {
@@ -248,8 +252,9 @@
   transform: scale(0.5);
   opacity: 0;
   transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  pointer-events: auto;
+  pointer-events: auto !important;
   box-shadow: 0 30px 80px rgba(0,0,0,0.9);
+  touch-action: manipulation !important;
 }
 
 .catdrop-reward-modal.show .catdrop-reward-content {
@@ -789,6 +794,7 @@
     display: none !important;
     pointer-events: none !important;
     visibility: hidden !important;
+    touch-action: none !important;
   }
   
   .catdrop-reward-modal.show {

@@ -3639,16 +3639,31 @@ function closeCatdropReward() {
     // Затем полностью удаляем всё содержимое
     rewardModal.innerHTML = '';
     
-    // Сбрасываем стили
+    // СБРОС ВСЕХ СТИЛЕЙ - КРИТИЧНО!
+    rewardModal.style.cssText = '';
     rewardModal.style.display = 'none';
     rewardModal.style.pointerEvents = 'none';
     rewardModal.style.visibility = 'hidden';
     rewardModal.style.opacity = '0';
+    rewardModal.style.zIndex = '';
+    
+    // Сбрасываем обработчики
+    rewardModal.onclick = null;
+    rewardModal.ontouchstart = null;
+    rewardModal.ontouchend = null;
     
     // Очищаем награду
     dataRewardFromServer = null;
     
     console.log('✅ Catdrop modal закрыт и очищен');
+    
+    // Принудительно перерисовываем страницу
+    setTimeout(() => {
+      document.body.style.opacity = '0.999';
+      setTimeout(() => {
+        document.body.style.opacity = '';
+      }, 10);
+    }, 50);
   } else {
     console.log('ℹ️ Catdrop modal не найден');
   }
@@ -3712,6 +3727,23 @@ window.debugCheckClickBlockers = function() {
   console.log('🔍 Элемент в центре экрана:', overlay);
   
   return blockers;
+};
+  
+// Принудительный сброс всех стилей после закрытия modal
+window.resetAllStyles = function() {
+  console.log('🔄 resetAllStyles: сбрасываю стили...');
+  
+  const catdropModal = document.getElementById('catdropRewardModal');
+  if (catdropModal) {
+    catdropModal.style.cssText = '';
+    catdropModal.classList.remove('show');
+    catdropModal.innerHTML = '';
+  }
+  
+  // Перезагружаем стили
+  document.styleSheets;
+  
+  console.log('✅ Стили сброшены');
 };
 
 // Добавляем обработчик для отладки на телефоне (трижды тап по углу)
