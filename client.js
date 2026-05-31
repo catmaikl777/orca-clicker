@@ -6082,6 +6082,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (leaveClanBtn) leaveClanBtn.onclick = () => window.leaveClan();
   if (deleteClanBtn) deleteClanBtn.onclick = () => window.deleteClan();
   if (createClanBtn) createClanBtn.onclick = () => window.createClan();
+
+  if (!window.location.hostname.includes('yandex')) {
+    document.getElementById('ad').style.display = 'none';
+  }
   
   connectWebSocket();
   
