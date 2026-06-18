@@ -5024,67 +5024,62 @@ function updateEventUI() {
 
 // Динамическое обновление таймера ивента каждую секунду
 let eventTimerInterval = null;
-let eventFinishedAlready = false; // Флаг чтобы не спамить сообщением о завершении
+let eventFinishedAlready = false;
 function startEventTimer() {
   if (eventTimerInterval) clearInterval(eventTimerInterval);
   eventTimerInterval = setInterval(() => {
-    let endDate = eventInfo?.endDate;
-    if (!endDate && window.eventEndTime) {
-      endDate = Number(window.eventEndTime);
+    // Используем ТОЛЬКО локальный eventEndTime, игнорируем eventInfo.endDate
+    const endDate = window.eventEndTime ? Number(window.eventEndTime) : null;
+    
+    if (!endDate) {
+      // Нет активного ивента - запускаем
+      if (!eventFinishedAlready) {
+        console.log('🔄 Нет активного ивента, запускаем...');
+        window.eventEndTime = Date.now() + 60000;
+        localStorage.setItem('orca_event_endTime', window.eventEndTime);
+      }
+      return;
     }
     
-    if (endDate) {
-      const msLeft = endDate - Date.now();
+    const msLeft = endDate - Date.now();
+    
+    if (msLeft <= 0 && !eventFinishedAlready) {
+      // Ивент закончился - выдаём награду и перезапускаем
+      console.log('🎉 Ивент закончился!');
+      eventFinishedAlready = true;
       
-      // Если сервер прислал endDate слишком далеко в будущем (> 1 час) или это старый ивент
-      if (msLeft > 60 * 60 * 1000 || (endDate < Date.now() - 1000 && !eventInfo)) {
-        console.log('⚠️ Невалидный endDate:', endDate, 'msLeft:', msLeft);
-        // Игнорируем этот endDate и используем локальный таймер
-        if (!window.eventEndTime) {
-          window.eventEndTime = Date.now() + 60000;
-          localStorage.setItem('orca_event_endTime', window.eventEndTime);
-        }
-        endDate = Number(window.eventEndTime);
+      // Очищаем таймер
+      clearInterval(eventTimerInterval);
+      eventTimerInterval = null;
+      
+      // Сбрасываем eventEndTime
+      window.eventEndTime = null;
+      localStorage.removeItem('orca_event_endTime');
+      
+      // Если есть eventCoins - выдаём награду
+      if (eventCoins > 0) {
+        game.coins += eventCoins;
+        game.totalCoins += eventCoins;
+        showNotification(`🎉 Ивент завершён! Вы заработали ${formatNumber(eventCoins)} 🐋!`);
+        playSound('bonusSound');
+        updateUI();
+        saveGame();
+      } else {
+        showNotification('⏰ Ивент завершён!');
       }
       
-      if (msLeft <= 0 && !eventFinishedAlready) {
-        // Ивент закончился - выдаём награду и перезапускаем
-        console.log('🎉 Ивент закончился! Время:', new Date(endDate));
-        eventFinishedAlready = true;
-        
-        // Очищаем таймер
-        clearInterval(eventTimerInterval);
-        eventTimerInterval = null;
-        
-        // Сбрасываем eventEndTime
-        window.eventEndTime = null;
-        localStorage.removeItem('orca_event_endTime');
-        
-        // Если есть eventCoins - выдаём награду
-        if (eventCoins > 0) {
-          game.coins += eventCoins;
-          game.totalCoins += eventCoins;
-          showNotification(`🎉 Ивент завершён! Вы заработали ${formatNumber(eventCoins)} 🐋!`);
-          playSound('bonusSound');
-          updateUI();
-          saveGame();
-        } else {
-          showNotification('⏰ Ивент завершён!');
-        }
-        
-        // Перезапускаем ивент через 10 секунд
-        setTimeout(() => {
-          console.log('🔄 Перезапуск ивента...');
-          eventFinishedAlready = false;
-          window.eventEndTime = Date.now() + 60000; // 1 минута
-          localStorage.setItem('orca_event_endTime', window.eventEndTime);
-          eventCoins = 0;
-          startEventTimer();
-        }, 10000);
-      } else if (msLeft > 0) {
-        eventFinishedAlready = false; // Сбрасываем флаг когда ивент снова активен
-        updateEventUI();
-      }
+      // Перезапускаем ивент через 10 секунд
+      setTimeout(() => {
+        console.log('🔄 Перезапуск ивента...');
+        eventFinishedAlready = false;
+        eventCoins = 0;
+        window.eventEndTime = Date.now() + 60000;
+        localStorage.setItem('orca_event_endTime', window.eventEndTime);
+        startEventTimer();
+      }, 10000);
+    } else if (msLeft > 0) {
+      eventFinishedAlready = false;
+      updateEventUI();
     }
   }, 1000);
 }

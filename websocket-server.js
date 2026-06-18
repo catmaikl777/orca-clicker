@@ -224,7 +224,10 @@ let db = {
   accounts: {},
   event: { 
     startDate: Date.now(),
-    endDate: Date.now() + 14 * 24 * 60 * 60 * 1000,  // 14 дней
+    endDate: Date.now() + 2 * 60 * 1000, // 2 минуты для тестирования
+    active: true,
+    season: 1,
+    eventCoins: {},
     topPlayers: []
   },
   eventCoins: {},
@@ -288,13 +291,13 @@ setInterval(() => {
   });
 }, 1000);
 
-// Проверка оконч
-// ания ивента (каждые 5 минут)
+// Проверка окончания ивента (каждые 30 секунд)
 setInterval(() => {
-  if (db.event.active && Date.now() > db.event.endDate) {
+  if (Date.now() > db.event.endDate) {
+    console.log(`🎉 Ивент закончился! endDate=${new Date(db.event.endDate)}`);
     distributeEventRewards();
   }
-}, 300000);
+}, 30000);
 
 // Распределение наград ивента
 function distributeEventRewards() {
@@ -357,6 +360,7 @@ function distributeEventRewards() {
   db.event.season++;
   db.event.startDate = Date.now();
   db.event.endDate = Date.now() + 2 * 60 * 1000; // 2 минуты
+  db.event.active = true;
   db.event.eventCoins = {};
   
   broadcastEventInfo();
@@ -1409,6 +1413,7 @@ async function handleRestoreSession(ws, data) {
           playerData.adViewCount = Number(dbPlayer.ad_view_count) || 0;
           playerData.shopItems = typeof dbPlayer.shop_items === 'string' ? JSON.parse(dbPlayer.shop_items) : (dbPlayer.shop_items || []);
           console.log(`✅ Данные обновлены из БД: ${accountId}, coins=${dbCoins}, fish=${dbFish}, shopItems=${playerData.shopItems.length} шт.`);
+        }
       }
     } catch (error) {
       console.error(`❌ Ошибка проверки данных из БД для ${accountId}:`, error);
@@ -1416,9 +1421,11 @@ async function handleRestoreSession(ws, data) {
   }
   
   // shopItems загружены из БД выше, если нет - инициализируем пустым массивом
-  if (!playerData.shopItems || !Array.isArray(playerData.shopItems)) {
-    playerData.shopItems = [];
-    console.log(`⚠️ shopItems не загружен, создан пустой массив для ${accountId}`);
+  if (!playerData || !playerData.shopItems || !Array.isArray(playerData.shopItems)) {
+    if (playerData) {
+      playerData.shopItems = [];
+      console.log(`⚠️ shopItems не загружен, создан пустой массив для ${accountId}`);
+    }
   }
   
   playerData.lastLogin = Date.now();
@@ -1495,7 +1502,7 @@ async function handleRestoreSession(ws, data) {
       
   broadcastLeaderboard();
   broadcastEventInfo();
-}}
+}
 
 // ==================== Регистрация гостя ====================
 
