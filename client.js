@@ -4999,12 +4999,53 @@ let eventTimerInterval = null;
 function startEventTimer() {
   if (eventTimerInterval) clearInterval(eventTimerInterval);
   eventTimerInterval = setInterval(() => {
-    if (eventInfo) {
-      updateEventUI();
+    let endDate = eventInfo?.endDate;
+    if (!endDate && window.eventEndTime) {
+      endDate = Number(window.eventEndTime);
+    }
+    
+    if (endDate) {
+      const msLeft = endDate - Date.now();
+      
+      if (msLeft <= 0) {
+        // Ивент закончился - выдаём награду и перезапускаем
+        console.log('🎉 Ивент закончился! Время:', new Date(endDate));
+        
+        // Очищаем таймер
+        clearInterval(eventTimerInterval);
+        eventTimerInterval = null;
+        
+        // Сбрасываем eventEndTime
+        window.eventEndTime = null;
+        localStorage.removeItem('orca_event_endTime');
+        
+        // Если есть eventCoins - выдаём награду
+        if (eventCoins > 0) {
+          game.coins += eventCoins;
+          game.totalCoins += eventCoins;
+          showNotification(`🎉 Ивент завершён! Вы заработали ${formatNumber(eventCoins)} 🐋!`);
+          playSound('bonusSound');
+          updateUI();
+          saveGame();
+        } else {
+          showNotification('⏰ Ивент завершён!');
+        }
+        
+        // Перезапускаем ивент через 5 секунд
+        setTimeout(() => {
+          console.log('🔄 Перезапуск ивента...');
+          window.eventEndTime = Date.now() + 60000; // 1 минута
+          localStorage.setItem('orca_event_endTime', window.eventEndTime);
+          eventCoins = 0;
+          startEventTimer();
+        }, 5000);
+      } else {
+        updateEventUI();
+      }
     }
   }, 1000);
 }
-
+  
 function stopEventTimer() {
   if (eventTimerInterval) {
     clearInterval(eventTimerInterval);
@@ -5022,6 +5063,13 @@ function initEventTimer() {
   // Инициализация eventEndTime если не загружен
   if (window.eventEndTime === undefined) {
     window.eventEndTime = localStorage.getItem('orca_event_endTime') || null;
+  }
+  
+  // Если ивент не активен - запускаем на 1 минуту (60000 мс)
+  if (!window.eventEndTime || Number(window.eventEndTime) < Date.now()) {
+    console.log('🎉 Ивент не активен, запускаем на 1 минуту...');
+    window.eventEndTime = Date.now() + 60000; // 1 минута
+    localStorage.setItem('orca_event_endTime', window.eventEndTime);
   }
   
   startEventTimer();
@@ -5470,36 +5518,36 @@ function stopCatdropHold(e) {
     e.stopPropagation();
   }
   
-  // Если анимация ещё не закончена - сбрасываем
-  if (catdropAnimation) {
-    cancelAnimationFrame(catdropAnimation);
-    catdropAnimation = null;
+  // Если анимация ещё не закончена - НЕ сбрасываем, позволяем завершиться
+  // if (catdropAnimation) {
+  //   cancelAnimationFrame(catdropAnimation);
+  //   catdropAnimation = null;
     
-    // Возвращаем Catdrop в исходное состояние
-    const catdropEl = document.getElementById('catdropElement');
-    if (catdropEl) {
-      catdropEl.style.transition = 'transform 0.2s ease-out';
-      catdropEl.style.transform = 'scale(1) rotate(0deg)';
-    }
+  //   // Возвращаем Catdrop в исходное состояние
+  //   const catdropEl = document.getElementById('catdropElement');
+  //   if (catdropEl) {
+  //     catdropEl.style.transition = 'transform 0.2s ease-out';
+  //     catdropEl.style.transform = 'scale(1) rotate(0deg)';
+  //   }
     
-    // Сбрасываем переменные
-    catdropMouseDownTime = null;
-    catdropScale = 1;
-    catdropTargetScale = 1.5;
+  //   // Сбрасываем переменные
+  //   catdropMouseDownTime = null;
+  //   catdropScale = 1;
+  //   catdropTargetScale = 1.5;
     
-    // Если награда ещё не получена - оставляем isOpeningBox = true
-    // чтобы пользователь мог попробовать снова
-    if (!dataRewardFromServer) {
-      const hint = document.querySelector('.catdrop-hint');
-      if (hint) hint.textContent = 'Отпусти и зажми снова!';
-      setTimeout(() => {
-        if (hint) hint.textContent = 'Зажми чтобы открыть!';
-      }, 1500);
-    } else {
-      // Награда уже получена - ждём когда анимация завершится
-      console.log('✅ Отпускание после получения награды');
-    }
-  }
+  //   // Если награда ещё не получена - оставляем isOpeningBox = true
+  //   // чтобы пользователь мог попробовать снова
+  //   if (!dataRewardFromServer) {
+  //     const hint = document.querySelector('.catdrop-hint');
+  //     if (hint) hint.textContent = 'Отпусти и зажми снова!';
+  //     setTimeout(() => {
+  //       if (hint) hint.textContent = 'Зажми чтобы открыть!';
+  //     }, 1500);
+  //   } else {
+  //     // Награда уже получена - ждём когда анимация завершится
+  //     console.log('✅ Отпускание после получения награды');
+  //   }
+  // }
 }
 
 function stopCatdropAnimation() {
