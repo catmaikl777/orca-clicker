@@ -230,7 +230,6 @@ let db = {
     eventCoins: {},
     topPlayers: []
   },
-  eventCoins: {},
   // Таймеры для игроков
   playerTimers: {}  // { playerId: { eventEndTime: timestamp, adLastView: timestamp } }
 };
@@ -643,7 +642,7 @@ skins: safeParseJSON(row.skins, { normal: true }),
               eventEndTime: row.event_end_time || null,
               adLastView: row.ad_last_view || null,
               adViewCount: Number(row.ad_view_count) || 0,
-              lastLoginDate: row.daily_login_date || null,
+              lastLoginDate: row.last_login_date || null,
               loginStreak: Number(row.login_streak) || 0
             };
             
@@ -697,11 +696,20 @@ skins: safeParseJSON(row.skins, { normal: true }),
 
         console.log(`📦 Загружено: ${Object.keys(db.players).length} игроков, ${Object.keys(db.accounts).length} аккаунтов, ${Object.keys(bans).length} банов, ${Object.keys(eventCoins).length} eventCoins, ${clans.length} кланов`);
         
-        // Лог для отладки - показать монеты загруженных игроков
+        // ЛОГ для отладки - показать монеты загруженных игроков
         console.log(`💾 Загруженные игроки (coins):`);
         Object.entries(db.players).forEach(([id, p]) => {
           console.log(`   ${id}: ${p.name}, coins=${p.coins}, totalCoins=${p.totalCoins}`);
         });
+        
+        // 🚨 ПРИНУДИТЕЛЬНЫЙ СБРОС ТАЙМЕРА ИВЕНТА (гарантия что endDate никогда не будет старым)
+        console.log(`🔄 Принудительный сброс таймера ивента...`);
+        console.log(`   БЫЛО: endDate=${new Date(db.event.endDate)}, season=${db.event.season}`);
+        db.event.startDate = Date.now();
+        db.event.endDate = Date.now() + 2 * 60 * 1000; // 2 минуты
+        db.event.active = true;
+        db.event.eventCoins = {};
+        console.log(`   СТАЛО: endDate=${new Date(db.event.endDate)}, season=${db.event.season}`);
         
         // Запустить очистку гостевых аккаунтов при старте
         cleanupPlayerAccounts().then(() => {
@@ -1353,7 +1361,7 @@ async function handleRestoreSession(ws, data) {
         _lastProcessedClicks: Number(dbPlayer.last_processed_clicks) || 0,
         playTime: Number(dbPlayer.total_play_time) || 0,  // Общее время в игре
         // Ежедневная серия
-        dailyLoginDate: dbPlayer.daily_login_date || null,
+        dailyLoginDate: dbPlayer.last_login_date || null,
         loginStreak: Number(dbPlayer.login_streak) || 0,
         // Таймеры (ивент, реклама)
         eventEndTime: dbPlayer.event_end_time || null,
@@ -1367,7 +1375,7 @@ async function handleRestoreSession(ws, data) {
         eventEndTime: dbPlayer.event_end_time || null,
         adLastView: dbPlayer.ad_last_view || null,
         adViewCount: dbPlayer.ad_view_count || 0,
-        lastLoginDate: dbPlayer.daily_login_date || null,
+        lastLoginDate: dbPlayer.last_login_date || null,
         loginStreak: Number(dbPlayer.login_streak) || 0
       };
       } else {
@@ -1406,7 +1414,7 @@ async function handleRestoreSession(ws, data) {
           playerData._lastProcessedClicks = Number(dbPlayer.last_processed_clicks) || 0;
           playerData.playTime = Number(dbPlayer.total_play_time) || 0;  // Общее время в игре
           // ОБНОВЛЯЕМ ТАЙМЕРЫ И shopItems из БД
-          playerData.dailyLoginDate = dbPlayer.daily_login_date || null;
+          playerData.dailyLoginDate = dbPlayer.last_login_date || null;
           playerData.loginStreak = Number(dbPlayer.login_streak) || 0;
           playerData.eventEndTime = dbPlayer.event_end_time || null;
           playerData.adLastView = dbPlayer.ad_last_view || null;
