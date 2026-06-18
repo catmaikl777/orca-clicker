@@ -1413,9 +1413,27 @@ function handleServerMessage(data) {
       
       // Сохраняем endTime ивента в localStorage
       if (eventInfo && eventInfo.endDate) {
-        window.eventEndTime = eventInfo.endDate;
-        localStorage.setItem('orca_event_endTime', eventInfo.endDate);
-        console.log('🎉 Ивент сохранён, конец:', new Date(eventInfo.endDate));
+        const serverEndDate = Number(eventInfo.endDate);
+        const msFromNow = serverEndDate - Date.now();
+        
+        console.log('📅 eventInfo endDate:', serverEndDate, 'msFromNow:', msFromNow);
+        
+        // Если сервер прислал endDate который уже прошёл (> 5 мин назад) - игнорируем
+        if (msFromNow < -300000) { // -5 минут
+          console.log('⚠️ Сервер прислал старый endDate, игнорируем и запускаем свой ивент');
+          window.eventEndTime = Date.now() + 60000; // 1 минута
+          localStorage.setItem('orca_event_endTime', window.eventEndTime);
+        } else if (msFromNow > 60 * 60 * 1000) { // > 1 часа
+          // Если сервер прислал слишком далёкий endDate - тоже игнорируем
+          console.log('⚠️ Сервер прислал слишком далёкий endDate, запускаем свой ивент');
+          window.eventEndTime = Date.now() + 60000; // 1 минута
+          localStorage.setItem('orca_event_endTime', window.eventEndTime);
+        } else {
+          // Нормальный endDate - используем серверный
+          window.eventEndTime = serverEndDate;
+          localStorage.setItem('orca_event_endTime', window.eventEndTime);
+          console.log('🎉 Ивент сохранён, конец:', new Date(serverEndDate));
+        }
       }
       
       updateEventUI();
@@ -2155,8 +2173,18 @@ case 'joinedClan':
       // Сервер прислал сохранённые таймеры
       console.log('⏱️ Таймеры загружены с сервера:', data);
       if (data.eventEndTime !== undefined) {
-        window.eventEndTime = data.eventEndTime;
-        localStorage.setItem('orca_event_endTime', data.eventEndTime);
+        const eventEndTimeNum = Number(data.eventEndTime);
+        const msFromNow = eventEndTimeNum - Date.now();
+        
+        // Если eventEndTime уже прошёл - сбрасываем
+        if (msFromNow < 0) {
+          console.log('⚠️ eventEndTime уже прошёл, сбрасываем');
+          window.eventEndTime = null;
+          localStorage.removeItem('orca_event_endTime');
+        } else {
+          window.eventEndTime = eventEndTimeNum;
+          localStorage.setItem('orca_event_endTime', eventEndTimeNum);
+        }
       }
       if (data.adLastView !== undefined) {
         window.adLastView = data.adLastView;
@@ -2181,7 +2209,7 @@ case 'joinedClan':
       break;
   }
 }
-  
+        
   
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
@@ -2277,7 +2305,7 @@ function showRaidPublicLobbies() {
     container.innerHTML = '<p style="text-align:center;padding:20px;color:#888">Подключение...</p>';
   }
 }
-
+  
 function hideRaidLobbies() {
   const createButtons = document.getElementById('raidCreateButtons');
   const lobbyList = document.getElementById('raidLobbyList');
@@ -2313,7 +2341,7 @@ function renderRaidLobbies() {
     });
   }
 }
-  
+      
 function createRaidLobby(isOpen = true) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'createRaidLobby', isOpen }));
@@ -4996,6 +5024,7 @@ function updateEventUI() {
 
 // Динамическое обновление таймера ивента каждую секунду
 let eventTimerInterval = null;
+let eventFinishedAlready = false; // Флаг чтобы не спамить сообщением о завершении
 function startEventTimer() {
   if (eventTimerInterval) clearInterval(eventTimerInterval);
   eventTimerInterval = setInterval(() => {
@@ -5007,9 +5036,21 @@ function startEventTimer() {
     if (endDate) {
       const msLeft = endDate - Date.now();
       
-      if (msLeft <= 0) {
+      // Если сервер прислал endDate слишком далеко в будущем (> 1 час) или это старый ивент
+      if (msLeft > 60 * 60 * 1000 || (endDate < Date.now() - 1000 && !eventInfo)) {
+        console.log('⚠️ Невалидный endDate:', endDate, 'msLeft:', msLeft);
+        // Игнорируем этот endDate и используем локальный таймер
+        if (!window.eventEndTime) {
+          window.eventEndTime = Date.now() + 60000;
+          localStorage.setItem('orca_event_endTime', window.eventEndTime);
+        }
+        endDate = Number(window.eventEndTime);
+      }
+      
+      if (msLeft <= 0 && !eventFinishedAlready) {
         // Ивент закончился - выдаём награду и перезапускаем
         console.log('🎉 Ивент закончился! Время:', new Date(endDate));
+        eventFinishedAlready = true;
         
         // Очищаем таймер
         clearInterval(eventTimerInterval);
@@ -5031,15 +5072,17 @@ function startEventTimer() {
           showNotification('⏰ Ивент завершён!');
         }
         
-        // Перезапускаем ивент через 5 секунд
+        // Перезапускаем ивент через 10 секунд
         setTimeout(() => {
           console.log('🔄 Перезапуск ивента...');
+          eventFinishedAlready = false;
           window.eventEndTime = Date.now() + 60000; // 1 минута
           localStorage.setItem('orca_event_endTime', window.eventEndTime);
           eventCoins = 0;
           startEventTimer();
-        }, 5000);
-      } else {
+        }, 10000);
+      } else if (msLeft > 0) {
+        eventFinishedAlready = false; // Сбрасываем флаг когда ивент снова активен
         updateEventUI();
       }
     }
