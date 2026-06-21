@@ -311,8 +311,14 @@ function distributeEventRewards() {
   
   console.log('🎮 Топ игроков:', playerEventCoins);
   
-  // Топ-3 кланов по totalCoins
-  const topClans = Object.values(db.clans)
+  // Топ-3 кланов по сумме coins всех участников
+  const clanTotals = Object.values(db.clans)
+    .map(clan => {
+      const total = (clan.members || [])
+        .filter(id => db.players[id])
+        .reduce((sum, id) => sum + (db.players[id].coins || 0), 0);
+      return { clan, totalCoins: total };
+    })
     .sort((a, b) => b.totalCoins - a.totalCoins)
     .slice(0, 3);
   
@@ -336,8 +342,9 @@ function distributeEventRewards() {
   });
   
   // Награды кланам (всем участникам)
-  topClans.forEach((clan, index) => {
+  clanTotals.forEach(({ clan, totalCoins }, index) => {
     const reward = rewards[index];
+    console.log(`🏰 ${index + 1} место клану ${clan.name}: сумма=${totalCoins}, награда=${reward} каждому`);
     clan.members.forEach(memberId => {
       if (db.players[memberId]) {
         db.players[memberId].coins += reward;
@@ -346,7 +353,6 @@ function distributeEventRewards() {
         totalGiven += reward;
       }
     });
-    console.log(`🏰 ${index + 1} место клану ${clan.name}: +${reward} каждому (${clan.members.length} уч.)`);
   });
   
   console.log(`💰 Всего выдано: ${totalGiven}`);
@@ -366,26 +372,32 @@ function distributeEventRewards() {
   console.log(`🎉 Сезон #${oldSeason} завершён! Старт сезона #${db.event.season}`);
   console.log(`📋 Итоги сезона #${oldSeason}:`, oldEventCoins);
   
-  // Отправляем обновлённые данные игрокам
+  // Отправляем обновлённые данные о новом ивенте
   setTimeout(() => {
+    broadcastEventInfo();
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN && client.playerId) {
-        const player = db.players[client.playerId];
-        if (player) {
-          client.send(JSON.stringify({
-            type: 'registered',
-            playerId: client.playerId,
-            name: player.name,
-            data: player,
-            eventCoins: 0
-          }));
-        }
+        client.send(JSON.stringify({
+          type: 'eventRestarted',
+          season: db.event.season,
+          endDate: db.event.endDate,
+          message: `🎉 Сезон #${db.event.season} начался!`
+        }));
       }
     });
   }, 500);
 }
 
 function broadcastEventInfo() {
+  // 🚨 ЗАЩИТА: если endDate старше 1 часа — принудительно сбрасываем
+  if (db.event.endDate && Date.now() - db.event.endDate > 60 * 60 * 1000) {
+    console.log(`🚨 broadcastEventInfo: endDate старый (${new Date(db.event.endDate)}), сбрасываю...`);
+    db.event.endDate = Date.now() + 2 * 60 * 1000;
+    db.event.startDate = Date.now();
+    db.event.active = true;
+    db.event.eventCoins = {};
+  }
+      
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       const clientId = client.accountId || client.playerId;
@@ -1161,7 +1173,10 @@ async function handleSaveTimers(ws, data) {
     db.playerTimers[id].eventEndTime = data.eventEndTime;
   }
   if (data.lastLoginDate !== undefined) {
-    db.playerTimers[id].lastLoginDate = data.lastLoginDate;
+    // lastLoginDate должен быть строкой YYYY-MM-DD, а не timestamp
+    db.playerTimers[id].lastLoginDate = typeof data.lastLoginDate === 'string' 
+      ? data.lastLoginDate 
+      : String(data.lastLoginDate);
   }
   if (data.loginStreak !== undefined) {
     db.playerTimers[id].loginStreak = data.loginStreak;

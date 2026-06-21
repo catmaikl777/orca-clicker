@@ -2169,6 +2169,14 @@ case 'joinedClan':
         window.handleForceSaveResponse(data);
       }
       break;
+    case 'eventRestarted':
+      // Новый сезон ивента начался - НЕ сбрасываем аккаунт
+      console.log('🔄 Новый сезон ивента:', data.season, data.message);
+      showNotification(`🎉 ${data.message || 'Новый сезон ивента начался!'}`);
+      // Обновляем UI ивента
+      updateEventUI();
+      renderEventLeaderboard();
+      break;
     case 'timersLoaded':
       // Сервер прислал сохранённые таймеры
       console.log('⏱️ Таймеры загружены с сервера:', data);
@@ -2209,7 +2217,7 @@ case 'joinedClan':
       break;
   }
 }
-        
+  
   
 // Разблокировка аудио на мобильных устройствах
 function unlockAudio() {
@@ -2238,7 +2246,7 @@ function playSound(soundId) {
     sound.play().catch(() => {});
   }
 }
-  
+
 // Показ плавающего текста
 function showFloatingText(x, y, text, color = '#4fc3f7') {
   const effect = document.createElement('div');
