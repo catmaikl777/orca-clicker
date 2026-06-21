@@ -291,15 +291,15 @@ setInterval(() => {
 }, 1000);
 
 // Проверка окончания ивента (каждые 30 секунд)
-setInterval(() => {
+setInterval(async () => {
   if (Date.now() > db.event.endDate) {
     console.log(`🎉 Ивент закончился! endDate=${new Date(db.event.endDate)}`);
-    distributeEventRewards();
+    await distributeEventRewards();
   }
 }, 30000);
 
 // Распределение наград ивента
-function distributeEventRewards() {
+async function distributeEventRewards() {
   console.log('🏆 Распределение наград ивента...');
   console.log(`📊 eventCoins:`, db.event.eventCoins);
   
@@ -361,7 +361,30 @@ function distributeEventRewards() {
   
   console.log(`💰 Всего выдано монет: ${totalGiven}`);
   
-  console.log(`💰 Всего выдано: ${totalGiven}`);
+  // 💾 СОХРАНЯЕМ НАГРАЖДЁННЫХ ИГРОКОВ В БД
+  let savedCount = 0;
+  for (const player of Object.values(db.players)) {
+    if (player.eventRewards > 0) {
+      await dbAdapter.savePlayer(player);
+      savedCount++;
+    }
+  }
+  console.log(`💾 Сохранено в БД: ${savedCount} игроков`);
+  
+  // 📤 ОТПРАВЛЯЕМ ОБНОВЛЁННЫЕ ДАННЫЕ ИГРОКАМ ПОСЛЕ НАГРАД
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client.playerId && db.players[client.playerId]) {
+      const p = db.players[client.playerId];
+      client.send(JSON.stringify({
+        type: 'playerDataUpdate',
+        playerId: client.playerId,
+        coins: p.coins,
+        totalCoins: p.totalCoins,
+        eventRewards: p.eventRewards || 0
+      }));
+    }
+  });
+  console.log('📤 Отправлены обновлённые данные игрокам');
   
   // Сохраняем старые данные для лога
   const oldSeason = db.event.season;
@@ -383,17 +406,40 @@ function distributeEventRewards() {
     broadcastEventInfo();
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN && client.playerId) {
+        // Собираем топ игроков
+        const topPlayers = Object.entries(db.event.eventCoins || {})
+          .map(([pid, coins]) => ({ 
+            id: pid, 
+            name: db.players[pid]?.name || 'Player', 
+            coins 
+          }))
+          .sort((a, b) => b.coins - a.coins)
+          .slice(0, 10);
+        
+        // Собираем топ кланов
+        const clanTotals = Object.values(db.clans)
+          .map(clan => {
+            const total = (clan.members || [])
+              .filter(id => db.players[id])
+              .reduce((sum, id) => sum + (db.players[id].totalCoins || 0), 0);
+            return { name: clan.name, totalCoins: total, memberCount: clan.members.filter(id => db.players[id]).length };
+          })
+          .sort((a, b) => b.totalCoins - a.totalCoins)
+          .slice(0, 3);
+        
         client.send(JSON.stringify({
           type: 'eventRestarted',
           season: db.event.season,
           endDate: db.event.endDate,
-          message: `🎉 Сезон #${db.event.season} начался!`
+          message: `🎉 Сезон #${db.event.season} начался!`,
+          topPlayers: topPlayers,
+          topClans: clanTotals
         }));
       }
     });
   }, 500);
 }
-
+      
 function broadcastEventInfo() {
   // 🚨 ЗАЩИТА: если endDate старше 1 часа — принудительно сбрасываем
   if (db.event.endDate && Date.now() - db.event.endDate > 60 * 60 * 1000) {
@@ -732,7 +778,7 @@ skins: safeParseJSON(row.skins, { normal: true }),
         // 🚨 ПРОВЕРКА ИВЕНТА СРАЗУ ПОСЛЕ СБРОСА (если ивент уже истёк - запускаем новый)
         if (Date.now() > db.event.endDate - 1000) {  // -1000ms для защиты от race condition
           console.log(`⚠️ Ивент уже истёк сразу после сброса! Перезапускаем...`);
-          distributeEventRewards();
+          await distributeEventRewards();
         } else {
           console.log(`✅ Ивент запущен корректно, до конца: ${Math.round((db.event.endDate - Date.now()) / 1000)} сек`);
         }

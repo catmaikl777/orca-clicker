@@ -2172,10 +2172,31 @@ case 'joinedClan':
     case 'eventRestarted':
       // Новый сезон ивента начался - НЕ сбрасываем аккаунт
       console.log('🔄 Новый сезон ивента:', data.season, data.message);
-      showNotification(`🎉 ${data.message || 'Новый сезон ивента начался!'}`);
+      // Показываем модальное окно с наградами
+      showEventRewardsModal(data);
       // Обновляем UI ивента
       updateEventUI();
       renderEventLeaderboard();
+      break;
+    case 'playerDataUpdate':
+      // Сервер прислал обновлённые данные игрока (после наград ивента)
+      console.log('📥 playerDataUpdate:', data);
+      if (data.coins !== undefined && Number.isFinite(data.coins)) {
+        const oldCoins = game.coins;
+        game.coins = data.coins;
+        game.totalCoins = data.totalCoins || game.totalCoins;
+        
+        if (data.coins > oldCoins) {
+          const diff = data.coins - oldCoins;
+          showNotification(`🎉 Получено наград: +${formatNumber(diff)} 🐋!`);
+          playSound('bonusSound');
+        }
+        
+        updateUI();
+        renderShop();
+        renderBoxes();
+        saveGame();
+      }
       break;
     case 'timersLoaded':
       // Сервер прислал сохранённые таймеры
@@ -2183,7 +2204,7 @@ case 'joinedClan':
       if (data.eventEndTime !== undefined) {
         const eventEndTimeNum = Number(data.eventEndTime);
         const msFromNow = eventEndTimeNum - Date.now();
-        
+      
         // Если eventEndTime уже прошёл - сбрасываем
         if (msFromNow < 0) {
           console.log('⚠️ eventEndTime уже прошёл, сбрасываем');
@@ -5834,6 +5855,118 @@ function closeAllModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
   document.getElementById('modalOverlay').classList.remove('active');
   // Не останавливаем таймер - он работает постоянно в фоне
+}
+
+// Показать модальное окно с наградами ивента
+function showEventRewardsModal(data) {
+  // Создаём модальное окно если нет
+  let modal = document.getElementById('eventRewardsModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'eventRewardsModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 600px; background: linear-gradient(135deg, #1a2a6c, #2a4a9c, #4a7ac2); border: 3px solid #ffd700; border-radius: 20px; padding: 30px; color: #fff; position: relative; box-shadow: 0 0 40px rgba(255,215,0,0.5);">
+        <span class="close" onclick="document.getElementById('eventRewardsModal').classList.remove('active')" style="position: absolute; top: 15px; right: 20px; font-size: 32px; cursor: pointer; color: #ffd700;">&times;</span>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="font-size: 32px; margin: 0; color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.8);">🏆 Итоги сезона</h2>
+          <p style="font-size: 18px; margin: 10px 0 0 0; color: #aaddff;">Награды распределены!</p>
+        </div>
+        
+        <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+          <h3 style="color: #ffd700; margin: 0 0 15px 0; text-align: center;">🎮 Топ игроков</h3>
+          <div id="eventPlayerRewards"></div>
+        </div>
+        
+        <div style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+          <h3 style="color: #ffd700; margin: 0 0 15px 0; text-align: center;">🏰 Топ кланов</h3>
+          <div id="eventClanRewards"></div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+          <button onclick="document.getElementById('eventRewardsModal').classList.remove('active')" style="background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a2a6c; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 15px rgba(255,215,0,0.5);">
+            ✅ Отлично!
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  // Обновляем номер сезона
+  const seasonTitle = modal.querySelector('h2');
+  seasonTitle.textContent = `🏆 Итоги сезона #${data.season || 1}`;
+  
+  // Заполняем награды игроков с серверных данных
+  const playerRewards = document.getElementById('eventPlayerRewards');
+  const rewards = [
+    { place: '🥇 1 место', amount: 50000, emoji: '👑' },
+    { place: '🥈 2 место', amount: 25000, emoji: '🥈' },
+    { place: '🥉 3 место', amount: 10000, emoji: '🥉' }
+  ];
+  
+  if (data.topPlayers && data.topPlayers.length > 0) {
+    playerRewards.innerHTML = data.topPlayers.slice(0, 3).map((player, index) => {
+      const reward = rewards[index];
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #ffd700;">
+          <div>
+            <div style="font-weight: bold; font-size: 16px;">${reward.emoji} ${player.name}</div>
+            <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">${formatNumber(player.coins)} билетов</div>
+            <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">Награда: +${formatNumber(reward.amount)} 🐋</div>
+          </div>
+          <div style="font-size: 24px;">${reward.emoji}</div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    playerRewards.innerHTML = rewards.map(r => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #ffd700;">
+        <div>
+          <div style="font-weight: bold; font-size: 16px;">${r.emoji} ${r.place}</div>
+          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">+${formatNumber(r.amount)} 🐋</div>
+        </div>
+        <div style="font-size: 24px;">${r.emoji}</div>
+      </div>
+    `).join('');
+  }
+  
+  // Заполняем награды кланов с серверных данных
+  const clanRewards = document.getElementById('eventClanRewards');
+  
+  if (data.topClans && data.topClans.length > 0) {
+    clanRewards.innerHTML = data.topClans.map((clan, index) => {
+      const reward = rewards[index];
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #4fc3f7;">
+          <div>
+            <div style="font-weight: bold; font-size: 16px;">🏰 ${reward.emoji} ${clan.name}</div>
+            <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">${clan.memberCount} участников</div>
+            <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">+${formatNumber(reward.amount)} каждому</div>
+          </div>
+          <div style="font-size: 24px;">${reward.emoji}</div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    clanRewards.innerHTML = rewards.map(r => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #4fc3f7;">
+        <div>
+          <div style="font-weight: bold; font-size: 16px;">🏰 ${r.place} клану</div>
+          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">+${formatNumber(r.amount)} каждому участнику</div>
+        </div>
+        <div style="font-size: 24px;">${r.emoji}</div>
+      </div>
+    `).join('');
+  }
+  
+  // Показываем модальное окно
+  document.getElementById('modalOverlay').classList.add('active');
+  modal.classList.add('active');
+  
+  // Воспроизводим звук
+  playSound('bonusSound');
 }
 
 function switchShopTab(tab, btn) {

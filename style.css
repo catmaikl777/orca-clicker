@@ -4434,6 +4434,69 @@ button, .clicker, .menu-btn, .battle-click-btn, .shop-item, .skill, .skin-item {
   background: rgba(32,178,170,0.8);
 }
 
+/* ==================== МОДАЛЬНОЕ ОКНО НАГРАД ИВЕНТА ==================== */
+#eventRewardsModal .modal-content {
+  animation: modalBounceIn 0.5s ease-out;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+@keyframes modalBounceIn {
+  0% { 
+    opacity: 0;
+    transform: scale(0.3) translateY(-50px); 
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1.05) translateY(0); 
+  }
+  70% { 
+    transform: scale(0.95); 
+  }
+  100% { 
+    transform: scale(1); 
+  }
+}
+
+#eventRewardsModal .modal-content h2 {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { 
+    text-shadow: 0 0 20px rgba(255,215,0,0.8); 
+  }
+  50% { 
+    text-shadow: 0 0 30px rgba(255,215,0,1), 0 0 40px rgba(255,215,0,0.6); 
+  }
+}
+
+/* ==================== АНИМАЦИЯ ПОЯВЛЕНИЯ СТРОК ==================== */
+#eventPlayerRewards > div,
+#eventClanRewards > div {
+  animation: slideInLeft 0.4s ease-out backwards;
+}
+
+#eventPlayerRewards > div:nth-child(1) { animation-delay: 0.1s; }
+#eventPlayerRewards > div:nth-child(2) { animation-delay: 0.2s; }
+#eventPlayerRewards > div:nth-child(3) { animation-delay: 0.3s; }
+
+#eventClanRewards > div:nth-child(1) { animation-delay: 0.4s; }
+#eventClanRewards > div:nth-child(2) { animation-delay: 0.5s; }
+#eventClanRewards > div:nth-child(3) { animation-delay: 0.6s; }
+
+@keyframes slideInLeft {
+  from { 
+    opacity: 0; 
+    transform: translateX(-30px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
 /* Для мобильных - полное использование экрана */
 @media (max-width: 600px) {
   #raidView.modal {
