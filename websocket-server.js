@@ -711,6 +711,14 @@ skins: safeParseJSON(row.skins, { normal: true }),
         db.event.eventCoins = {};
         console.log(`   СТАЛО: endDate=${new Date(db.event.endDate)}, season=${db.event.season}`);
         
+        // 🚨 ПРОВЕРКА ИВЕНТА СРАЗУ ПОСЛЕ СБРОСА (если ивент уже истёк - запускаем новый)
+        if (Date.now() > db.event.endDate - 1000) {  // -1000ms для защиты от race condition
+          console.log(`⚠️ Ивент уже истёк сразу после сброса! Перезапускаем...`);
+          distributeEventRewards();
+        } else {
+          console.log(`✅ Ивент запущен корректно, до конца: ${Math.round((db.event.endDate - Date.now()) / 1000)} сек`);
+        }
+        
         // Запустить очистку гостевых аккаунтов при старте
         cleanupPlayerAccounts().then(() => {
           console.log('✅ Очистка гостевых аккаунтов завершена');

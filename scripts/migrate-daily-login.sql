@@ -1,10 +1,12 @@
 -- Миграция для добавления колонок ежедневной серии
 -- Выполнить в базе данных PostgreSQL
 
+-- Изменяем тип last_login_date если нужно
+ALTER TABLE players ALTER COLUMN last_login_date TYPE VARCHAR(20) USING last_login_date::VARCHAR(20);
 
 -- Добавляем колонки если их нет
 ALTER TABLE players 
-ADD COLUMN IF NOT EXISTS last_login_date VARCHAR(10) NULL,
+ADD COLUMN IF NOT EXISTS last_login_date VARCHAR(20) NULL,
 ADD COLUMN IF NOT EXISTS login_streak INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS last_streak_reward_date VARCHAR(20) NULL;
 
