@@ -31,7 +31,9 @@ const game = {
   loginStreak: 0,
   lastStreakRewardDate: null,  // Когда последний раз получал награду
   // Рыбалка
-  fish: 0
+  fish: 0,
+  // 🔒 Награды ивента
+  eventRewards: 0
 };
 
 // Глобальные переменные для кланов
@@ -2186,6 +2188,11 @@ case 'joinedClan':
         game.coins = data.coins;
         game.totalCoins = data.totalCoins || game.totalCoins;
         
+        // 🔒 Суммируем eventRewards
+        if (data.eventRewards !== undefined) {
+          game.eventRewards = Math.max(game.eventRewards || 0, data.eventRewards);
+        }
+        
         if (data.coins > oldCoins) {
           const diff = data.coins - oldCoins;
           showNotification(`🎉 Получено наград: +${formatNumber(diff)} 🐋!`);
@@ -2195,7 +2202,11 @@ case 'joinedClan':
         updateUI();
         renderShop();
         renderBoxes();
-        saveGame();
+        // 🔒 Принудительное сохранение через 500мс после получения данных
+        setTimeout(() => {
+          console.log('💾 Принудительное сохранение после playerDataUpdate...');
+          saveGame();
+        }, 500);
       }
       break;
     case 'timersLoaded':
@@ -6124,6 +6135,8 @@ function saveGameToServer() {
       // Ежедневная серия
       lastLoginDate: game.lastLoginDate,
       loginStreak: game.loginStreak || 0,
+      // 🔒 Награды ивента - для защиты от перезаписи
+      eventRewards: game.eventRewards || 0,
       // Таймеры (сохраняем в localStorage для простоты)
       adLastView: localStorage.getItem('orca_ad_lastView'),
       adViewCount: localStorage.getItem('orca_ad_viewCount'),
@@ -6140,6 +6153,13 @@ function saveGame() {
     localStorage.setItem('orca_lastStreakRewardDate', game.lastStreakRewardDate || null);
   } catch (e) {
     console.warn('⚠️ Ошибка сохранения daily streak:', e);
+  }
+  
+  // 🔒 Сохраняем eventRewards в localStorage
+  try {
+    localStorage.setItem('orca_eventRewards', game.eventRewards || 0);
+  } catch (e) {
+    console.warn('⚠️ Ошибка сохранения eventRewards:', e);
   }
   
   // Сохраняем таймеры СРАЗУ в localStorage (не ждём сервера)
@@ -6182,6 +6202,17 @@ function loadGame() {
     console.log('📅 Локальный daily streak загружен:', { lastLoginDate: game.lastLoginDate, loginStreak: game.loginStreak, lastStreakRewardDate: game.lastStreakRewardDate });
   } catch (e) {
     console.warn('⚠️ Ошибка загрузки daily streak:', e);
+  }
+  
+  // 🔒 Загружаем eventRewards из localStorage
+  try {
+    const savedEventRewards = localStorage.getItem('orca_eventRewards');
+    if (savedEventRewards) {
+      game.eventRewards = Number(savedEventRewards) || 0;
+      console.log('🏆 Локальные eventRewards загружены:', game.eventRewards);
+    }
+  } catch (e) {
+    console.warn('⚠️ Ошибка загрузки eventRewards:', e);
   }
   
   // Данные загружаются с сервера при подключении

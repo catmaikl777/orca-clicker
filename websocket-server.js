@@ -1173,6 +1173,31 @@ async function handleSaveGame(ws, data) {
   }
   p.playTime = data.playTime ?? p.playTime;
   
+  // 🔒 ЗАЩИТА: eventRewards суммируем (сервер + клиент), чтобы не сбрасывались
+  if (data.eventRewards !== undefined && Number.isFinite(data.eventRewards)) {
+    p.eventRewards = Math.max(p.eventRewards || 0, data.eventRewards);
+  }
+  
+  // 🔒 ЗАЩИТА: если серверные монеты больше клиентских - оставляем серверные (награды ивента)
+  if (data.coins !== undefined && Number.isFinite(data.coins) && p.coins > data.coins) {
+    console.log(`🔒 Защита от перезаписи: сервер ${p.coins} > клиент ${data.coins}, оставляем ${p.coins}`);
+  }
+  p.playTime = data.playTime ?? p.playTime;
+  
+  // 🔒 ЗАЩИТА: если серверные монеты больше клиентских - используем серверные (награды ивента)
+  if (data.coins !== undefined && Number.isFinite(data.coins) && p.coins > data.coins) {
+    console.log(`🔒 Защита от перезаписи: сервер ${p.coins} > клиент ${data.coins}, оставляем ${p.coins}`);
+  }
+  
+  // 🔒 Суммируем eventRewards (награды могут прийти из сервера)
+  if (data.eventRewards !== undefined && Number.isFinite(data.eventRewards)) {
+    const newEventRewards = Number(data.eventRewards);
+    if (newEventRewards > (p.eventRewards || 0)) {
+      console.log(`🎁 Обновляем eventRewards: ${p.eventRewards || 0} → ${newEventRewards}`);
+      p.eventRewards = newEventRewards;
+    }
+  }
+  
   // ЛОГ для отладки синхронизации
   console.log(`💾 Сохранение данных: ${id}, coins: ${p.coins} ← ${data.coins}, totalCoins: ${p.totalCoins} ← ${data.totalCoins}, fish: ${p.fish} ← ${data.fish}`);
   
