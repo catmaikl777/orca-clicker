@@ -311,12 +311,12 @@ function distributeEventRewards() {
   
   console.log('🎮 Топ игроков:', playerEventCoins);
   
-  // Топ-3 кланов по сумме coins всех участников
+  // Топ-3 кланов по сумме totalCoins всех участников
   const clanTotals = Object.values(db.clans)
     .map(clan => {
       const total = (clan.members || [])
         .filter(id => db.players[id])
-        .reduce((sum, id) => sum + (db.players[id].coins || 0), 0);
+        .reduce((sum, id) => sum + (db.players[id].totalCoins || 0), 0);
       return { clan, totalCoins: total };
     })
     .sort((a, b) => b.totalCoins - a.totalCoins)
@@ -335,8 +335,9 @@ function distributeEventRewards() {
     if (player.coins > 0 && db.players[player.id]) {
       const reward = rewards[index];
       db.players[player.id].coins += reward;
+      db.players[player.id].totalCoins += reward;
       db.players[player.id].eventRewards = (db.players[player.id].eventRewards || 0) + reward;
-      console.log(`🥇 ${index + 1} место игроку ${player.name}: +${reward} (всего: ${db.players[player.id].coins})`);
+      console.log(`🥇 ${index + 1} место игроку ${player.name}: +${reward} 🐋 (всего: ${db.players[player.id].coins})`);
       totalGiven += reward;
     }
   });
@@ -344,16 +345,21 @@ function distributeEventRewards() {
   // Награды кланам (всем участникам)
   clanTotals.forEach(({ clan, totalCoins }, index) => {
     const reward = rewards[index];
-    console.log(`🏰 ${index + 1} место клану ${clan.name}: сумма=${totalCoins}, награда=${reward} каждому`);
+    const memberCount = clan.members.filter(id => db.players[id]).length;
+    console.log(`🏰 ${index + 1} место клану ${clan.name}: сумма totalCoins=${totalCoins}, награда=${reward} каждому (${memberCount} уч.)`);
+    console.log(`  📋 Участники:`);
     clan.members.forEach(memberId => {
       if (db.players[memberId]) {
         db.players[memberId].coins += reward;
+        db.players[memberId].totalCoins += reward;
         db.players[memberId].eventRewards = (db.players[memberId].eventRewards || 0) + reward;
-        console.log(`  🏰 Участнику ${db.players[memberId].name}: +${reward}`);
+        console.log(`    🥇 ${db.players[memberId].name}: +${reward} 🐋`);
         totalGiven += reward;
       }
     });
   });
+  
+  console.log(`💰 Всего выдано монет: ${totalGiven}`);
   
   console.log(`💰 Всего выдано: ${totalGiven}`);
   
