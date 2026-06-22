@@ -808,7 +808,8 @@ const WS_SERVER_URL = (() => {
   
   // Продакшен - используем WSS
   const guestId = localStorage.getItem('orca_guest_id') || 'guest_' + Math.random().toString(36).substr(2, 9);
-  //return `wss://косат.рф/?token=${encodeURIComponent(guestId)}`;
+  //return `wss:/
+  // /косат.рф/?token=${encodeURIComponent(guestId)}`;
   return `wss://orca-clicker-api.onrender.com/?token=${encodeURIComponent(guestId)}`;
   //return `ws://localhost:3003/?token=${encodeURIComponent(guestId)}`;
 })();
@@ -5083,9 +5084,9 @@ function startEventTimer() {
     
     const msLeft = endDate - Date.now();
     
-    if (msLeft <= 0 && !eventFinishedAlready) {
-      // Ивент закончился - выдаём награду и перезапускаем
-      console.log('🎉 Ивент закончился!');
+    if (msLeft <= 0) {
+      // Ивент закончился - просто сообщаем серверу
+      console.log('⏰ Ивент закончился на клиенте, запрашиваем данные у сервера...');
       eventFinishedAlready = true;
       
       // Очищаем таймер
@@ -5096,27 +5097,10 @@ function startEventTimer() {
       window.eventEndTime = null;
       localStorage.removeItem('orca_event_endTime');
       
-      // Если есть eventCoins - выдаём награду
-      if (eventCoins > 0) {
-        game.coins += eventCoins;
-        game.totalCoins += eventCoins;
-        showNotification(`🎉 Ивент завершён! Вы заработали ${formatNumber(eventCoins)} 🐋!`);
-        playSound('bonusSound');
-        updateUI();
-        saveGame();
-      } else {
-        showNotification('⏰ Ивент завершён!');
+      // Запрашиваем новый ивент у сервера
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getEventInfo' }));
       }
-      
-      // Перезапускаем ивент через 10 секунд
-      setTimeout(() => {
-        console.log('🔄 Перезапуск ивента...');
-        eventFinishedAlready = false;
-        eventCoins = 0;
-        window.eventEndTime = Date.now() + 60000;
-        localStorage.setItem('orca_event_endTime', window.eventEndTime);
-        startEventTimer();
-      }, 10000);
     } else if (msLeft > 0) {
       eventFinishedAlready = false;
       updateEventUI();
@@ -5911,65 +5895,41 @@ function showEventRewardsModal(data) {
   
   // Заполняем награды игроков с серверных данных
   const playerRewards = document.getElementById('eventPlayerRewards');
-  const rewards = [
-    { place: '🥇 1 место', amount: 50000, emoji: '👑' },
-    { place: '🥈 2 место', amount: 25000, emoji: '🥈' },
-    { place: '🥉 3 место', amount: 10000, emoji: '🥉' }
-  ];
+  const rewardNames = ['🥇 1 место', '🥈 2 место', '🥉 3 место'];
+  const rewardEmojis = ['👑', '🥈', '🥉'];
+  const rewardAmounts = [50000, 25000, 10000];
   
   if (data.topPlayers && data.topPlayers.length > 0) {
-    playerRewards.innerHTML = data.topPlayers.slice(0, 3).map((player, index) => {
-      const reward = rewards[index];
-      return `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #ffd700;">
-          <div>
-            <div style="font-weight: bold; font-size: 16px;">${reward.emoji} ${player.name}</div>
-            <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">${formatNumber(player.coins)} билетов</div>
-            <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">Награда: +${formatNumber(reward.amount)} 🐋</div>
-          </div>
-          <div style="font-size: 24px;">${reward.emoji}</div>
-        </div>
-      `;
-    }).join('');
-  } else {
-    playerRewards.innerHTML = rewards.map(r => `
+    playerRewards.innerHTML = data.topPlayers.map((player, index) => `
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #ffd700;">
         <div>
-          <div style="font-weight: bold; font-size: 16px;">${r.emoji} ${r.place}</div>
-          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">+${formatNumber(r.amount)} 🐋</div>
+          <div style="font-weight: bold; font-size: 16px;">${rewardNames[index] || `Место ${index+1}`} - ${player.name}</div>
+          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">🎫 ${formatNumber(player.coins)} билетов</div>
+          <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">💰 Награда: +${formatNumber(rewardAmounts[index])} 🐋</div>
         </div>
-        <div style="font-size: 24px;">${r.emoji}</div>
+        <div style="font-size: 24px;">${rewardEmojis[index] || '🏅'}</div>
       </div>
     `).join('');
+  } else {
+    playerRewards.innerHTML = '<p style="text-align:center;color:#aaddff;padding:10px;">Нет участников с билетами</p>';
   }
   
   // Заполняем награды кланов с серверных данных
   const clanRewards = document.getElementById('eventClanRewards');
   
   if (data.topClans && data.topClans.length > 0) {
-    clanRewards.innerHTML = data.topClans.map((clan, index) => {
-      const reward = rewards[index];
-      return `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #4fc3f7;">
-          <div>
-            <div style="font-weight: bold; font-size: 16px;">🏰 ${reward.emoji} ${clan.name}</div>
-            <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">${clan.memberCount} участников</div>
-            <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">+${formatNumber(reward.amount)} каждому</div>
-          </div>
-          <div style="font-size: 24px;">${reward.emoji}</div>
-        </div>
-      `;
-    }).join('');
-  } else {
-    clanRewards.innerHTML = rewards.map(r => `
+    clanRewards.innerHTML = data.topClans.map((clan, index) => `
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.15); border-radius: 10px; border-left: 4px solid #4fc3f7;">
         <div>
-          <div style="font-weight: bold; font-size: 16px;">🏰 ${r.place} клану</div>
-          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">+${formatNumber(r.amount)} каждому участнику</div>
+          <div style="font-weight: bold; font-size: 16px;">🏰 ${rewardNames[index] || `Место ${index+1}`} - ${clan.name}</div>
+          <div style="font-size: 14px; color: #aaddff; margin-top: 4px;">👥 ${clan.memberCount || 0} участников</div>
+          <div style="font-size: 14px; color: #90EE90; margin-top: 4px;">💰 +${formatNumber(rewardAmounts[index])} каждому</div>
         </div>
-        <div style="font-size: 24px;">${r.emoji}</div>
+        <div style="font-size: 24px;">${rewardEmojis[index] || '🏅'}</div>
       </div>
     `).join('');
+  } else {
+    clanRewards.innerHTML = '<p style="text-align:center;color:#aaddff;padding:10px;">Нет участников в кланах</p>';
   }
   
   // Показываем модальное окно

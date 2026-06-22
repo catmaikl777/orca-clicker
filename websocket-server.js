@@ -290,17 +290,155 @@ setInterval(() => {
   });
 }, 1000);
 
-// Проверка окончания ивента (каждые 30 секунд)
-setInterval(async () => {
-  if (Date.now() > db.event.endDate) {
-    console.log(`🎉 Ивент закончился! endDate=${new Date(db.event.endDate)}`);
-    await distributeEventRewards();
-  }
-}, 30000);
-
 // Распределение наград ивента
+let isDistributingRewards = false; // Защита от дублей
 async function distributeEventRewards() {
+  // 🔒 Защита от дублирования
+  if (isDistributingRewards) {
+    console.log(`⚠️ distributeEventRewards уже запущен, пропускаю`);
+    return;
+  }
+  isDistributingRewards = true;
+  
   console.log('🏆 Распределение наград ивента...');
+  console.log(`📊 eventCoins:`, db.event.eventCoins);
+  
+  // Топ-3 игроков по eventCoins
+  const playerEventCoins = Object.entries(db.event.eventCoins || {})
+    .map(([id, coins]) => ({ id, coins, name: db.players[id]?.name || 'Unknown' }))
+    .sort((a, b) => b.coins - a.coins)
+    .slice(0, 3);
+  
+  console.log('🎮 Топ игроков:', playerEventCoins);
+  
+  // Топ-3 кланов по сумме totalCoins всех участников
+  const clanTotals = Object.values(db.clans)
+    .map(clan => {
+      const total = (clan.members || [])
+        .filter(id => db.players[id])
+        .reduce((sum, id) => sum + (db.players[id].totalCoins || 0), 0);
+      return { clan, totalCoins: total };
+    })
+    .sort((a, b) => b.totalCoins - a.totalCoins)
+    .slice(0, 3);
+  
+  const rewards = [50000, 25000, 10000]; // Награды за 1, 2, 3 места
+  
+  let totalGiven = 0;
+  
+  // Награды игрокам
+  if (playerEventCoins.length === 0) {
+    console.log('⚠️ Нет игроков с билетами');
+  }
+  
+  playerEventCoins.forEach((player, index) => {
+    if (player.coins > 0 && db.players[player.id]) {
+      const reward = rewards[index];
+      db.players[player.id].coins += reward;
+      db.players[player.id].totalCoins += reward;
+      db.players[player.id].eventRewards = (db.players[player.id].eventRewards || 0) + reward;
+      console.log(`🥇 ${index + 1} место игроку ${player.name}: +${reward} 🐋 (всего: ${db.players[player.id].coins})`);
+      totalGiven += reward;
+    }
+  });
+  
+  // Награды кланам (всем участникам)
+  clanTotals.forEach(({ clan, totalCoins }, index) => {
+    const reward = rewards[index];
+    const memberCount = clan.members.filter(id => db.players[id]).length;
+    console.log(`🏰 ${index + 1} место клану ${clan.name}: сумма totalCoins=${totalCoins}, награда=${reward} каждому (${memberCount} уч.)`);
+    console.log(`  📋 Участники:`);
+    clan.members.forEach(memberId => {
+      if (db.players[memberId]) {
+        db.players[memberId].coins += reward;
+        db.players[memberId].totalCoins += reward;
+        db.players[memberId].eventRewards = (db.players[memberId].eventRewards || 0) + reward;
+        console.log(`    🥇 ${db.players[memberId].name}: +${reward} 🐋`);
+        totalGiven += reward;
+      }
+    });
+  });
+  
+  console.log(`💰 Всего выдано монет: ${totalGiven}`);
+  
+  // 💾 СОХРАНЯЕМ НАГРАЖДЁННЫХ ИГРОКОВ В БД
+  let savedCount = 0;
+  for (const player of Object.values(db.players)) {
+    if (player.eventRewards > 0) {
+      await dbAdapter.savePlayer(player);
+      savedCount++;
+    }
+  }
+  console.log(`💾 Сохранено в БД: ${savedCount} игроков`);
+  
+  // 🔒 СОХРАНЯЕМ ТОП ДЛЯ МОДАЛЬНОГО ОКНА (до сброса eventCoins)
+  const finalTopPlayers = playerEventCoins.map(p => ({
+    id: p.id,
+    name: p.name,
+    coins: p.coins,
+    reward: rewards[playerEventCoins.findIndex(x => x.id === p.id)]
+  }));
+  const finalTopClans = clanTotals.map((c, i) => ({
+    name: c.clan.name,
+    memberCount: c.clan.members.filter(id => db.players[id]).length,
+    reward: rewards[i]
+  }));
+  
+  // 📤 ОТПРАВЛЯЕМ ОБНОВЛЁННЫЕ ДАННЫЕ ИГРОКАМ ПОСЛЕ НАГРАД
+  wss.clients.forEach(client => {
+    const playerId = client.accountId || client.playerId;
+    if (client.readyState === WebSocket.OPEN && playerId && db.players[playerId]) {
+      const p = db.players[playerId];
+      console.log(`📤 playerDataUpdate для ${playerId} (${p.name}): coins=${p.coins}, totalCoins=${p.totalCoins}`);
+      client.send(JSON.stringify({
+        type: 'playerDataUpdate',
+        playerId: playerId,
+        coins: p.coins,
+        totalCoins: p.totalCoins,
+        eventRewards: p.eventRewards || 0
+      }));
+    }
+  });
+  console.log('📤 Отправлены обновлённые данные игрокам');
+  
+  // Сохраняем старые данные для лога
+  const oldSeason = db.event.season;
+  const oldEventCoins = {...db.event.eventCoins};
+  
+  // Сброс ивента и запуск нового
+  db.event.season++;
+  db.event.startDate = Date.now();
+  db.event.endDate = Date.now() + 2 * 60 * 1000; // 2 минуты
+  db.event.active = true;
+  db.event.eventCoins = {};
+  
+  broadcastEventInfo();
+  console.log(`🎉 Сезон #${oldSeason} завершён! Старт сезона #${db.event.season}`);
+  console.log(`📋 Итоги сезона #${oldSeason}:`, oldEventCoins);
+  
+  // Отправляем обновлённые данные о новом ивенте с топ-ами
+  setTimeout(() => {
+    broadcastEventInfo();
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN && client.playerId) {
+        client.send(JSON.stringify({
+          type: 'eventRestarted',
+          season: db.event.season,
+          endDate: db.event.endDate,
+          message: `🎉 Сезон #${db.event.season} начался!`,
+          topPlayers: finalTopPlayers,
+          topClans: finalTopClans
+        }));
+      }
+    });
+  }, 500);
+  
+  // Снимаем флаг
+  isDistributingRewards = false;
+}
+    }
+  }
+
   console.log(`📊 eventCoins:`, db.event.eventCoins);
   
   // Топ-3 игроков по eventCoins
@@ -439,8 +577,15 @@ async function distributeEventRewards() {
     });
   }, 500);
 }
-      
+
 function broadcastEventInfo() {
+  // 🔥 ПРОВЕРКА КОНЦА ИВЕНТА при каждом broadcast
+  if (db.event?.endDate && Date.now() > db.event.endDate && db.event.active) {
+    console.log(`🔥 broadcastEventInfo: ивент истёк, запускаю распределение...`);
+    distributeEventRewards().catch(err => console.error('❌ distributeEventRewards error:', err));
+    return; // Прерываем broadcast, так как будет новый ивент
+  }
+  
   // 🚨 ЗАЩИТА: если endDate старше 1 часа — принудительно сбрасываем
   if (db.event.endDate && Date.now() - db.event.endDate > 60 * 60 * 1000) {
     console.log(`🚨 broadcastEventInfo: endDate старый (${new Date(db.event.endDate)}), сбрасываю...`);
@@ -537,7 +682,7 @@ async function cleanupPlayerAccounts() {
     console.error('❌ Ошибка удаления гостевых аккаунтов:', error.message);
   }
 }
-
+  
 // Запуск проверки на удаление гостевых аккаунтов каждые 10 минут
 setInterval(() => {
   cleanupPlayerAccounts();
@@ -775,6 +920,21 @@ skins: safeParseJSON(row.skins, { normal: true }),
         db.event.eventCoins = {};
         console.log(`   СТАЛО: endDate=${new Date(db.event.endDate)}, season=${db.event.season}`);
         
+        // 🔥 ЗАПУСК ПРОВЕРКИ КОНЦА ИВЕНТА (каждые 10 секунд)
+        setInterval(async () => {
+          if (!db.event?.endDate) return;
+          
+          const timeLeft = db.event.endDate - Date.now();
+          if (timeLeft < 0) {
+            console.log(`🎉 Ивент закончился! endDate=${new Date(db.event.endDate)}, время прошло ${Math.abs(timeLeft)}мс назад`);
+            await distributeEventRewards();
+          } else if (timeLeft < 5000) {
+            console.log(`⏰ До конца ивента: ${timeLeft}мс`);
+          }
+        }, 10000);
+        
+        console.log(`✅ Проверка ивента запущена (каждые 10 сек)`);
+        
         // 🚨 ПРОВЕРКА ИВЕНТА СРАЗУ ПОСЛЕ СБРОСА (если ивент уже истёк - запускаем новый)
         if (Date.now() > db.event.endDate - 1000) {  // -1000ms для защиты от race condition
           console.log(`⚠️ Ивент уже истёк сразу после сброса! Перезапускаем...`);
@@ -793,6 +953,21 @@ skins: safeParseJSON(row.skins, { normal: true }),
     }).catch(err => console.error('DB init error:', err.message));
   } else {
     console.log('ℹ️ File-based database (database.json)');
+    
+    // 🔥 Для file-based БД запускаем проверку ивента сразу
+    setInterval(async () => {
+      if (!db.event?.endDate) return;
+      
+      const timeLeft = db.event.endDate - Date.now();
+      if (timeLeft < 0) {
+        console.log(`🎉 Ивент закончился! endDate=${new Date(db.event.endDate)}, время прошло ${Math.abs(timeLeft)}мс назад`);
+        await distributeEventRewards();
+      } else if (timeLeft < 5000) {
+        console.log(`⏰ До конца ивента: ${timeLeft}мс`);
+      }
+    }, 10000);
+    
+    console.log(`✅ Проверка ивента запущена (каждые 10 сек, file-based)`);
   }
 });
   
