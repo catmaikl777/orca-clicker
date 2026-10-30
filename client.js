@@ -1977,7 +1977,7 @@ case 'joinedClan':
         isOpeningBox = false;
         
         if (data.reward) {
-          showBoxReward(data.reward);
+          showCatdropReward(data.reward);
           if (data.reward.type === 'skin') {
             game.skins[data.reward.skinId] = true;
           } else if (Number.isFinite(data.reward.amount) && data.reward.amount >= 0) {
@@ -3818,6 +3818,54 @@ function tryOpenFishBox() {
   openFishBox(pendingFishBoxes[0]);
 }
 
+function openFishBox(boxId) {
+  if (isOpeningFishBox) {
+    console.log('⚠️ Открытие рыбного бокса отменено: уже открывается');
+    return;
+  }
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.error('❌ Нет подключения к серверу!');
+    showNotification('⚠️ Нет подключения к серверу');
+    return;
+  }
+
+  isOpeningFishBox = true;
+  ws.send(JSON.stringify({ type: 'openFishBox', boxId: boxId }));
+  console.log('📤 Отправлен запрос на открытие рыбного бокса:', boxId);
+}
+
+function updateFishBoxUI() {
+  const fishBoxCountEl = document.getElementById('fishBoxCount');
+  if (fishBoxCountEl) {
+    fishBoxCountEl.textContent = pendingFishBoxes.length;
+  }
+}
+
+function showFishBoxReward(reward) {
+  if (!reward) {
+    console.error('❌ showFishBoxReward вызван без награды!');
+    showNotification('❌ Ошибка получения награды');
+    return;
+  }
+  showCatdropReward(reward);
+}
+
+function removeActiveCutscene(type) {
+  if (type !== 'box') return;
+
+  if (currentBoxOpenTimeout) {
+    clearTimeout(currentBoxOpenTimeout);
+    currentBoxOpenTimeout = null;
+  }
+
+  if (activeBoxCutscene) {
+    activeBoxCutscene.classList.remove('active');
+    activeBoxCutscene.remove();
+    activeBoxCutscene = null;
+  }
+}
+
 function buyItem(item) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     // Отправляем на сервер для сохранения
@@ -5184,6 +5232,11 @@ let pendingBoxes = [];  // Catdrops
 let isOpeningBox = false;
 let activeBoxCutscene = null;
 let currentBoxOpenTimeout = null;
+
+// Рыбные боксы
+let pendingFishBoxes = [];
+let isOpeningFishBox = false;
+let currentFishBoxOpenTimeout = null;
 
 // Переменные для Catdrop анимации
 let catdropAnimation = null;

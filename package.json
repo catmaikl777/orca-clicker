@@ -4,8 +4,8 @@
   "description": "ORCA Clicker API Server",
   "main": "websocket-server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node websocket-server.js",
+    "dev": "nodemon websocket-server.js",
     "admin": "node admin-server.js",
     "start-all": "node start.js",
     "backup": "node scripts/backup-db.js",
