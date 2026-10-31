@@ -3660,11 +3660,24 @@ function showCatdropReward(reward) {
       <p class="catdrop-reward-rarity ${reward.rarity}">${rarityTitles[reward.rarity] || reward.rarity}</p>
       <p class="catdrop-reward-desc">${description}</p>
       ${skin ? `<img class="catdrop-reward-skin" src="${skin.image}" alt="${skin.name}" onerror="this.style.display='none'">` : ''}
-      <button class="catdrop-reward-btn" onclick="closeCatdropReward()" style="pointer-events:auto;">Закрыть</button>
+      <button type="button" class="catdrop-reward-btn" style="pointer-events:auto;">Закрыть</button>
     </div>
   `;
   
   console.log('🎁 rewardModal.innerHTML установлен:', rewardModal.innerHTML.substring(0, 100));
+  
+  // Гарантированная привязка закрытия (не полагаемся только на inline onclick)
+  const closeBtn = rewardModal.querySelector('.catdrop-reward-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeCatdropReward();
+    });
+  }
+  
+  // Окно награды всегда должно быть выше катсцены
+  rewardModal.style.zIndex = '100002';
   
   // СБРОС всех стилей перед показом
   rewardModal.style.display = 'flex';
@@ -3697,19 +3710,31 @@ function showCatdropReward(reward) {
   
 function closeCatdropReward() {
   const rewardModal = document.getElementById('catdropRewardModal');
-  if (rewardModal) {
-    rewardModal.classList.remove('show');
-    setTimeout(() => {
-      rewardModal.innerHTML = '';
-      rewardModal.style.display = 'none';
-      rewardModal.style.pointerEvents = 'none';
-      rewardModal.remove();
-      // Очищаем награду
-      dataRewardFromServer = null;
-      console.log('✅ Catdrop modal полностью удалён из DOM');
-    }, 100);
-  }
+  if (!rewardModal) return;
+
+  rewardModal.classList.remove('show');
+  rewardModal.style.opacity = '0';
+  rewardModal.style.display = 'none';
+  rewardModal.style.pointerEvents = 'none';
+  rewardModal.style.visibility = 'hidden';
+  rewardModal.innerHTML = '';
+  rewardModal.onclick = null;
+  rewardModal.ontouchstart = null;
+
+  // Очищаем награду, но НЕ удаляем элемент из DOM (иначе следующее окно не покажется)
+  dataRewardFromServer = null;
+  console.log('✅ Catdrop modal закрыт');
 }
+
+// Закрытие окна награды по Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    const rewardModal = document.getElementById('catdropRewardModal');
+    if (rewardModal && rewardModal.classList.contains('show')) {
+      closeCatdropReward();
+    }
+  }
+});
 
 
 // Глобальная функция для принудительного закрытия всех modal-ов (для отладки)
@@ -5350,8 +5375,12 @@ function openBox(boxId) {
 // ==================== CATDROP АНИМАЦИЯ ====================
 
 let dataRewardFromServer = null;  // Храним награду от сервера
+let catdropOpened = false;        // Зажатие завершено (награда уже получена)
 
 function showCatdropWaitingScreen() {
+  // Новое открытие - сбрасываем флаг завершения зажатия
+  catdropOpened = false;
+
   // Удаляем старую если есть
   if (activeBoxCutscene) {
     activeBoxCutscene.remove();
@@ -5468,6 +5497,9 @@ function startCatdropHold(e) {
   e.preventDefault();
   e.stopPropagation();
   
+  // Награда уже получена - повторное зажатие игнорируем
+  if (catdropOpened) return;
+  
   // Сбрасываем предыдущее состояние если было
   if (catdropAnimation) {
     cancelAnimationFrame(catdropAnimation);
@@ -5569,6 +5601,7 @@ function catdropAnimationLoop() {
     // Достигли максимального размера - показываем награду
     cancelAnimationFrame(catdropAnimation);
     catdropAnimation = null;
+    catdropOpened = true;
     
     const catdropEl = document.getElementById('catdropElement');
     if (catdropEl) {
@@ -5602,6 +5635,10 @@ function catdropAnimationLoop() {
             }
           }
           
+          // Убираем полноэкранную катсцену и обработчики зажатия,
+          // чтобы оверлей не перекрывал окно награды
+          stopCatdropAnimation();
+
           if (reward) {
             showCatdropReward(reward);
             // Оптимизация: НЕ вызываем renderBoxes(), просто обновляем счётчик
@@ -5633,36 +5670,41 @@ function stopCatdropHold(e) {
     e.stopPropagation();
   }
   
-  // Если анимация ещё не закончена - НЕ сбрасываем, позволяем завершиться
-  // if (catdropAnimation) {
-  //   cancelAnimationFrame(catdropAnimation);
-  //   catdropAnimation = null;
+  // Зажатие уже завершилось - награда получена, ничего не отменяем
+  if (catdropOpened || dataRewardFromServer) return;
+  
+  // Отпустили раньше времени - отменяем анимацию и возвращаем Catdrop в исходное состояние
+  if (catdropAnimation) {
+    cancelAnimationFrame(catdropAnimation);
+    catdropAnimation = null;
+  }
+  
+  catdropMouseDownTime = null;
+  catdropScale = 1;
+  catdropTargetScale = 1.5;
+  
+  const catdropEl = document.getElementById('catdropElement');
+  if (catdropEl) {
+    catdropEl.style.transition = 'transform 0.2s ease-out';
+    catdropEl.style.transform = 'scale(1) rotate(0deg)';
     
-  //   // Возвращаем Catdrop в исходное состояние
-  //   const catdropEl = document.getElementById('catdropElement');
-  //   if (catdropEl) {
-  //     catdropEl.style.transition = 'transform 0.2s ease-out';
-  //     catdropEl.style.transform = 'scale(1) rotate(0deg)';
-  //   }
-    
-  //   // Сбрасываем переменные
-  //   catdropMouseDownTime = null;
-  //   catdropScale = 1;
-  //   catdropTargetScale = 1.5;
-    
-  //   // Если награда ещё не получена - оставляем isOpeningBox = true
-  //   // чтобы пользователь мог попробовать снова
-  //   if (!dataRewardFromServer) {
-  //     const hint = document.querySelector('.catdrop-hint');
-  //     if (hint) hint.textContent = 'Отпусти и зажми снова!';
-  //     setTimeout(() => {
-  //       if (hint) hint.textContent = 'Зажми чтобы открыть!';
-  //     }, 1500);
-  //   } else {
-  //     // Награда уже получена - ждём когда анимация завершится
-  //     console.log('✅ Отпускание после получения награды');
-  //   }
-  // }
+    const progressRing = catdropEl.querySelector('.catdrop-progress-ring');
+    if (progressRing) {
+      const circumference = 2 * Math.PI * 90;
+      progressRing.style.strokeDashoffset = circumference;
+    }
+  }
+  
+  const hint = document.querySelector('.catdrop-hint');
+  if (hint) {
+    hint.style.display = '';
+    hint.textContent = 'Слишком рано! Зажми и держи до конца';
+    setTimeout(() => {
+      if (hint) hint.textContent = 'Зажми чтобы открыть!';
+    }, 1500);
+  }
+  
+  console.log('🖱️ Catdrop отпущен раньше времени - анимация отменена');
 }
 
 function stopCatdropAnimation() {
